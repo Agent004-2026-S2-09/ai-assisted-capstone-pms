@@ -165,10 +165,10 @@ ADMIN_PASSWORD=choose-a-local-test-password
 Do not commit or share `.env`. Ask the project owner for the test endpoint and
 API key through an approved private channel.
 
-Optional processing limits can also be set:
+Uploads are limited to 25 MB per file. Optional document-processing limits can
+also be set:
 
 ```dotenv
-MAX_UPLOAD_SIZE_MB=25
 MAX_DOCUMENT_PAGES=500
 OCR_PAGE_TIMEOUT_SECONDS=30
 ```
@@ -271,6 +271,53 @@ end users.
   Set `ENABLE_ANSWER_VALIDATION=false` only if reduced API usage is preferred
   over the additional verification step.
 - Do not manually edit `knowledge_index/index.json`.
+
+## Retrieval, context budgeting and response streaming
+
+The application does not send every uploaded file to AgentAus. Each student
+request uses a bounded pipeline:
+
+1. AgentAus converts the request and recent conversation into one to four
+   standalone search queries.
+2. Local BM25, fuzzy matching and latent-semantic ranking select relevant
+   indexed chunks. Neighbouring prose chunks are added when useful.
+3. Large result sets are compressed to identifiers, titles and
+   query-relevant excerpts before they enter the prompt.
+4. The assistant creates a draft from the bounded internal context.
+5. A groundedness pass checks the draft and streams the checked answer to the
+   Streamlit chat interface.
+
+The default model context window is treated as 128,000 tokens. Document context
+is limited to an estimated 26,000 tokens, with separate reserves for system
+instructions, conversation history and model output. The estimate deliberately
+uses a conservative three UTF-8 bytes per token because AgentAus does not expose
+its tokenizer. If retrieved items do not fit, the app records the omission and
+instructs the model not to describe the response as complete. Conversation
+history and the planner's filename inventory also have independent budgets.
+
+These values can be configured through `.env` locally or Streamlit secrets in
+Community Cloud:
+
+```dotenv
+MODEL_CONTEXT_WINDOW_TOKENS=128000
+MODEL_OUTPUT_TOKEN_RESERVE=8192
+MODEL_PROMPT_TOKEN_RESERVE=12000
+MAX_PRIVATE_CONTEXT_TOKENS=26000
+MAX_CONVERSATION_HISTORY_TOKENS=6000
+MAX_SOURCE_INVENTORY_TOKENS=2000
+```
+
+Search planning remains non-streaming because it returns a small JSON object.
+For an in-scope answer, the draft is also kept hidden; only the factual-review
+pass is streamed, preventing an unvalidated draft from appearing in the UI. If
+answer validation is disabled, the initial answer is streamed directly. If the
+AgentAus endpoint does not provide a valid event stream, the app falls back to
+the existing complete JSON response before showing any text.
+
+Authenticated administrators can open **Recent AI usage** on the Administration
+page to view token counts returned by AgentAus and the estimated document-context
+budget for the most recent answer. These diagnostics are session-local and do
+not contain prompts, document text, API keys or passwords.
 
 ## Troubleshooting
 

@@ -443,3 +443,111 @@ def test_non_capstone_response_uses_llm_api(monkeypatch):
 
     assert answer == "LLM scope response"
     assert len(api_calls) == 1
+
+
+def test_private_context_reports_items_omitted_by_token_budget():
+    results = [
+        {
+            "text": "Detailed milestone guidance " * 12,
+            "source": f"guide-{number}.pdf",
+            "location": f"Page {number}",
+        }
+        for number in range(1, 6)
+    ]
+
+    context, metadata = app.build_private_context(
+        results,
+        "What are the milestones?",
+        token_budget=150,
+        return_metadata=True,
+    )
+
+    assert context
+    assert metadata["estimated_tokens"] <= 150
+    assert metadata["included_items"] < metadata["total_items"]
+    assert metadata["truncated"] is True
+
+
+def test_conversation_history_is_limited_by_token_budget(monkeypatch):
+    monkeypatch.setattr(app, "MAX_CONVERSATION_HISTORY_TOKENS", 12)
+    history = [
+        {"role": "user", "content": "old " * 30},
+        {"role": "assistant", "content": "recent reply"},
+    ]
+
+    messages = app.build_api_messages("System", "Current question", history, 8)
+
+    assert messages == [
+        {"role": "system", "content": "System"},
+        {"role": "assistant", "content": "recent reply"},
+        {"role": "user", "content": "Current question"},
+    ]
+
+
+def test_agentaus_sse_stream_is_parsed_and_usage_recorded(monkeypatch):
+    class FakeResponse:
+        headers = {"Content-Type": "text/event-stream; charset=utf-8"}
+
+        def raise_for_status(self):
+            return None
+
+        def iter_lines(self, decode_unicode=True):
+            return iter([
+                'data: {"choices":[{"delta":{"content":"Hello "}}]}',
+                'data: {"choices":[{"delta":{"content":"there"}}]}',
+                'data: {"choices":[],"usage":{"input_tokens":12,"output_tokens":2}}',
+                "data: [DONE]",
+            ])
+
+        def close(self):
+            return None
+
+    request_details = {}
+
+    def fake_post(*args, **kwargs):
+        request_details.update(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(app, "AGENTAUS_API_KEY", "test-key")
+    monkeypatch.setattr(app, "API_ENDPOINT", "https://example.invalid/chat")
+    monkeypatch.setattr(app.requests, "post", fake_post)
+    app.st.session_state.api_usage = []
+
+    chunks = list(app.call_agentaus_stream([], stage="test"))
+
+    assert "".join(chunks) == "Hello there"
+    assert request_details["json"]["stream"] is True
+    assert request_details["stream"] is True
+    assert app.st.session_state.api_usage[-1]["total_tokens"] == 14
+
+
+def test_stream_filter_removes_sources_without_hiding_long_answer():
+    visible = "A" * 120
+    chunks = list(app._without_source_section([visible, "\nSources\nprivate.pdf"]))
+
+    assert len(chunks) > 1
+    assert "".join(chunks).rstrip() == visible
+
+
+def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
+    calls = []
+
+    def fake_agentaus(messages):
+        calls.append(messages)
+        return {"choices": [{"message": {"content": "Unvalidated draft"}}]}
+
+    def fake_stream(messages, stage="answer"):
+        assert stage == "answer_validation"
+        assert "strict factual editor" in messages[0]["content"]
+        yield "Checked "
+        yield "answer"
+
+    monkeypatch.setattr(app, "call_agentaus", fake_agentaus)
+    monkeypatch.setattr(app, "call_agentaus_stream", fake_stream)
+    monkeypatch.setenv("ENABLE_ANSWER_VALIDATION", "true")
+
+    answer = "".join(app.generate_response_stream("Question", []))
+
+    assert answer == "Checked answer"
+    assert "Unvalidated draft" not in answer
+    assert len(calls) == 1

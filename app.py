@@ -52,9 +52,26 @@ CURRENT_SPRINT = "Sprint 1"
 
 SUPPORT_EMAIL = "ITS-Capstone@canberra.edu.au"
 
-AGENTAUS_API_KEY = os.getenv("AGENTAUS_API_KEY")
-API_ENDPOINT = os.getenv("API_ENDPOINT")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+def get_config(key: str, default: str = "") -> str:
+    """Return a setting from Streamlit secrets, then the environment."""
+    try:
+        value = st.secrets.get(key)
+    except st.errors.StreamlitSecretNotFoundError:
+        value = None
+
+    if value is None:
+        value = os.getenv(key, default)
+    return str(value).strip()
+
+# Read your variables
+HOST_NAME = get_config("HOST_NAME")
+AGENTAUS_API_KEY = get_config("AGENTAUS_API_KEY")
+ADMIN_PASSWORD = get_config("ADMIN_PASSWORD")
+
+# Construct the standard chat endpoint when only the host is configured.
+API_ENDPOINT = get_config("API_ENDPOINT") or (
+    f"{HOST_NAME.rstrip('/')}/api/v1/chat/completions" if HOST_NAME else ""
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -67,10 +84,29 @@ INDEX_DIR.mkdir(parents=True, exist_ok=True)
 INDEX_FILE = INDEX_DIR / "index.json"
 INDEX_VERSION = 5
 OCR_MIN_TEXT_CHARACTERS = 80
-MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "25"))
+MAX_UPLOAD_SIZE_MB = 25
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 MAX_DOCUMENT_PAGES = int(os.getenv("MAX_DOCUMENT_PAGES", "500"))
 OCR_PAGE_TIMEOUT_SECONDS = int(os.getenv("OCR_PAGE_TIMEOUT_SECONDS", "30"))
+MODEL_CONTEXT_WINDOW_TOKENS = int(get_config("MODEL_CONTEXT_WINDOW_TOKENS", "128000"))
+MODEL_OUTPUT_TOKEN_RESERVE = int(get_config("MODEL_OUTPUT_TOKEN_RESERVE", "8192"))
+MODEL_PROMPT_TOKEN_RESERVE = int(get_config("MODEL_PROMPT_TOKEN_RESERVE", "12000"))
+MAX_CONVERSATION_HISTORY_TOKENS = int(
+    get_config("MAX_CONVERSATION_HISTORY_TOKENS", "6000")
+)
+MAX_SOURCE_INVENTORY_TOKENS = int(get_config("MAX_SOURCE_INVENTORY_TOKENS", "2000"))
+MAX_PRIVATE_CONTEXT_TOKENS = max(
+    0,
+    min(
+        max(0, int(get_config("MAX_PRIVATE_CONTEXT_TOKENS", "26000"))),
+        max(
+            0,
+            MODEL_CONTEXT_WINDOW_TOKENS
+            - MODEL_OUTPUT_TOKEN_RESERVE
+            - MODEL_PROMPT_TOKEN_RESERVE,
+        ),
+    ),
+)
 PROJECT_ID_PATTERN = re.compile(
     r"\b(20\d{2})\s*[-\u2013\u2014]\s*S\s*2\s*[-\u2013\u2014]\s*(\d{1,3})\b",
     re.IGNORECASE,
@@ -319,6 +355,9 @@ if "admin_authenticated" not in st.session_state:
 if "suggested_project_keys" not in st.session_state:
     st.session_state.suggested_project_keys = []
 
+if "api_usage" not in st.session_state:
+    st.session_state.api_usage = []
+
 
 # ============================================================
 # AGENTAUS
@@ -329,12 +368,12 @@ def call_agentaus(messages):
 
     if not AGENTAUS_API_KEY:
         raise RuntimeError(
-            "AGENTAUS_API_KEY is not configured in the .env file."
+            "AGENTAUS_API_KEY is not configured in Streamlit secrets or the environment."
         )
 
     if not API_ENDPOINT:
         raise RuntimeError(
-            "API_ENDPOINT is not configured in the .env file."
+            "Configure API_ENDPOINT, or set HOST_NAME in Streamlit secrets or the environment."
         )
 
     headers = {
@@ -364,6 +403,110 @@ def call_agentaus(messages):
     if not isinstance(result, dict):
         raise RuntimeError("Agentaus returned an unexpected response format.")
     return result
+
+
+def record_api_usage(result, stage):
+    """Retain recent provider token usage for the current Streamlit session."""
+
+    usage = result.get("usage") if isinstance(result, dict) else None
+    if not isinstance(usage, dict):
+        return
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    total_tokens = usage.get("total_tokens")
+    if total_tokens is None and isinstance(input_tokens, int) and isinstance(output_tokens, int):
+        total_tokens = input_tokens + output_tokens
+    entry = {
+        "stage": stage,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "recorded_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    history = st.session_state.setdefault("api_usage", [])
+    history.append(entry)
+    del history[:-50]
+
+
+def _stream_event_text(event):
+    """Extract text from an OpenAI-compatible chat completion chunk."""
+
+    try:
+        choice = event.get("choices", [])[0]
+    except (AttributeError, IndexError, TypeError):
+        return ""
+    content = choice.get("delta", {}).get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict) and item.get("text")
+        )
+    return ""
+
+
+def call_agentaus_stream(messages, stage="answer"):
+    """Yield an AgentAus answer from SSE, with JSON-response compatibility."""
+
+    if not AGENTAUS_API_KEY:
+        raise RuntimeError(
+            "AGENTAUS_API_KEY is not configured in Streamlit secrets or the environment."
+        )
+    if not API_ENDPOINT:
+        raise RuntimeError(
+            "Configure API_ENDPOINT, or set HOST_NAME in Streamlit secrets or the environment."
+        )
+
+    response = requests.post(
+        API_ENDPOINT,
+        headers={
+            "Authorization": f"Bearer {AGENTAUS_API_KEY}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        },
+        json={
+            "messages": messages,
+            "stream": True,
+            "system_prompt_overwrite": True,
+        },
+        stream=True,
+        timeout=(10, 90),
+    )
+    response.raise_for_status()
+    yielded_text = False
+    try:
+        if "text/event-stream" not in response.headers.get("Content-Type", "").lower():
+            result = response.json()
+            record_api_usage(result, stage)
+            text = extract_agentaus_text(result)
+            if not text:
+                raise RuntimeError("Agentaus returned an empty response.")
+            yield text
+            return
+
+        for raw_line in response.iter_lines(decode_unicode=True):
+            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+            line = str(line or "").strip()
+            if not line or line.startswith(":") or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                event = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            record_api_usage(event, stage)
+            text = _stream_event_text(event)
+            if text:
+                yielded_text = True
+                yield text
+        if not yielded_text:
+            raise RuntimeError("Agentaus returned an empty stream.")
+    finally:
+        response.close()
 
 
 def extract_agentaus_text(result):
@@ -1864,7 +2007,7 @@ def build_conversation_context(
 
 
 def build_api_messages(system_prompt, question, history, max_history):
-    """Build API messages with the current user question exactly once."""
+    """Build API messages with bounded history and the current question once."""
 
     prior_messages = list(history or [])
     if (
@@ -1874,12 +2017,20 @@ def build_api_messages(system_prompt, question, history, max_history):
     ):
         prior_messages = prior_messages[:-1]
 
-    messages = [{"role": "system", "content": system_prompt}]
-    for message in prior_messages[-max_history:]:
+    selected_history = []
+    history_tokens = 0
+    for message in reversed(prior_messages[-max_history:]):
         role = message.get("role")
         content = message.get("content", "")
         if role in {"user", "assistant"} and content:
-            messages.append({"role": role, "content": content})
+            message_tokens = estimate_token_count(content)
+            if history_tokens + message_tokens > MAX_CONVERSATION_HISTORY_TOKENS:
+                break
+            selected_history.append({"role": role, "content": content})
+            history_tokens += message_tokens
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(reversed(selected_history))
 
     messages.append({"role": "user", "content": question})
     return messages
@@ -1923,7 +2074,17 @@ def plan_information_search(question, documents, history=None):
         for document in documents
         if document.get("source")
     })
-    source_inventory = "\n".join(f"- {name}" for name in source_names)
+    inventory_lines = []
+    inventory_tokens = 0
+    for name in source_names:
+        line = f"- {name}"
+        line_tokens = estimate_token_count(line)
+        if inventory_tokens + line_tokens > MAX_SOURCE_INVENTORY_TOKENS:
+            inventory_lines.append("- Additional approved documents omitted from this filename list")
+            break
+        inventory_lines.append(line)
+        inventory_tokens += line_tokens
+    source_inventory = "\n".join(inventory_lines)
     system_prompt = f"""
 You are the search planner for UC Canberra's Capstone Assistant. Interpret the
 student's request naturally and decide how the approved information collection
@@ -1964,6 +2125,7 @@ AVAILABLE APPROVED DOCUMENTS
         max_history=10,
     )
     result = call_agentaus(messages)
+    record_api_usage(result, "search_planner")
     return _parse_search_plan(extract_agentaus_text(result))
 
 
@@ -2012,34 +2174,72 @@ def _relevant_excerpt(text, question, limit=700):
     return excerpt[:limit].rsplit(" ", 1)[0] if len(excerpt) > limit else excerpt
 
 
-def build_private_context(results, question=""):
+def estimate_token_count(text):
+    """Conservatively estimate tokens when the provider tokenizer is unknown."""
+
+    if not text:
+        return 0
+    return max(1, math.ceil(len(str(text).encode("utf-8")) / 3))
+
+
+def _compact_result_text(result, question):
+    """Keep identifiers and query-relevant lines when a result set is large."""
+
+    text = str(result.get("text", ""))
+    if result.get("record_type") == "project":
+        details = [
+            f"Project ID: {result.get('project_id', '')}",
+            f"Project title: {result.get('title', '')}",
+        ]
+        if result.get("sponsor"):
+            details.append(f"Sponsor: {result['sponsor']}")
+        excerpt = _relevant_excerpt(text, question)
+        if excerpt:
+            details.append(f"Relevant details:\n{excerpt}")
+        return "\n".join(details)
+
+    excerpt = _relevant_excerpt(text, question, limit=900)
+    if excerpt:
+        return excerpt
+    if len(text) <= 900:
+        return text
+    return text[:900].rsplit(" ", 1)[0]
+
+
+def build_private_context(
+    results,
+    question="",
+    token_budget=MAX_PRIVATE_CONTEXT_TOKENS,
+    return_metadata=False,
+):
+    """Build bounded model context and optionally return budget metadata."""
 
     if not results:
-        return ""
+        metadata = {
+            "total_items": 0,
+            "included_items": 0,
+            "omitted_items": 0,
+            "estimated_tokens": 0,
+            "token_budget": token_budget,
+            "truncated": False,
+        }
+        return ("", metadata) if return_metadata else ""
 
     context_parts = []
 
     compact = len(results) > 12 or any(result.get("exhaustive") for result in results)
-    character_budget = 80000
-    used_characters = 0
+    used_tokens = 0
+    omitted_items = 0
 
     for number, result in enumerate(
         results,
         start=1,
     ):
-        if compact and result.get("record_type") == "project":
-            details = [
-                f"Project ID: {result.get('project_id', '')}",
-                f"Project title: {result.get('title', '')}",
-            ]
-            if result.get("sponsor"):
-                details.append(f"Sponsor: {result['sponsor']}")
-            excerpt = _relevant_excerpt(result.get("text", ""), question)
-            if excerpt:
-                details.append(f"Relevant details:\n{excerpt}")
-            item_text = "\n".join(details)
-        else:
-            item_text = result.get("text", "")
+        item_text = (
+            _compact_result_text(result, question)
+            if compact
+            else str(result.get("text", ""))
+        )
 
         context_item = (
             f"INFORMATION ITEM {number}\n\n"
@@ -2047,12 +2247,35 @@ def build_private_context(results, question=""):
             f"Location: {result.get('location', '')}\n\n"
             f"{item_text}"
         )
-        if used_characters + len(context_item) > character_budget:
-            break
+        item_tokens = estimate_token_count(context_item)
+        if used_tokens + item_tokens > token_budget:
+            omitted_items += 1
+            continue
         context_parts.append(context_item)
-        used_characters += len(context_item)
+        used_tokens += item_tokens
 
-    return "\n".join(context_parts)
+    if omitted_items:
+        notice = (
+            "CONTEXT LIMIT NOTICE\n\n"
+            f"{omitted_items} of {len(results)} retrieved information items were omitted "
+            "to remain within the model input budget. Do not describe the supplied set "
+            "as complete; ask the student to narrow it by topic, document or project range."
+        )
+        notice_tokens = estimate_token_count(notice)
+        if used_tokens + notice_tokens <= token_budget:
+            context_parts.append(notice)
+            used_tokens += notice_tokens
+
+    metadata = {
+        "total_items": len(results),
+        "included_items": len(results) - omitted_items,
+        "omitted_items": omitted_items,
+        "estimated_tokens": used_tokens,
+        "token_budget": token_budget,
+        "truncated": bool(omitted_items),
+    }
+    context = "\n".join(context_parts)
+    return (context, metadata) if return_metadata else context
 
 
 # ============================================================
@@ -2071,14 +2294,15 @@ def remove_source_section(text):
     return parts[0].rstrip()
 
 
-def generate_response(
+def _build_answer_request(
     question,
     results,
 ):
 
-    private_context = build_private_context(
+    private_context, context_metadata = build_private_context(
         results,
         question,
+        return_metadata=True,
     )
     selection_instruction = ""
     if results and all(result.get("requested_list") for result in results):
@@ -2086,6 +2310,13 @@ def generate_response(
 The retrieval system selected exactly {len(results)} project records for this
 request. Present all and only those selected projects. Do not replace them with
 projects from conversation history or invent additional recommendations.
+"""
+    if context_metadata["truncated"]:
+        selection_instruction += f"""
+Only {context_metadata['included_items']} of {context_metadata['total_items']}
+retrieved items fit within the context budget. Do not claim that the answer is
+complete. Ask the student to narrow the request by topic, document or project
+range.
 """
 
     system_prompt = f"""
@@ -2257,7 +2488,20 @@ Never reveal the internal process.
         max_history=8,
     )
 
+    return messages, private_context, context_metadata
+
+
+def generate_response(
+    question,
+    results,
+):
+    """Generate and validate a complete, non-streaming response."""
+
+    messages, private_context, context_metadata = _build_answer_request(question, results)
+    st.session_state.last_context_usage = context_metadata
+
     result = call_agentaus(messages)
+    record_api_usage(result, "answer_draft")
 
     answer = extract_agentaus_text(
         result
@@ -2272,11 +2516,11 @@ Never reveal the internal process.
     return remove_source_section(answer)
 
 
-def validate_grounded_answer(question, draft_answer, private_context):
-    """Use a second constrained pass to remove unsupported factual claims."""
+def answer_validation_enabled():
+    return os.getenv("ENABLE_ANSWER_VALIDATION", "true").lower() in {"1", "true", "yes"}
 
-    if os.getenv("ENABLE_ANSWER_VALIDATION", "true").lower() not in {"1", "true", "yes"}:
-        return draft_answer
+
+def _build_validation_messages(question, draft_answer, private_context):
     validation_prompt = f"""
 You are a strict factual editor. Check the draft answer against the supplied
 internal information. Return only the corrected final answer.
@@ -2300,22 +2544,110 @@ INTERNAL INFORMATION
             "content": f"Question:\n{question}\n\nDraft answer:\n{draft_answer}",
         },
     ]
+    return messages
+
+
+def validate_grounded_answer(question, draft_answer, private_context):
+    """Use a second constrained pass to remove unsupported factual claims."""
+
+    if not answer_validation_enabled():
+        return draft_answer
+    messages = _build_validation_messages(question, draft_answer, private_context)
     try:
-        checked = extract_agentaus_text(call_agentaus(messages))
+        result = call_agentaus(messages)
+        record_api_usage(result, "answer_validation")
+        checked = extract_agentaus_text(result)
         return checked or draft_answer
     except Exception:
         # A validation outage must not discard an otherwise grounded answer.
         return draft_answer
 
 
+def _without_source_section(chunks):
+    """Stream complete lines while suppressing any model-added sources block."""
+
+    pending = ""
+    source_heading = re.compile(
+        r"^\s*(?:#{1,6}\s*)?\*{0,2}(?:sources|references)\*{0,2}\s*:?\s*$",
+        re.IGNORECASE,
+    )
+    for chunk in chunks:
+        pending += str(chunk)
+        while "\n" in pending:
+            line, pending = pending.split("\n", 1)
+            if source_heading.match(line):
+                return
+            yield line + "\n"
+        # Keep only a short tail so headings can still be detected while long
+        # paragraphs appear progressively instead of waiting for a newline.
+        if len(pending) > 96:
+            yield pending[:-48]
+            pending = pending[-48:]
+    if pending and not source_heading.match(pending):
+        yield pending
+
+
+def generate_response_stream(question, results, status=None):
+    """Yield the final response, streaming the grounded validation pass."""
+
+    messages, private_context, context_metadata = _build_answer_request(question, results)
+    st.session_state.last_context_usage = context_metadata
+    if not answer_validation_enabled():
+        if status is not None:
+            status.update(label=":shimmer[Writing your answer]")
+        emitted = False
+        try:
+            for chunk in _without_source_section(
+                call_agentaus_stream(messages, stage="answer")
+            ):
+                emitted = True
+                yield chunk
+        except Exception:
+            if emitted:
+                raise
+            result = call_agentaus(messages)
+            record_api_usage(result, "answer")
+            answer = extract_agentaus_text(result)
+            if not answer:
+                raise RuntimeError("Agentaus returned an empty response.")
+            yield remove_source_section(answer)
+        return
+
+    if status is not None:
+        status.update(label=":shimmer[Preparing a grounded draft]")
+    draft_result = call_agentaus(messages)
+    record_api_usage(draft_result, "answer_draft")
+    draft_answer = extract_agentaus_text(draft_result)
+    if not draft_answer:
+        raise RuntimeError("Agentaus returned an empty response.")
+
+    validation_messages = _build_validation_messages(
+        question,
+        draft_answer,
+        private_context,
+    )
+    if status is not None:
+        status.update(label=":shimmer[Checking and writing your answer]")
+    emitted = False
+    try:
+        for chunk in _without_source_section(
+            call_agentaus_stream(validation_messages, stage="answer_validation")
+        ):
+            emitted = True
+            yield chunk
+    except Exception:
+        if emitted:
+            raise
+        # Preserve the existing reliable path when the endpoint rejects SSE.
+        checked = validate_grounded_answer(question, draft_answer, private_context)
+        yield remove_source_section(checked)
+
+
 # ============================================================
 # NON-CAPSTONE RESPONSE
 # ============================================================
 
-def generate_non_capstone_response(
-    question,
-):
-
+def _build_non_capstone_messages(question):
     system_prompt = """
 You are Capstone Assistant.
 
@@ -2352,8 +2684,14 @@ Use a natural human customer-service tone.
         st.session_state.get("messages", []),
         max_history=6,
     )
+    return messages
+
+
+def generate_non_capstone_response(question):
+    messages = _build_non_capstone_messages(question)
 
     result = call_agentaus(messages)
+    record_api_usage(result, "out_of_scope_answer")
 
     answer = extract_agentaus_text(
         result
@@ -2365,6 +2703,21 @@ Use a natural human customer-service tone.
         )
 
     return answer
+
+
+def stream_non_capstone_response(question):
+    """Stream an out-of-scope response, falling back before any text is shown."""
+
+    messages = _build_non_capstone_messages(question)
+    emitted = False
+    try:
+        for chunk in call_agentaus_stream(messages, stage="out_of_scope_answer"):
+            emitted = True
+            yield chunk
+    except Exception:
+        if emitted:
+            raise
+        yield generate_non_capstone_response(question)
 
 
 # ============================================================
@@ -2537,6 +2890,27 @@ def admin_page():
         width="stretch",
     )
 
+    with st.expander("Recent AI usage"):
+        usage_history = st.session_state.get("api_usage", [])
+        if usage_history:
+            st.dataframe(
+                list(reversed(usage_history)),
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.caption("No token-usage data has been returned in this session.")
+
+        context_usage = st.session_state.get("last_context_usage")
+        if context_usage:
+            st.caption(
+                "Last document context: "
+                f"approximately {context_usage['estimated_tokens']:,} of "
+                f"{context_usage['token_budget']:,} tokens; "
+                f"{context_usage['included_items']} of "
+                f"{context_usage['total_items']} retrieved items included."
+            )
+
     st.divider()
 
     # --------------------------------------------------------
@@ -2567,6 +2941,7 @@ def admin_page():
             "csv",
         ],
         accept_multiple_files=True,
+        max_upload_size=MAX_UPLOAD_SIZE_MB,
     )
 
     if st.button(
@@ -2814,7 +3189,8 @@ def chat_page():
     # --------------------------------------------------------
 
     question = st.chat_input(
-        "Ask about UC Canberra Capstone..."
+        "Ask about UC Canberra Capstone...",
+        submit_mode="disable",
     )
 
     if not question:
@@ -2872,22 +3248,22 @@ def chat_page():
             "assistant",
             avatar="🎓",
         ):
-
-            with st.spinner(
-                "Thinking..."
-            ):
-
-                try:
-                    answer = generate_non_capstone_response(question)
-                except Exception:
-                    st.error(
-                        "The AI assistant service is currently unavailable. "
-                        "Please try again shortly."
-                    )
-
-                if answer:
-                    st.markdown(answer)
-
+            answer_status = st.status(
+                ":shimmer[Preparing your answer]",
+                type="compact",
+            )
+            try:
+                answer = st.write_stream(
+                    stream_non_capstone_response(question),
+                    cursor=":material/edit:",
+                )
+                answer_status.update(label="Answer ready", state="complete")
+            except Exception:
+                answer_status.update(label="Unable to complete answer", state="error")
+                st.error(
+                    "The AI assistant service is currently unavailable. "
+                    "Please try again shortly."
+                )
     # --------------------------------------------------------
     # Search approved information
     # --------------------------------------------------------
@@ -2898,11 +3274,11 @@ def chat_page():
             "assistant",
             avatar="🎓",
         ):
-
-            with st.spinner(
-                "Reviewing Capstone guidance..."
-            ):
-
+            answer_status = st.status(
+                ":shimmer[Reviewing Capstone guidance]",
+                type="compact",
+            )
+            try:
                 results = execute_search_plan(
                     search_plan,
                     documents,
@@ -2910,26 +3286,21 @@ def chat_page():
                         "suggested_project_keys", []
                     ),
                 )
-
-            with st.spinner(
-                "Preparing your answer..."
-            ):
-                try:
-                    # The LLM is always called, including when retrieval finds
-                    # no supporting material. Its system prompt handles that
-                    # case without a hardcoded assistant response.
-                    answer = generate_response(
-                        question,
-                        results,
-                    )
-                except Exception:
-                    st.error(
-                        "The AI assistant service is currently unavailable. "
-                        "Please try again shortly."
-                    )
+                # The LLM is always called, including when retrieval finds no
+                # supporting material. The final grounded pass is streamed.
+                answer = st.write_stream(
+                    generate_response_stream(question, results, status=answer_status),
+                    cursor=":material/edit:",
+                )
+                answer_status.update(label="Answer ready", state="complete")
+            except Exception:
+                answer_status.update(label="Unable to complete answer", state="error")
+                st.error(
+                    "The AI assistant service is currently unavailable. "
+                    "Please try again shortly."
+                )
 
             if answer:
-                st.markdown(answer)
                 selected_keys = [
                     project_record_key(result)
                     for result in results
