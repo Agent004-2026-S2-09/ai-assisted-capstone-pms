@@ -1,4 +1,4 @@
-# Local configuration and secrets
+# Local configuration and secretsgit 
 .env
 .env.*
 !.env.example
