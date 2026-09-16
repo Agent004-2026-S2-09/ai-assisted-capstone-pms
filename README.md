@@ -1,7 +1,7 @@
-# Capstone Assistant — Version 1, Sprint 1
+# Capstone Assistant — Version 2, Sprint 2
 
-**Release status:** Sprint 1 complete  
-**Current release:** Version 1 / Sprint 1  
+**Release status:** Sprint 2 complete  
+**Current release:** Version 2 / Sprint 2  
 **Delivery plan:** Seven iterative sprints
 
 Capstone Assistant is a Streamlit application that answers questions using the
@@ -9,9 +9,9 @@ approved UC Canberra Capstone documents in `knowledge_base/`. It reads PDF,
 Word, Excel, CSV, PowerPoint, Markdown and text files. Scanned PDF pages are processed
 locally with Tesseract OCR.
 
-Version 1 provides the completed Sprint 1 General Capstone Assistant. Later
-sprints will add features and record fixes incrementally. See
-[CHANGELOG.md](CHANGELOG.md) for the release history.
+Version 2 adds the completed Sprint 2 project workspace while preserving the
+Sprint 1 General Capstone Assistant. Later sprints will add features and record
+fixes incrementally. See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Sprint 1 scope
 
@@ -23,15 +23,35 @@ sprints will add features and record fixes incrementally. See
 - Test, review and document Sprint 1.
 - General Capstone Assistant complete.
 
+## Sprint 2 scope
+
+**Sprint 2 – Project Workspace**
+
+- Add project creation, editing, deletion and selection.
+- Store project profiles, team members, milestones and meeting notes.
+- Support project-specific document uploads and isolated project indexes.
+- Restrict students and mentors to their assigned project teams in the
+  prototype role selector.
+- Let the assistant answer with selected-project context without exposing
+  internal source filenames or page references.
+- Capture local question trends so mentors and administrators can identify
+  common areas of interest.
+- Protect local project records and uploads from accidental Git commits.
+
 ## Development roadmap
 
-The project will be developed over seven sprints. Version 1 / Sprint 1 is the
+The project will be developed over seven sprints. Version 2 / Sprint 2 is the
 current completed baseline. Each subsequent sprint will add features, address
 identified defects and receive a new entry in `CHANGELOG.md`.
 
 ## Current interface
 
 - The dark-blue sidebar provides Assistant and Administration navigation.
+- The sidebar can switch between General Capstone mode and a selected project.
+- Project Workspace manages project overview, team members, milestones,
+  meetings and project-specific documents.
+- The assistant can answer with selected-project context while keeping project
+  documents isolated from other projects.
 - The three guidance cards remain visible above the conversation at all times.
 - Assistant responses appear below the guidance cards.
 - Source filenames, document locations and page references remain internal and
@@ -171,6 +191,7 @@ also be set:
 ```dotenv
 MAX_DOCUMENT_PAGES=500
 OCR_PAGE_TIMEOUT_SECONDS=30
+MAX_PROJECT_PROFILE_CHARS=8000
 ```
 
 ## 7. Verify the setup
@@ -215,6 +236,10 @@ Always start Streamlit from the project root so it loads
 `.streamlit/config.toml`. This file controls the dark-blue sidebar. If a theme
 change does not appear, stop Streamlit completely, start it again from this
 folder, and hard-refresh the browser.
+
+Runtime project records are stored in `project_data/`, and project-specific
+uploads are stored in `project_knowledge/<project-id>/`. These folders are
+ignored by Git because they may contain local or confidential project material.
 
 ## 9. Suggested test procedure
 
@@ -275,7 +300,7 @@ end users.
 ## Retrieval, context budgeting and response streaming
 
 The application does not send every uploaded file to AgentAus. Each student
-request uses a bounded pipeline:
+request uses a bounded retrieval and compression pipeline:
 
 1. AgentAus converts the request and recent conversation into one to four
    standalone search queries.
@@ -294,6 +319,11 @@ uses a conservative three UTF-8 bytes per token because AgentAus does not expose
 its tokenizer. If retrieved items do not fit, the app records the omission and
 instructs the model not to describe the response as complete. Conversation
 history and the planner's filename inventory also have independent budgets.
+
+PowerPoint slide text, tables, speaker notes and author-provided image or
+diagram alt text are indexed. Image-heavy PDFs are processed through local OCR
+when Tesseract is available. Diagrams without readable text or alt text should
+be accompanied by a short written description before upload.
 
 These values can be configured through `.env` locally or Streamlit secrets in
 Community Cloud:
@@ -338,6 +368,24 @@ installation directory to `Path`, then restart the terminal.
 
 Confirm that `.env` is next to `app.py`, contains the required values, and is
 named exactly `.env` rather than `.env.txt`.
+
+### Streamlit Cloud reports an API fetch failure
+
+In Streamlit Community Cloud, open **App settings → Secrets** and set the
+production values as TOML:
+
+```toml
+AGENTAUS_API_KEY = "your-api-key"
+API_ENDPOINT = "https://your-public-agentaus-host/api/v1/chat/completions"
+ADMIN_PASSWORD = "your-admin-password"
+```
+
+`API_ENDPOINT` takes precedence over `HOST_NAME`, so remove a stale endpoint or
+replace it with the correct public HTTPS endpoint. The hostname must resolve
+from the public internet; an internal, VPN-only, local, or misspelled hostname
+cannot be reached by Streamlit Cloud. Save the secrets, reboot the app, and
+check its logs for the reported HTTP status if the provider still rejects the
+request.
 
 ### The browser cannot connect
 

@@ -27,3 +27,7 @@ Thumbs.db
 *.log
 *.tmp
 *.swp
+
+# Runtime project records and project-specific uploads
+project_data/
+project_knowledge/

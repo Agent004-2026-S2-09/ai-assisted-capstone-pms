@@ -3,9 +3,59 @@
 This file records notable features, fixes and documentation changes across the
 project's seven-sprint delivery plan.
 
-## Unreleased
+## Version 2 — Sprint 2 — 2026-09-14
 
-Changes for Sprint 2 will be recorded here as development begins.
+**Sprint:** Project Workspace  
+**Status:** Complete
+
+### Sprint commitments
+
+- Add project creation, editing, deletion and selection.
+- Store project profiles, team members, milestones and meeting notes.
+- Support project-specific document uploads and isolated project indexes.
+- Restrict students and mentors to their assigned project teams.
+- Let the assistant answer with selected-project context while preserving the
+  Sprint 1 general assistant path.
+- Capture question trends for mentor and administrator review.
+- Test, review and document Sprint 2.
+
+### Added
+
+- Project workspace mode with project overview, team, milestone, meeting and
+  document-management views.
+- Prototype role selector with Student, Mentor, Convenor and Administrator
+  project-access filtering.
+- Local project records stored in `project_data/projects.json`.
+- Local question trend logging stored under `project_data/` for mentor and
+  administrator review.
+- Project-specific uploads stored under `project_knowledge/<project-id>/`.
+- Separate project knowledge indexes with stale-index detection and rebuilds.
+- Project profile context for selected-project assistant conversations.
+- Project-scoped retrieval so one project's documents are not returned for
+  another selected project.
+- PowerPoint image and diagram alt text extraction for searchable slide context.
+- Streamlit Cloud troubleshooting guidance for unreachable AgentAus endpoints.
+
+### Fixed
+
+- AgentAus connection, timeout and HTTP failures now return safer actionable
+  messages instead of leaking raw provider errors.
+- Project document upload failures roll back files and index state.
+- Project updates reject stale concurrent edits through revision checks.
+
+### Security and reliability
+
+- Added project identifier validation to prevent path traversal.
+- Added assignment-based project access checks for student and mentor project
+  selection.
+- Added process and file locking around project record writes.
+- Added `.gitignore` protection for local project data and project uploads.
+- Project deletion removes associated project data and project knowledge
+  folders transactionally.
+
+### Verification
+
+- All automated tests pass at the Sprint 2 release point.
 
 ## Version 1 — Sprint 1 — 2026-09-07
 

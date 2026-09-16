@@ -521,6 +521,24 @@ def test_agentaus_sse_stream_is_parsed_and_usage_recorded(monkeypatch):
     assert app.st.session_state.api_usage[-1]["total_tokens"] == 14
 
 
+def test_api_service_error_message_explains_unreachable_endpoint():
+    error = app.requests.exceptions.ConnectionError("DNS lookup failed")
+
+    message = app.api_service_error_message(error)
+
+    assert "could not be reached" in message
+    assert "public HTTPS URL" in message
+
+
+def test_api_service_error_message_includes_provider_http_status():
+    response = SimpleNamespace(status_code=401)
+    error = app.requests.exceptions.HTTPError(response=response)
+
+    assert app.api_service_error_message(error) == (
+        "The AI service rejected the request (HTTP 401)."
+    )
+
+
 def test_stream_filter_removes_sources_without_hiding_long_answer():
     visible = "A" * 120
     chunks = list(app._without_source_section([visible, "\nSources\nprivate.pdf"]))
@@ -551,3 +569,189 @@ def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
     assert answer == "Checked answer"
     assert "Unvalidated draft" not in answer
     assert len(calls) == 1
+
+
+class UploadedFile:
+    def __init__(self, name, content=b"content"):
+        self.name = name
+        self.size = len(content)
+        self._content = content
+
+    def getbuffer(self):
+        return self._content
+
+
+@pytest.fixture
+def isolated_project_storage(tmp_path, monkeypatch):
+    project_data = tmp_path / "project_data"
+    project_knowledge = tmp_path / "project_knowledge"
+    project_data.mkdir()
+    project_knowledge.mkdir()
+
+    monkeypatch.setattr(app, "PROJECT_DATA_DIR", project_data)
+    monkeypatch.setattr(app, "PROJECT_KNOWLEDGE_DIR", project_knowledge)
+    monkeypatch.setattr(app, "PROJECTS_FILE", project_data / "projects.json")
+    return project_data, project_knowledge
+
+
+def test_project_id_rejects_path_traversal():
+    for value in ("../secret", "project/other", "Project Name", ""):
+        with pytest.raises(ValueError):
+            app.validate_project_id(value)
+
+
+def test_project_lifecycle_uses_revisions_and_removes_folders(isolated_project_storage):
+    project_data, project_knowledge = isolated_project_storage
+
+    created = app.create_project("AI Assisted Capstone")
+    first = app.get_project(created.id)
+    second = app.get_project(created.id)
+
+    first.description = "First update"
+    app.update_project(first)
+
+    second.description = "Stale update"
+    with pytest.raises(ValueError, match="another session"):
+        app.update_project(second)
+
+    app.delete_project(created.id)
+
+    assert app.get_project(created.id) is None
+    assert not (project_data / created.id).exists()
+    assert not (project_knowledge / created.id).exists()
+
+
+def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_project_storage):
+    alpha = app.create_project("Alpha Project", mentor="Dr Mentor")
+    beta = app.create_project("Beta Project", mentor="Other Mentor")
+    alpha.team = [
+        {"id": "1", "name": "Prachi Sherkar", "role": "Student"},
+        {"id": "2", "name": "Dr Helper", "role": "Mentor"},
+    ]
+    app.update_project(alpha)
+
+    assert app.can_access_project(alpha, "Student", "Prachi Sherkar")
+    assert not app.can_access_project(beta, "Student", "Prachi Sherkar")
+    assert app.can_access_project(alpha, "Mentor", "Dr Mentor")
+    assert app.can_access_project(alpha, "Mentor", "Dr Helper")
+    assert not app.can_access_project(beta, "Mentor", "Dr Mentor")
+    assert {project.id for project in app.get_accessible_projects("Student", "Prachi Sherkar")} == {
+        alpha.id
+    }
+
+
+def test_project_retrieval_stays_inside_selected_project(isolated_project_storage):
+    alpha = app.create_project("Alpha Project")
+    beta = app.create_project("Beta Project")
+
+    alpha_docs = [
+        {
+            "text": "Alpha requires a mobile application.",
+            "source": "alpha.txt",
+            "location": "Document",
+            "scope": "project",
+            "project_id": alpha.id,
+        }
+    ]
+    beta_docs = [
+        {
+            "text": "Beta requires a satellite dashboard.",
+            "source": "beta.txt",
+            "location": "Document",
+            "scope": "project",
+            "project_id": beta.id,
+        }
+    ]
+
+    results = app.retrieve_project_information(
+        "What does the mobile application require?",
+        alpha_docs + beta_docs,
+        alpha.id,
+    )
+
+    assert results
+    assert all(result["project_id"] == alpha.id for result in results)
+    assert "satellite dashboard" not in "\n".join(result["text"] for result in results)
+
+
+def test_project_upload_rolls_back_files_and_index_when_rebuild_fails(
+    isolated_project_storage,
+    monkeypatch,
+):
+    project = app.create_project("Rollback Project")
+    project_dir = app.get_project_knowledge_dir(project.id)
+    original = project_dir / "guide.txt"
+    original.write_text("Original approved project guidance", encoding="utf-8")
+    app.rebuild_project_index(project.id)
+    original_index = app.get_project_index_file(project.id).read_bytes()
+
+    def fail_rebuild(project_id):
+        raise OSError("simulated project index failure")
+
+    monkeypatch.setattr(app, "rebuild_project_index", fail_rebuild)
+
+    with pytest.raises(OSError, match="simulated project index failure"):
+        app.install_project_uploaded_files(
+            project.id,
+            [("guide.txt", b"Readable replacement guidance")],
+        )
+
+    assert original.read_text(encoding="utf-8") == "Original approved project guidance"
+    assert app.get_project_index_file(project.id).read_bytes() == original_index
+
+
+def test_project_document_upload_and_stale_index_reload(isolated_project_storage):
+    project = app.create_project("Document Project")
+
+    count = app.save_project_documents(
+        project.id,
+        [UploadedFile("requirements.txt", b"The sponsor requires offline mode.")],
+    )
+    documents = app.load_project_index(project.id)
+
+    assert count == 1
+    assert documents
+    assert all(document["scope"] == "project" for document in documents)
+    assert all(document["project_id"] == project.id for document in documents)
+
+    project_file = app.get_project_knowledge_dir(project.id) / "requirements.txt"
+    project_file.write_text("The sponsor requires audit logging.", encoding="utf-8")
+
+    reloaded = app.load_project_index(project.id)
+
+    assert any("audit logging" in document["text"] for document in reloaded)
+
+
+def test_question_analytics_are_recorded_and_summarised(isolated_project_storage):
+    app.record_question_analytics(
+        "How do we handle stakeholder feedback for our prototype?",
+        project_id="alpha-project",
+        user_role="Student",
+    )
+
+    records = app.load_question_analytics()
+    summary = app.summarise_question_analytics(records)
+
+    assert records[0]["project_id"] == "alpha-project"
+    assert records[0]["role"] == "Student"
+    assert "stakeholder" in records[0]["keywords"]
+    assert summary["total"] == 1
+    assert summary["by_project"] == [("alpha-project", 1)]
+
+
+def test_pptx_extracts_shape_alt_text(tmp_path):
+    path = tmp_path / "slides.pptx"
+    presentation = app.Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    shape = slide.shapes.add_textbox(0, 0, 100, 100)
+    shape.text = "Architecture overview"
+    shape.element.xpath(".//p:cNvPr")[0].set(
+        "descr",
+        "Diagram showing the retrieval and compression process.",
+    )
+    presentation.save(path)
+
+    chunks = app.extract_pptx(path)
+
+    assert chunks
+    assert "retrieval and compression process" in chunks[0]["text"]
