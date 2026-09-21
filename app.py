@@ -409,6 +409,14 @@ def _normalise_person_name(value):
     return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
 
 
+def _configured_names(key):
+    return {
+        _normalise_person_name(name)
+        for name in re.split(r"[,;\n]", get_config(key, ""))
+        if _normalise_person_name(name)
+    }
+
+
 def _clean_records(value, fields, status_field=None, allowed_statuses=None):
     if not isinstance(value, list):
         return []
@@ -618,8 +626,6 @@ def can_access_project(project, user_role=None, user_name=None):
     if not project:
         return False
     role = str(user_role or st.session_state.get("user_role", "Convenor")).strip()
-    if role in {"Administrator", "Convenor"}:
-        return True
 
     name = _normalise_person_name(user_name or st.session_state.get("user_name", ""))
     if not name:
@@ -636,6 +642,20 @@ def can_access_project(project, user_role=None, user_name=None):
 
     if role == "Student":
         return any(_normalise_person_name(member.get("name")) == name for member in project.team)
+
+    if role == "Convenor":
+        if name in _configured_names("CONVENOR_NAMES"):
+            return True
+        return any(
+            _normalise_person_name(member.get("name")) == name
+            and "convenor" in _normalise_person_name(member.get("role"))
+            for member in project.team
+        )
+
+    if role == "Administrator":
+        if name in _configured_names("ADMIN_USER_NAMES"):
+            return True
+        return st.session_state.get("admin_authenticated", False)
 
     return False
 
@@ -3684,7 +3704,8 @@ def render_sidebar():
         entered_name = st.text_input(
             "Your name",
             value=st.session_state.get("user_name", ""),
-            placeholder="Required for Student or Mentor",
+            placeholder=f"Required for {selected_role} access",
+            autocomplete="off",
         )
         if (
             selected_role != st.session_state.get("user_role")
@@ -3767,6 +3788,19 @@ def render_sidebar():
             st.caption(
                 "Ask your question naturally. Select a project to enable "
                 "project-specific assistance."
+            )
+
+        st.divider()
+
+        with st.expander("Sprint 2 improvements"):
+            st.markdown(
+                """
+- Students and mentors only see assigned teams.
+- Retrieval uses search plus compression for the 128K context window.
+- Long answers stream progressively after validation.
+- Slide text, tables, notes and diagram alt text are indexed.
+- Student questions are logged locally for mentor trend review.
+"""
             )
 
         st.divider()
@@ -4333,6 +4367,18 @@ def admin_page():
                 f"{context_usage['total_items']} retrieved items included."
             )
 
+    with st.expander("Sprint 2 AI handling"):
+        st.markdown(
+            f"""
+- **Team access:** Student and Mentor roles can only select projects where they are assigned.
+- **Context window:** Retrieval uses a two-step search and compression process before sending bounded context to AgentAus.
+- **Budget:** The default model context window is treated as {MODEL_CONTEXT_WINDOW_TOKENS:,} tokens, with document context capped at {MAX_PRIVATE_CONTEXT_TOKENS:,} estimated tokens.
+- **Streaming:** The final checked answer streams progressively when the provider supports event streaming.
+- **Slides:** PowerPoint slide text, tables, speaker notes and author-provided image or diagram alt text are indexed.
+- **Question analytics:** Student questions are logged locally so mentors can identify common interests and add new supporting documents.
+"""
+        )
+
     with st.expander("Student question trends"):
         question_records = load_question_analytics()
         summary = summarise_question_analytics(question_records)
@@ -4653,9 +4699,7 @@ def chat_page():
     # Chat input
     # --------------------------------------------------------
 
-    question = st.chat_input(
-        "Ask about UC Canberra Capstone...",
-    )
+    question = st.chat_input("Ask about UC Canberra Capstone...")
 
     if not question:
         return
@@ -4719,7 +4763,7 @@ def chat_page():
             )
             try:
                 answer = st.write_stream(
-                    stream_non_capstone_response(question),
+                    stream_non_capstone_response(question)
                 )
                 answer_status.update(label="Answer ready", state="complete")
             except Exception as error:
@@ -4768,7 +4812,7 @@ def chat_page():
                         results,
                         status=answer_status,
                         project=selected_project,
-                    ),
+                    )
                 )
                 answer_status.update(label="Answer ready", state="complete")
             except Exception as error:

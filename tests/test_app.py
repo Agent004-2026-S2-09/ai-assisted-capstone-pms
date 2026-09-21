@@ -635,6 +635,12 @@ def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_pro
     assert app.can_access_project(alpha, "Mentor", "Dr Mentor")
     assert app.can_access_project(alpha, "Mentor", "Dr Helper")
     assert not app.can_access_project(beta, "Mentor", "Dr Mentor")
+    assert not app.can_access_project(alpha, "Convenor", "Dr Mentor")
+    alpha.team.append({"id": "3", "name": "Dr Convenor", "role": "Course Convenor"})
+    app.update_project(alpha)
+    alpha = app.get_project(alpha.id)
+    assert app.can_access_project(alpha, "Convenor", "Dr Convenor")
+    assert not app.can_access_project(alpha, "Convenor", "Prachi Sherkar")
     assert {project.id for project in app.get_accessible_projects("Student", "Prachi Sherkar")} == {
         alpha.id
     }

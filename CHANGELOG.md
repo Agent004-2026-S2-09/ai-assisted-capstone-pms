@@ -14,6 +14,11 @@ project's seven-sprint delivery plan.
 - Store project profiles, team members, milestones and meeting notes.
 - Support project-specific document uploads and isolated project indexes.
 - Restrict students and mentors to their assigned project teams.
+- Use a two-step retrieval process for the 128K context-window limit: search
+  first, then compress selected documents into query-relevant excerpts.
+- Stream longer assistant responses progressively when processing takes longer.
+- Index lecture-slide text, tables, notes and author-provided image or diagram
+  descriptions.
 - Let the assistant answer with selected-project context while preserving the
   Sprint 1 general assistant path.
 - Capture question trends for mentor and administrator review.
@@ -33,7 +38,13 @@ project's seven-sprint delivery plan.
 - Project profile context for selected-project assistant conversations.
 - Project-scoped retrieval so one project's documents are not returned for
   another selected project.
+- Context-budget controls for the 128K model window, including compressed
+  snippets and omission tracking when too many results are retrieved.
+- Streaming response support with fallback to the existing complete-response
+  path if the provider does not return a valid event stream.
 - PowerPoint image and diagram alt text extraction for searchable slide context.
+- Sidebar and Administration interface panels summarising the Sprint 2
+  improvements requested after sponsor/mentor review.
 - Streamlit Cloud troubleshooting guidance for unreachable AgentAus endpoints.
 
 ### Fixed

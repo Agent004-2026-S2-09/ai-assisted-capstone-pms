@@ -32,6 +32,12 @@ fixes incrementally. See [CHANGELOG.md](CHANGELOG.md) for the release history.
 - Support project-specific document uploads and isolated project indexes.
 - Restrict students and mentors to their assigned project teams in the
   prototype role selector.
+- Add a bounded retrieval path for the 128K context-window limit by searching
+  first, then compressing selected documents into query-relevant excerpts.
+- Stream longer assistant responses progressively after the answer has passed
+  the groundedness review path.
+- Index lecture-slide text, tables, notes and author-provided image or diagram
+  descriptions.
 - Let the assistant answer with selected-project context without exposing
   internal source filenames or page references.
 - Capture local question trends so mentors and administrators can identify
@@ -52,6 +58,11 @@ identified defects and receive a new entry in `CHANGELOG.md`.
   meetings and project-specific documents.
 - The assistant can answer with selected-project context while keeping project
   documents isolated from other projects.
+- The sidebar includes a Sprint 2 improvements panel summarising access
+  filtering, retrieval compression, streaming, slide interpretation and
+  question trend logging.
+- The Administration page includes Sprint 2 AI handling details for the context
+  budget, streaming path, slide/diagram indexing and question analytics.
 - The three guidance cards remain visible above the conversation at all times.
 - Assistant responses appear below the guidance cards.
 - Source filenames, document locations and page references remain internal and
