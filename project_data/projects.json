@@ -1,0 +1,75 @@
+[
+  {
+    "id": "ai-assisted-capstone-project-assistant",
+    "name": "AI-assisted Capstone Project Assistant",
+    "code": "2026-S2-09",
+    "description": "University capstone projects require students to work with information from multiple sources, including general capstone guidance, project briefs, proposals, sponsor requirements, meeting outcomes, milestones, and other project documentation. As projects progress, this information can become distributed across different documents and communication channels, making it difficult for students and other project stakeholders to quickly locate and interpret information relevant to a particular project activity.",
+    "sponsor": "Trellis Data - Agentaus AI",
+    "mentor": "Jeanette Cotterill",
+    "status": "Active",
+    "revision": 3,
+    "team": [
+      {
+        "name": "Munkhuu Bold",
+        "role": "Project Manager",
+        "id": "85d2953990e3405abcdcb808367d1bfe"
+      },
+      {
+        "name": "Ashly Shaji",
+        "role": "Quality & AI Lead",
+        "id": "3280cc21afd846599fa304ecf6ceecd0"
+      },
+      {
+        "name": "Prachi Sherkar",
+        "role": "Developer / Tech Lead",
+        "id": "f3634a8f60444f0e90d1f17b6a97d34f"
+      },
+      {
+        "name": "Chernor Bah",
+        "role": "Developer / Tech Lead",
+        "id": "b27ecb45faf043da9e8923ba0ba53e81"
+      }
+    ],
+    "milestones": [
+      {
+        "name": "Project Initiation & Team Formation",
+        "status": "Completed",
+        "date": "12/08/2026",
+        "notes": "Form project team and nominate team leader\nReview and rank Capstone projects\nPrepare and submit EOI",
+        "id": "dbe4cc553e97457caadda0e4bfd44152"
+      },
+      {
+        "name": "Stakeholder Coordination & Project Preparation",
+        "status": "Completed",
+        "date": "23/08/2026",
+        "notes": "Coordinate Sponsor/Mentor meeting\nDevelop and review Team Charter\nPrepare for Sponsor/Mentor engagement",
+        "id": "388695b28b01412698ba8e263b5c9e93"
+      },
+      {
+        "name": "Sponsor Engagement & Scope Definition",
+        "status": "Completed",
+        "date": "28/08/2026",
+        "notes": "Conduct first Sponsor/Mentor meeting\nAttend Trellis Data workshop and configure Agentaus environment\nEvaluate Micro-SaaS use cases and Sponsor feedback\nConfirm AI-assisted Capstone project direction and scope",
+        "id": "e8a17a623c1f4a55a630cdcec8eac1b9"
+      },
+      {
+        "name": "Project Proposal & Plan",
+        "status": "In Progress",
+        "date": "4/09/2026",
+        "notes": "Problem, Scope, Objectives + Solution/Method + Governance\nLiterature Review + Quality Assurance\nRequirements Analysis + WBS/Gantt/Resources\nRisk + Stakeholders/Communication\nIntegrate, review and finalise proposal\nProject Proposal & Plan Due",
+        "id": "9b2957dbaf8f493e8135340b1340010c"
+      }
+    ],
+    "meetings": [
+      {
+        "date": "24 August 2026 - 3:00pm to 4:00pm",
+        "title": "Initial Project meeting - Applied Sovereign AI",
+        "attendees": "Munkhuu Bold\nChernor Bah\nPrachi Sherkar\nAshly Shaji\nJeanette Cotterill\nCheng Yu\nZixin Liu",
+        "discussion": "Initial meeting to discuss the project scope, expectations, deliverables, and communication plan. Room number: 1C73",
+        "decisions": "Thank you all for attending yesterday's meeting. Here is a brief summary of what we have discussed in the meeting:\nNarrowed down the project scope to  UC Capstone Assistant.\nFixed the Claude chat issue.\nWe were asked to email Zixin directly if we face any API related issues and agreed to provide an update on the file upload issue in the next meeting.\nDecided not to hold a meeting if there is no progress or nothing to discuss.\nFor next week, decided to prepare a brief presentation covering the project plan, issues encountered and achievements during the week, and goals for the following week. We will also include some user stories and provide a brief overview of the architecture and UI in the presentation.",
+        "actions": "Project Plan Allocation:\nChernor : Sections 3,5\nAshly:Sections 2 ,9\nPrachi: sections 4, 6\nMolly: Sections  7, 8\nFor section 1: Molly and Ashly have drafted initial problem definition ideas prachi and chernor can add or delete some points if needed and finalise it.\n\n•Discussed the project requirements and problem definition.\n\n•Agreed to complete the remaining Project Plan once the problem definition is finalised.\n\n•Team meetings scheduled for Monday:\n\n  3:30 PM:Internal team meeting (in person)\n  4:30 PM:Meeting with the project sponsor\n\n•Made modifications to the Team Charter.\n\n•Shared a link in the group to a similar project for reference (https://capstone-management-automation-pu-three.vercel.app/)\n\n•Created a Word document to collect and organise all the ideas discussed by the team.\n\n* Final Decision is to provide a draft project plan on Monday and we can ask for suggestions from Zixin and later make a more specific project plan before friday",
+        "id": "ccca5a825a314796a58543528698179b"
+      }
+    ]
+  }
+]

@@ -1,0 +1,154 @@
+[
+  {
+    "timestamp": "2026-09-16T04:22:17Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "hey",
+    "keywords": [
+      "hey"
+    ]
+  },
+  {
+    "timestamp": "2026-09-20T11:24:09Z",
+    "role": "Convenor",
+    "project_id": "",
+    "question": "hi",
+    "keywords": []
+  },
+  {
+    "timestamp": "2026-09-21T01:42:33Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "tell me who are the team members for capstone ai project",
+    "keywords": [
+      "team",
+      "members",
+      "capstone"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T01:45:59Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "tell me about development timeline and communication plan from capstone ai assistant project",
+    "keywords": [
+      "development",
+      "timeline",
+      "communication",
+      "plan",
+      "capstone",
+      "assistant"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:09:33Z",
+    "role": "Mentor",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "hi",
+    "keywords": []
+  },
+  {
+    "timestamp": "2026-09-21T06:09:46Z",
+    "role": "Mentor",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you tell me about Development Timeline & Communication Plan ?",
+    "keywords": [
+      "development",
+      "timeline",
+      "communication",
+      "plan"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:30:29Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "explain Development Timeline & Communication Plan from captone ai assistant project",
+    "keywords": [
+      "explain",
+      "development",
+      "timeline",
+      "communication",
+      "plan",
+      "captone",
+      "assistant"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:31:18Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "explain Development Timeline & Communication Plan from capstone ai assistant project",
+    "keywords": [
+      "explain",
+      "development",
+      "timeline",
+      "communication",
+      "plan",
+      "capstone",
+      "assistant"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:32:53Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "what's Development Timeline & Communication Plan capstone ai assistant project",
+    "keywords": [
+      "development",
+      "timeline",
+      "communication",
+      "plan",
+      "capstone",
+      "assistant"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:49:09Z",
+    "role": "Mentor",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "hi",
+    "keywords": []
+  },
+  {
+    "timestamp": "2026-09-21T06:50:07Z",
+    "role": "Mentor",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you explain something about Development Timeline & Communication Plan from ai-assisted capstone project",
+    "keywords": [
+      "explain",
+      "something",
+      "development",
+      "timeline",
+      "communication",
+      "plan",
+      "assisted",
+      "capstone"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:52:09Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "hey",
+    "keywords": [
+      "hey"
+    ]
+  },
+  {
+    "timestamp": "2026-09-21T06:52:37Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "can you explain something about Development Timeline & Communication Plan from ai-assited capstone project?",
+    "keywords": [
+      "explain",
+      "something",
+      "development",
+      "timeline",
+      "communication",
+      "plan",
+      "assited",
+      "capstone"
+    ]
+  }
+]
