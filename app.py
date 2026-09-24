@@ -26,6 +26,10 @@ from uuid import uuid4
 import requests
 import streamlit as st
 
+import database
+import auth
+import access_control as access
+
 from dotenv import load_dotenv
 
 from pypdf import PdfReader
@@ -51,8 +55,8 @@ load_dotenv()
 
 APP_NAME = "Capstone Assistant"
 APP_TAGLINE = "Your UC Canberra Capstone Project Assistant"
-APP_VERSION = "Version 2"
-CURRENT_SPRINT = "Sprint 2"
+APP_VERSION = "Version 3"
+CURRENT_SPRINT = "Sprint 3"
 
 SUPPORT_EMAIL = "ITS-Capstone@canberra.edu.au"
 
@@ -70,7 +74,6 @@ def get_config(key: str, default: str = "") -> str:
 # Read your variables
 HOST_NAME = get_config("HOST_NAME")
 AGENTAUS_API_KEY = get_config("AGENTAUS_API_KEY")
-ADMIN_PASSWORD = get_config("ADMIN_PASSWORD")
 
 # Construct the standard chat endpoint when only the host is configured.
 API_ENDPOINT = get_config("API_ENDPOINT") or (
@@ -359,9 +362,6 @@ st.markdown(
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "admin_authenticated" not in st.session_state:
-    st.session_state.admin_authenticated = False
-
 if "suggested_project_keys" not in st.session_state:
     st.session_state.suggested_project_keys = []
 
@@ -370,12 +370,6 @@ if "api_usage" not in st.session_state:
 
 if "selected_project_id" not in st.session_state:
     st.session_state.selected_project_id = None
-
-if "user_role" not in st.session_state:
-    st.session_state.user_role = get_config("DEFAULT_USER_ROLE", "Convenor") or "Convenor"
-
-if "user_name" not in st.session_state:
-    st.session_state.user_name = get_config("DEFAULT_USER_NAME", "")
 
 
 def clear_conversation():
@@ -389,7 +383,7 @@ def clear_conversation():
 
 ALLOWED_PROJECT_STATUSES = {"Planning", "Active", "On Hold", "Completed"}
 ALLOWED_MILESTONE_STATUSES = {"Planned", "In Progress", "Completed", "At Risk"}
-USER_ROLES = ("Student", "Mentor", "Convenor", "Administrator")
+USER_ROLES = database.ROLES
 PROJECT_DIRECTORY_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _PROJECT_PROCESS_LOCK = threading.RLock()
 
@@ -403,18 +397,6 @@ def _clean_integer(value, default=0):
         return int(value)
     except (TypeError, ValueError):
         return default
-
-
-def _normalise_person_name(value):
-    return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
-
-
-def _configured_names(key):
-    return {
-        _normalise_person_name(name)
-        for name in re.split(r"[,;\n]", get_config(key, ""))
-        if _normalise_person_name(name)
-    }
 
 
 def _clean_records(value, fields, status_field=None, allowed_statuses=None):
@@ -569,23 +551,11 @@ def _project_lock():
 
 
 def _read_projects():
-    data = read_json(PROJECTS_FILE, default=[])
-    if not isinstance(data, list):
-        return []
-    projects = []
-    for item in data:
-        try:
-            project = Project.from_dict(item)
-            validate_project_id(project.id)
-            if project.name:
-                projects.append(project)
-        except (TypeError, ValueError):
-            continue
-    return projects
+    return [Project.from_dict(record) for record in database.read_projects()]
 
 
 def _save_projects(projects):
-    write_json(PROJECTS_FILE, [project.to_dict() for project in projects])
+    database.write_projects([project.to_dict() for project in projects])
 
 
 def generate_project_id(name):
@@ -603,77 +573,65 @@ def generate_project_id(name):
 
 
 def get_projects():
-    with _project_lock():
-        return _read_projects()
+    return [Project.from_dict(record) for record in access.accessible_projects(st.session_state)]
 
 
 def get_project(project_id):
+    access.require_user(st.session_state)
     if not project_id:
         return None
-    try:
-        validate_project_id(project_id)
-    except ValueError:
-        return None
-    for project in get_projects():
-        if project.id == project_id:
-            return project
-    return None
+    validate_project_id(project_id)
+    # Missing/deleted projects are harmless for an administrator's stale UI.
+    if auth.current_user(st.session_state)["role"] == "Administrator":
+        return next((project for project in get_projects() if project.id == project_id), None)
+    access.require_project(st.session_state, project_id)
+    return next((project for project in get_projects() if project.id == project_id), None)
 
 
 def can_access_project(project, user_role=None, user_name=None):
-    """Return whether the current prototype user may access a project."""
-
-    if not project:
+    """Legacy identity arguments cannot override the authenticated database user."""
+    try:
+        return bool(project) and access.can_access_project(st.session_state, project.id)
+    except access.AccessDenied:
         return False
-    role = str(user_role or st.session_state.get("user_role", "Convenor")).strip()
-
-    name = _normalise_person_name(user_name or st.session_state.get("user_name", ""))
-    if not name:
-        return False
-
-    if role == "Mentor":
-        if _normalise_person_name(project.mentor) == name:
-            return True
-        return any(
-            _normalise_person_name(member.get("name")) == name
-            and "mentor" in _normalise_person_name(member.get("role"))
-            for member in project.team
-        )
-
-    if role == "Student":
-        return any(_normalise_person_name(member.get("name")) == name for member in project.team)
-
-    if role == "Convenor":
-        if name in _configured_names("CONVENOR_NAMES"):
-            return True
-        return any(
-            _normalise_person_name(member.get("name")) == name
-            and "convenor" in _normalise_person_name(member.get("role"))
-            for member in project.team
-        )
-
-    if role == "Administrator":
-        if name in _configured_names("ADMIN_USER_NAMES"):
-            return True
-        return st.session_state.get("admin_authenticated", False)
-
-    return False
 
 
 def get_accessible_projects(user_role=None, user_name=None):
-    return [
-        project
-        for project in get_projects()
-        if can_access_project(project, user_role=user_role, user_name=user_name)
-    ]
+    return get_projects()
+
+
+def require_project_access(project_id, write=False):
+    validate_project_id(project_id)
+    return access.require_project(st.session_state, project_id, write=write)
+
+
+def authorise_documents(documents):
+    """Guard generic retrieval/context entry points too; catalogue records stay public.
+
+    General catalogue records have scope=general (or no scope) and describe offered
+    projects. Private workspace records always carry scope=project.
+    """
+    for document in documents or []:
+        if isinstance(document, dict) and document.get("scope") == "project":
+            require_project_access(document.get("project_id"))
+
+
+def authorise_document_path(path):
+    resolved = Path(path).resolve()
+    root = PROJECT_KNOWLEDGE_DIR.resolve()
+    if resolved.is_relative_to(root):
+        relative = resolved.relative_to(root)
+        require_project_access(relative.parts[0] if relative.parts else "")
 
 
 def save_projects(projects):
+    access.require_admin(st.session_state)
     with _project_lock():
         _save_projects(projects)
 
 
 def create_project(name, code="", description="", sponsor="", mentor=""):
+    access.require_admin(st.session_state)
     clean_name = str(name or "").strip()
     if not clean_name:
         raise ValueError("Project name is required.")
@@ -712,6 +670,7 @@ def create_project(name, code="", description="", sponsor="", mentor=""):
 
 
 def update_project(updated_project):
+    require_project_access(updated_project.id if isinstance(updated_project, Project) else updated_project.get("id"), write=True)
     if not isinstance(updated_project, Project):
         updated_project = Project.from_dict(updated_project)
     updated_project.normalise()
@@ -735,6 +694,7 @@ def update_project(updated_project):
 
 
 def delete_project(project_id):
+    access.require_admin(st.session_state)
     validate_project_id(project_id)
     knowledge_folder = PROJECT_KNOWLEDGE_DIR / project_id
     data_folder = PROJECT_DATA_DIR / project_id
@@ -787,6 +747,9 @@ def question_keywords(question, maximum=8):
 
 def record_question_analytics(question, project_id=None, user_role=None):
     """Store a small local record for mentor/admin review of common questions."""
+    access.require_user(st.session_state)
+    if project_id:
+        require_project_access(project_id)
 
     clean_question = _clean_text(question, 1000)
     if not clean_question:
@@ -795,7 +758,7 @@ def record_question_analytics(question, project_id=None, user_role=None):
         "timestamp": datetime.now(timezone.utc)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
-        "role": _clean_text(user_role or st.session_state.get("user_role", ""), 50),
+        "role": access.require_user(st.session_state)["role"],
         "project_id": _clean_text(project_id, 100),
         "question": clean_question,
         "keywords": question_keywords(clean_question),
@@ -809,8 +772,15 @@ def record_question_analytics(question, project_id=None, user_role=None):
 
 
 def load_question_analytics():
+    access.require_user(st.session_state)
     data = read_json(get_question_log_file(), default=[])
-    return data if isinstance(data, list) else []
+    if not isinstance(data, list):
+        return []
+    user = access.require_user(st.session_state)
+    if user["role"] == "Administrator":
+        return data
+    allowed = {project.id for project in get_projects()}
+    return [record for record in data if record.get("project_id") in allowed]
 
 
 def summarise_question_analytics(records):
@@ -1055,6 +1025,7 @@ def _ocr_pdf_page(path, page_index):
 
 
 def extract_pdf(path):
+    authorise_document_path(path)
     chunks = []
     reader = PdfReader(str(path))
     total_pages = len(reader.pages)
@@ -1287,6 +1258,7 @@ def extract_project_records(page_items, minimum_records=3):
 
 
 def extract_docx(path):
+    authorise_document_path(path)
     document = Document(str(path))
     results, section, buffer = [], "Document", []
 
@@ -1341,6 +1313,7 @@ def extract_docx(path):
 
 def extract_text(path):
 
+    authorise_document_path(path)
     text = path.read_text(
         encoding="utf-8",
         errors="ignore",
@@ -1376,6 +1349,7 @@ def _shape_alt_text(shape):
 
 def extract_pptx(path):
 
+    authorise_document_path(path)
     presentation = Presentation(str(path))
 
     chunks = []
@@ -1423,6 +1397,7 @@ def extract_pptx(path):
 
 def extract_xlsx(path):
 
+    authorise_document_path(path)
     workbook = load_workbook(
         filename=path,
         read_only=True,
@@ -1504,6 +1479,7 @@ def extract_xlsx(path):
 
 def extract_csv(path):
     """Extract CSV rows in header-preserving blocks with encoding fallback."""
+    authorise_document_path(path)
 
     raw = path.read_bytes()
     decoded = None
@@ -1580,6 +1556,7 @@ def extract_csv(path):
 
 def extract_document(path):
 
+    authorise_document_path(path)
     extension = path.suffix.lower()
 
     if extension == ".pdf":
@@ -1657,6 +1634,7 @@ def split_into_chunks(
 
 def process_document(path):
 
+    authorise_document_path(path)
     extracted = extract_document(path)
 
     processed = []
@@ -1792,8 +1770,12 @@ def atomic_write_upload(destination, content):
 
 def install_uploaded_files(validated_files):
     """Validate extraction and atomically apply a batch of uploaded files."""
+    access.require_admin(st.session_state)
 
     names = [safe_name for safe_name, _ in validated_files]
+    if any(not name or Path(name).name != name or "\\" in name
+           or Path(name).suffix.lower() not in SUPPORTED_EXTENSIONS for name in names):
+        raise ValueError("Invalid upload filename.")
     if len(names) != len(set(names)):
         raise ValueError("The upload contains duplicate filenames.")
 
@@ -1857,6 +1839,7 @@ def install_uploaded_files(validated_files):
 # ============================================================
 
 def get_project_knowledge_dir(project_id):
+    require_project_access(project_id)
     validate_project_id(project_id)
     directory = PROJECT_KNOWLEDGE_DIR / project_id
     directory.mkdir(parents=True, exist_ok=True)
@@ -1864,6 +1847,7 @@ def get_project_knowledge_dir(project_id):
 
 
 def get_project_index_file(project_id):
+    require_project_access(project_id)
     validate_project_id(project_id)
     directory = PROJECT_DATA_DIR / project_id
     directory.mkdir(parents=True, exist_ok=True)
@@ -1871,6 +1855,7 @@ def get_project_index_file(project_id):
 
 
 def calculate_project_signature(project_id):
+    require_project_access(project_id)
     directory = get_project_knowledge_dir(project_id)
     items = []
     for path in sorted(directory.iterdir()):
@@ -1883,6 +1868,7 @@ def calculate_project_signature(project_id):
 
 
 def process_project_document(path, project_id):
+    require_project_access(project_id)
     validate_project_id(project_id)
     stat = path.stat()
     documents = []
@@ -1900,6 +1886,15 @@ def process_project_document(path, project_id):
 
 
 def save_project_index(project_id, documents):
+    require_project_access(project_id, write=True)
+    authorise_documents(documents)
+    if any(document.get("scope") != "project" or document.get("project_id") != project_id for document in documents):
+        raise access.AccessDenied("Index documents must belong to this project.")
+    _save_project_index(project_id, documents)
+
+
+def _save_project_index(project_id, documents):
+    require_project_access(project_id)
     write_json(
         get_project_index_file(project_id),
         {
@@ -1911,6 +1906,7 @@ def save_project_index(project_id, documents):
 
 
 def _load_project_index_payload(project_id):
+    require_project_access(project_id)
     index_file = get_project_index_file(project_id)
     if not index_file.exists():
         return [], None
@@ -1929,6 +1925,7 @@ def _load_project_index_payload(project_id):
 
 
 def rebuild_project_index(project_id):
+    require_project_access(project_id)
     validate_project_id(project_id)
     documents = []
     errors = []
@@ -1940,11 +1937,12 @@ def rebuild_project_index(project_id):
             documents.extend(process_project_document(path, project_id))
         except Exception as error:
             errors.append(f"{path.name}: {error}")
-    save_project_index(project_id, documents)
+    _save_project_index(project_id, documents)
     return documents, errors
 
 
 def load_project_index(project_id):
+    require_project_access(project_id)
     validate_project_id(project_id)
     current_signature = calculate_project_signature(project_id)
     documents, indexed_signature = _load_project_index_payload(project_id)
@@ -1960,10 +1958,14 @@ def load_project_index(project_id):
 
 def install_project_uploaded_files(project_id, validated_files):
     """Validate extraction and atomically apply project-specific uploads."""
+    require_project_access(project_id, write=True)
 
     validate_project_id(project_id)
     project_dir = get_project_knowledge_dir(project_id)
     names = [safe_name for safe_name, _ in validated_files]
+    if any(not name or Path(name).name != name or "\\" in name
+           or Path(name).suffix.lower() not in SUPPORTED_EXTENSIONS for name in names):
+        raise ValueError("Invalid upload filename.")
     if len(names) != len(set(names)):
         raise ValueError("The upload contains duplicate filenames.")
 
@@ -2023,6 +2025,7 @@ def install_project_uploaded_files(project_id, validated_files):
 
 
 def save_project_documents(project_id, uploaded_files):
+    require_project_access(project_id, write=True)
     validated_files = [validate_uploaded_file(file) for file in uploaded_files]
     install_project_uploaded_files(project_id, validated_files)
     return len(validated_files)
@@ -2039,6 +2042,7 @@ def list_project_documents(project_id):
 
 
 def delete_project_document(project_id, filename):
+    require_project_access(project_id, write=True)
     validate_project_id(project_id)
     safe_name = Path(filename).name
     path = get_project_knowledge_dir(project_id) / safe_name
@@ -2484,6 +2488,7 @@ def retrieve_information(
     excluded_project_keys=None,
     rng=None,
 ):
+    authorise_documents(documents)
     question = str(question or "").strip()
     valid_documents = [doc for doc in (documents or []) if isinstance(doc, dict) and doc.get("text")]
     valid_documents = _source_filtered_documents(question, valid_documents)
@@ -2653,6 +2658,7 @@ def retrieve_information(
 
 
 def retrieve_project_information(question, documents, project_id):
+    require_project_access(project_id)
     validate_project_id(project_id)
     project_documents = [
         document for document in documents
@@ -2670,6 +2676,8 @@ def retrieve_project_information(question, documents, project_id):
 
 def expand_retrieval_context(results, documents, maximum_items=16):
     """Add adjacent chunks so prose answers are not cut at chunk boundaries."""
+    authorise_documents(results)
+    authorise_documents(documents)
 
     if not results or any(result.get("record_type") == "project" for result in results):
         return results
@@ -2806,6 +2814,7 @@ def _parse_search_plan(text):
 
 def plan_information_search(question, documents, history=None):
     """Ask the LLM to resolve intent and follow-ups into document searches."""
+    authorise_documents(documents)
 
     source_names = sorted({
         str(document.get("source", "")).strip()
@@ -2869,6 +2878,7 @@ AVAILABLE APPROVED DOCUMENTS
 
 def execute_search_plan(plan, documents, excluded_project_keys=None):
     """Run the LLM's queries through the local approved-document search tool."""
+    authorise_documents(documents)
 
     if plan.get("action") != "search":
         return []
@@ -2900,6 +2910,7 @@ def execute_search_plan(plan, documents, excluded_project_keys=None):
 
 def execute_project_search_plan(plan, documents, project_id):
     """Run planned queries against the selected project's private document set."""
+    require_project_access(project_id)
 
     if plan.get("action") != "search" or not project_id:
         return []
@@ -2995,6 +3006,7 @@ def build_private_context(
     return_metadata=False,
 ):
     """Build bounded model context and optionally return budget metadata."""
+    authorise_documents(results)
 
     if not results:
         metadata = {
@@ -3061,6 +3073,8 @@ def build_private_context(
 
 
 def build_project_profile(project, max_chars=MAX_PROJECT_PROFILE_CHARS):
+    if project:
+        project = get_project(project.id)
     if not project:
         return ""
 
@@ -3150,6 +3164,10 @@ def _build_answer_request(
     project=None,
 ):
 
+    if project:
+        require_project_access(project.id)
+        if any(item.get("scope") == "project" and item.get("project_id") != project.id for item in results):
+            raise access.AccessDenied("Assistant context must belong to the selected project.")
     private_context, context_metadata = build_private_context(
         results,
         question,
@@ -3626,62 +3644,79 @@ def stream_non_capstone_response(question):
 # ADMIN AUTHENTICATION
 # ============================================================
 
-def admin_login():
+def _account_form_feedback(form_name):
+    # Clear submitted credentials before recreating their widgets on the next run.
+    for key in st.session_state.pop(f"{form_name}_clear_keys", []):
+        st.session_state.pop(key, None)
+    feedback = st.session_state.pop(f"{form_name}_feedback", None)
+    if feedback:
+        level, message = feedback
+        (st.success if level == "success" else st.error)(message)
 
-    st.sidebar.subheader(
-        "🔐 Administration"
+
+def _finish_account_form(form_name, keys, level, message):
+    st.session_state[f"{form_name}_clear_keys"] = keys
+    st.session_state[f"{form_name}_feedback"] = (level, message)
+    st.rerun()
+
+
+def password_reset_form():
+    st.subheader("Reset password")
+    _account_form_feedback("reset")
+    st.markdown(
+        f"Contact your administrator or [Capstone support](mailto:{SUPPORT_EMAIL}) "
+        f"at **{SUPPORT_EMAIL}** to request a reset code."
     )
-
-    if not ADMIN_PASSWORD:
-
-        st.sidebar.warning(
-            "ADMIN_PASSWORD is not configured."
-        )
-
-        return False
-
-    if st.session_state.admin_authenticated:
-
-        st.sidebar.success(
-            "Administrator signed in"
-        )
-
-        if st.sidebar.button(
-            "Sign out",
-            use_container_width=True,
-        ):
-
-            st.session_state.admin_authenticated = False
-
-            st.rerun()
-
-        return True
-
-    password = st.sidebar.text_input(
-        "Administrator password",
-        type="password",
-        key="admin_password_input",
-    )
-
-    if st.sidebar.button(
-        "Sign in",
-        type="primary",
-        use_container_width=True,
-    ):
-
-        if password == ADMIN_PASSWORD:
-
-            st.session_state.admin_authenticated = True
-
-            st.rerun()
-
+    st.caption("Already have a code? Enter it below. Codes expire after 30 minutes and can be used once.")
+    st.caption("Choose a new password between 12 and 1024 characters.")
+    with st.form("password_reset_form", clear_on_submit=True):
+        email = st.text_input("Email / username", key="reset_email")
+        token = st.text_input("Reset code", type="password", key="reset_code")
+        password = st.text_input("New password", type="password", key="reset_password")
+        confirmation = st.text_input("Confirm new password", type="password", key="reset_confirmation")
+        submitted = st.form_submit_button("Reset password", type="primary")
+    if submitted:
+        try:
+            auth.complete_password_reset(email, token, password, confirmation)
+        except ValueError as error:
+            level, message = "error", str(error)
         else:
+            level, message = "success", "Password updated. Existing sessions were signed out. Active accounts can sign in with the new password."
+        _finish_account_form("reset", ["reset_email", "reset_code", "reset_password", "reset_confirmation"], level, message)
 
-            st.sidebar.error(
-                "Incorrect password."
-            )
 
-    return False
+def _show_account_page(page):
+    """Navigate before rendering widgets, clearing credentials from the previous form."""
+    for key in list(st.session_state):
+        if key.startswith(("reset_", "login_")) or key == "account_page":
+            del st.session_state[key]
+    st.session_state.account_page = page
+
+
+def login_page():
+    st.title("🎓 Capstone Assistant")
+    st.caption("Your UC Canberra Capstone project workspace")
+    page = st.session_state.get("account_page", "Sign in")
+    if page == "Reset password":
+        password_reset_form()
+        st.button("Back to sign in", type="tertiary", on_click=_show_account_page, args=("Sign in",))
+        return
+
+    st.subheader("Sign in")
+    _account_form_feedback("login")
+    with st.form("login_form", clear_on_submit=True):
+        username = st.text_input("Email / username", key="login_email", autocomplete="username")
+        password = st.text_input("Password", type="password", key="login_password", autocomplete="current-password")
+        submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
+    if submitted:
+        if auth.login(st.session_state, username, password):
+            projects = get_accessible_projects()
+            st.session_state.selected_project_id = projects[0].id if len(projects) == 1 else None
+            st.rerun()
+        _finish_account_form("login", [], "error", "Invalid username or password, or inactive account.")
+
+    st.button("Forgot password?", type="tertiary", on_click=_show_account_page, args=("Reset password",))
+
 
 
 # ============================================================
@@ -3698,26 +3733,15 @@ def render_sidebar():
 
         st.divider()
 
-        current_role = st.session_state.get("user_role", "Convenor")
-        role_index = USER_ROLES.index(current_role) if current_role in USER_ROLES else 2
-        selected_role = st.selectbox("Prototype role", USER_ROLES, index=role_index)
-        entered_name = st.text_input(
-            "Your name",
-            value=st.session_state.get("user_name", ""),
-            placeholder=f"Required for {selected_role} access",
-            autocomplete="off",
-        )
-        if (
-            selected_role != st.session_state.get("user_role")
-            or entered_name != st.session_state.get("user_name")
-        ):
-            st.session_state.user_role = selected_role
-            st.session_state.user_name = entered_name
-            st.session_state.selected_project_id = None
-            clear_conversation()
+        user = access.require_user(st.session_state)
+        st.write(user["name"])
+        st.caption(user["role"])
+        if st.button("Log out"):
+            auth.logout(st.session_state)
             st.rerun()
-
-        projects = get_accessible_projects(selected_role, entered_name)
+        projects = get_accessible_projects()
+        if not projects:
+            st.caption("No projects are assigned to your account yet. Contact your administrator for project access.")
         project_options = [("General Capstone", None)]
         for project in projects:
             detail = project.code or project.id
@@ -3727,7 +3751,7 @@ def render_sidebar():
         if current_project_id and current_project_id not in {project.id for project in projects}:
             st.session_state.selected_project_id = None
             clear_conversation()
-            st.warning("The selected role is not assigned to that project.")
+            st.warning("Your account is no longer assigned to that project.")
             st.rerun()
         selected_index = 0
         for index, (_, option_project_id) in enumerate(project_options):
@@ -3751,11 +3775,8 @@ def render_sidebar():
 
         page = st.radio(
             "Go to",
-            [
-                "💬 Assistant",
-                "📁 Project Workspace",
-                "⚙️ Administration",
-            ],
+            ["💬 Assistant", "📁 Project Workspace"]
+            + (["⚙️ Administration"] if user["role"] == "Administrator" else []),
             label_visibility="collapsed",
         )
 
@@ -3817,7 +3838,80 @@ def render_sidebar():
 # PROJECT ADMINISTRATION
 # ============================================================
 
+def render_user_admin():
+    access.require_admin(st.session_state)
+    st.subheader("👤 Users and project access")
+    st.caption("Team profile names do not grant access. Assign database accounts below.")
+    users = access.managed_users(st.session_state)
+    with st.expander("Create account"):
+        with st.form("create_user", clear_on_submit=True):
+            name = st.text_input("Name")
+            username = st.text_input("Email / username", key="new_username")
+            password = st.text_input("Initial password (at least 12 characters)", type="password")
+            role = st.selectbox("Account role", USER_ROLES)
+            submitted = st.form_submit_button("Create account")
+        if submitted:
+            try:
+                access.create_user(st.session_state, name, username, password, role)
+            except (ValueError, database.sqlite3.IntegrityError) as error:
+                st.error("Username already exists." if isinstance(error, database.sqlite3.IntegrityError) else str(error))
+            else:
+                st.success("Account created.")
+                st.rerun()
+    if not users:
+        return
+    user_map = {f"{user['name']} ({user['username']})": user for user in users}
+    selected = st.selectbox("Manage account", list(user_map))
+    user = user_map[selected]
+    st.caption(f"Account status: {user['status']}")
+    assigned_projects = access.user_project_assignments(st.session_state, user["id"])
+    st.markdown("### Assigned projects")
+    st.caption(f"Stored project assignments: {len(assigned_projects)}")
+    if assigned_projects:
+        for project in assigned_projects:
+            st.write(f"- **{project['name']}** (`{project['id']}`)")
+    else:
+        st.info("No projects are explicitly assigned to this account.")
+    if user["role"] in ("Convenor", "Administrator"):
+        st.caption("Effective access: all Capstone projects through this role.")
+    with st.expander("Password reset"):
+        st.caption("Verify the user's identity before issuing a code. Share it privately; no password is displayed or recovered.")
+        if st.button("Issue reset code", key=f"issue_reset_{user['id']}"):
+            token = access.issue_password_reset(st.session_state, user["id"])
+            st.code(token, language=None)
+            st.caption("Copy this code now. It is shown only for this action and expires in 30 minutes. The user chooses Forgot password? on the sign-in page to enter it.")
+    with st.form(f"account_access_{user['id']}"):
+        role = st.selectbox("Role", USER_ROLES, index=USER_ROLES.index(user["role"]))
+        active = st.checkbox("Active", value=bool(user["active"]))
+        changed = st.form_submit_button("Save account access")
+    if changed:
+        try:
+            access.update_user(st.session_state, user["id"], role, active)
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            st.success("Account updated; its existing sessions were revoked.")
+    projects = get_projects()
+    if projects:
+        project_map = {f"{project.name} ({project.id})": project.id for project in projects}
+        label = st.selectbox("Project assignment", list(project_map))
+        project_id = project_map[label]
+        with database.connect() as db:
+            assigned = db.execute("SELECT 1 FROM assignments WHERE user_id = ? AND project_id = ?",
+                                  (user["id"], project_id)).fetchone() is not None
+        st.caption("Currently assigned" if assigned else "Currently unassigned")
+        if st.button("Remove assignment" if assigned else "Assign project"):
+            try:
+                access.assign_project(st.session_state, user["id"], project_id, assigned=not assigned)
+            except ValueError as error:
+                st.error(str(error))
+            else:
+                st.rerun()
+    st.divider()
+
+
 def render_project_admin():
+    access.require_admin(st.session_state)
     st.subheader("📁 Projects")
     st.write("Create and manage Capstone projects.")
 
@@ -3911,6 +4005,7 @@ def _save_project_from_ui(project):
 
 
 def render_project_overview(project):
+    require_project_access(project.id)
     st.subheader("📋 Project Overview")
 
     with st.form(f"project_overview_form_{project.id}"):
@@ -3926,7 +4021,7 @@ def render_project_overview(project):
         status_options = ["Planning", "Active", "On Hold", "Completed"]
         status_index = status_options.index(project.status) if project.status in status_options else 1
         status = st.selectbox("Status", status_options, index=status_index)
-        submitted = st.form_submit_button("Save Project", type="primary")
+        submitted = st.form_submit_button("Save Project", type="primary", disabled=auth.current_user(st.session_state)["role"] == "Student")
 
     if submitted:
         if not name.strip():
@@ -3944,6 +4039,7 @@ def render_project_overview(project):
 
 
 def render_project_team(project):
+    require_project_access(project.id)
     st.subheader("👥 Project Team")
 
     if project.team:
@@ -3957,6 +4053,7 @@ def render_project_team(project):
                 if st.button(
                     "Remove",
                     key=f"remove_member_{project.id}_{member.get('id', index)}",
+                    disabled=auth.current_user(st.session_state)["role"] == "Student",
                 ):
                     member_id = member.get("id")
                     project.team = [item for item in project.team if item.get("id") != member_id]
@@ -3969,7 +4066,7 @@ def render_project_team(project):
     with st.form(f"add_team_member_{project.id}"):
         name = st.text_input("Team member name")
         role = st.text_input("Project role")
-        submitted = st.form_submit_button("Add Team Member")
+        submitted = st.form_submit_button("Add Team Member", disabled=auth.current_user(st.session_state)["role"] == "Student")
 
     if submitted:
         if not name.strip():
@@ -3987,6 +4084,7 @@ def render_project_team(project):
 
 
 def render_project_milestones(project):
+    require_project_access(project.id)
     st.subheader("🎯 Project Milestones")
 
     if project.milestones:
@@ -4000,6 +4098,7 @@ def render_project_milestones(project):
                 if st.button(
                     "Delete milestone",
                     key=f"delete_milestone_{project.id}_{milestone.get('id', index)}",
+                    disabled=auth.current_user(st.session_state)["role"] == "Student",
                 ):
                     milestone_id = milestone.get("id")
                     project.milestones = [
@@ -4019,7 +4118,7 @@ def render_project_milestones(project):
             ["Planned", "In Progress", "Completed", "At Risk"],
         )
         notes = st.text_area("Notes")
-        submitted = st.form_submit_button("Add Milestone")
+        submitted = st.form_submit_button("Add Milestone", disabled=auth.current_user(st.session_state)["role"] == "Student")
 
     if submitted:
         if not name.strip():
@@ -4042,6 +4141,7 @@ def render_project_milestones(project):
 
 
 def render_project_meetings(project):
+    require_project_access(project.id)
     st.subheader("🤝 Project Meetings")
     st.caption(
         "Record sponsor, mentor and team meetings so project-specific answers can use recorded decisions and actions."
@@ -4062,6 +4162,7 @@ def render_project_meetings(project):
                 if st.button(
                     "Delete meeting",
                     key=f"delete_meeting_{project.id}_{meeting.get('id', index)}",
+                    disabled=auth.current_user(st.session_state)["role"] == "Student",
                 ):
                     meeting_id = meeting.get("id")
                     project.meetings = [
@@ -4080,7 +4181,7 @@ def render_project_meetings(project):
         discussion = st.text_area("Key discussion")
         decisions = st.text_area("Decisions")
         actions = st.text_area("Actions")
-        submitted = st.form_submit_button("Add Meeting", type="primary")
+        submitted = st.form_submit_button("Add Meeting", type="primary", disabled=auth.current_user(st.session_state)["role"] == "Student")
 
     if submitted:
         if not title.strip():
@@ -4105,6 +4206,7 @@ def render_project_meetings(project):
 
 
 def render_project_knowledge(project):
+    require_project_access(project.id)
     st.subheader("📚 Project Knowledge")
     st.write("Add information that belongs specifically to this project.")
     st.info(
@@ -4116,12 +4218,13 @@ def render_project_knowledge(project):
         type=["pdf", "docx", "txt", "md", "pptx", "xlsx", "csv"],
         accept_multiple_files=True,
         key=f"project_files_{project.id}",
+        disabled=auth.current_user(st.session_state)["role"] == "Student",
     )
     st.caption(
         f"Accepted: PDF, DOCX, XLSX, CSV, PPTX, TXT and MD · Up to {MAX_UPLOAD_SIZE_MB} MB per file"
     )
 
-    if st.button("Add to Project Knowledge", type="primary", key=f"add_project_docs_{project.id}"):
+    if st.button("Add to Project Knowledge", type="primary", key=f"add_project_docs_{project.id}", disabled=auth.current_user(st.session_state)["role"] == "Student"):
         if not uploaded_files:
             st.warning("Choose at least one document.")
         else:
@@ -4152,7 +4255,7 @@ def render_project_knowledge(project):
             if st.button(
                 "Delete",
                 key=f"delete_project_doc_{project.id}_{file.name}",
-                disabled=not confirm_delete,
+                disabled=not confirm_delete or auth.current_user(st.session_state)["role"] == "Student",
             ):
                 try:
                     delete_project_document(project.id, file.name)
@@ -4162,7 +4265,7 @@ def render_project_knowledge(project):
                     st.error(f"The document could not be deleted: {error}")
 
     st.divider()
-    if st.button("Refresh Project Search", key=f"rebuild_project_index_{project.id}"):
+    if st.button("Refresh Project Search", key=f"rebuild_project_index_{project.id}", disabled=auth.current_user(st.session_state)["role"] == "Student"):
         documents, errors = rebuild_project_index(project.id)
         if errors:
             st.warning("Some documents could not be processed.")
@@ -4172,6 +4275,7 @@ def render_project_knowledge(project):
 
 
 def render_project_question_trends(project):
+    require_project_access(project.id)
     st.subheader("📈 Question Trends")
     records = [
         record
@@ -4207,6 +4311,7 @@ def render_project_question_trends(project):
 
 
 def project_workspace_page():
+    access.require_user(st.session_state)
     st.title("📁 Project Workspace")
     st.caption("Manage your project's information, team, meetings and milestones.")
 
@@ -4282,6 +4387,8 @@ def project_workspace_page():
 
 def admin_page():
 
+    access.require_admin(st.session_state)
+    render_user_admin()
     st.title(
         "⚙️ Administration"
     )
@@ -4640,6 +4747,7 @@ def render_welcome():
 
 def chat_page():
 
+    access.require_user(st.session_state)
     documents = ensure_index_is_current()
     selected_project = get_project(st.session_state.get("selected_project_id"))
     project_documents = []
@@ -4850,39 +4958,30 @@ def chat_page():
 
 def main():
 
-    page = render_sidebar()
-
-    if page == "💬 Assistant":
-
-        chat_page()
-
-    elif page == "📁 Project Workspace":
-
-        project_workspace_page()
-
-    else:
-
-        authenticated = admin_login()
-
-        if authenticated:
-
-            admin_page()
-
+    database.initialize(legacy_file=PROJECTS_FILE)
+    user = auth.current_user(st.session_state)
+    if user is None:
+        if st.session_state.get("auth_token"):
+            auth.logout(st.session_state)
+        login_page()
+        return
+    # Compatibility display values are refreshed from SQLite on every rerun.
+    st.session_state.user_role = user["role"]
+    st.session_state.user_name = user["name"]
+    st.session_state.setdefault("messages", [])
+    st.session_state.setdefault("suggested_project_keys", [])
+    try:
+        page = render_sidebar()
+        if page == "💬 Assistant":
+            chat_page()
+        elif page == "📁 Project Workspace":
+            project_workspace_page()
         else:
-
-            st.title(
-                "🔐 Administrator Access"
-            )
-
-            st.info(
-                "This area is restricted to authorised "
-                "Capstone administrators."
-            )
-
-            st.write(
-                "Use the administrator sign-in in the "
-                "sidebar to continue."
-            )
+            admin_page()
+    except access.AccessDenied as error:
+        st.session_state.selected_project_id = None
+        clear_conversation()
+        st.error(str(error))
 
     st.markdown(
         '<div class="capstone-footer">Powered by <strong>Trellis Data (agentaus AI)</strong></div>',

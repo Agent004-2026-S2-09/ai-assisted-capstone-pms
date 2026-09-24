@@ -585,8 +585,8 @@ class UploadedFile:
 def isolated_project_storage(tmp_path, monkeypatch):
     project_data = tmp_path / "project_data"
     project_knowledge = tmp_path / "project_knowledge"
-    project_data.mkdir()
-    project_knowledge.mkdir()
+    project_data.mkdir(exist_ok=True)
+    project_knowledge.mkdir(exist_ok=True)
 
     monkeypatch.setattr(app, "PROJECT_DATA_DIR", project_data)
     monkeypatch.setattr(app, "PROJECT_KNOWLEDGE_DIR", project_knowledge)
@@ -622,28 +622,38 @@ def test_project_lifecycle_uses_revisions_and_removes_folders(isolated_project_s
 
 
 def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_project_storage):
+    import auth
+    import access_control as access
+
     alpha = app.create_project("Alpha Project", mentor="Dr Mentor")
     beta = app.create_project("Beta Project", mentor="Other Mentor")
-    alpha.team = [
-        {"id": "1", "name": "Prachi Sherkar", "role": "Student"},
-        {"id": "2", "name": "Dr Helper", "role": "Mentor"},
-    ]
-    app.update_project(alpha)
+    admin_state = dict(app.st.session_state)
+    for role in ("Student", "Mentor"):
+        user_id = auth.create_user(f"Test {role}", role, "test-password-long", role)
+        access.assign_project(admin_state, user_id, alpha.id)
+        auth.login(app.st.session_state, role, "test-password-long")
+        assert app.can_access_project(alpha)
+        assert not app.can_access_project(beta)
+        # Caller-supplied prototype identities cannot grant privileges.
+        assert not app.can_access_project(beta, "Administrator", "Test Administrator")
+        assert {project.id for project in app.get_accessible_projects()} == {alpha.id}
+        auth.login(app.st.session_state, "admin@test.local", "test-password-long")
+        admin_state = dict(app.st.session_state)
 
-    assert app.can_access_project(alpha, "Student", "Prachi Sherkar")
-    assert not app.can_access_project(beta, "Student", "Prachi Sherkar")
-    assert app.can_access_project(alpha, "Mentor", "Dr Mentor")
-    assert app.can_access_project(alpha, "Mentor", "Dr Helper")
-    assert not app.can_access_project(beta, "Mentor", "Dr Mentor")
-    assert not app.can_access_project(alpha, "Convenor", "Dr Mentor")
-    alpha.team.append({"id": "3", "name": "Dr Convenor", "role": "Course Convenor"})
-    app.update_project(alpha)
-    alpha = app.get_project(alpha.id)
-    assert app.can_access_project(alpha, "Convenor", "Dr Convenor")
-    assert not app.can_access_project(alpha, "Convenor", "Prachi Sherkar")
-    assert {project.id for project in app.get_accessible_projects("Student", "Prachi Sherkar")} == {
-        alpha.id
-    }
+
+def test_convenor_can_access_all_projects(isolated_project_storage):
+    import auth
+    import access_control as access
+
+    alpha = app.create_project("Alpha Project")
+    beta = app.create_project("Beta Project")
+    admin_state = dict(app.st.session_state)
+    convenor_id = auth.create_user("Test Convenor", "convenor@test.local", "test-password-long", "Convenor")
+    access.assign_project(admin_state, convenor_id, alpha.id)
+    auth.login(app.st.session_state, "convenor@test.local", "test-password-long")
+    assert access.can_access_project(app.st.session_state, alpha.id)
+    assert access.can_access_project(app.st.session_state, beta.id)
+    assert {project["id"] for project in access.accessible_projects(app.st.session_state)} == {alpha.id, beta.id}
 
 
 def test_project_retrieval_stays_inside_selected_project(isolated_project_storage):
@@ -729,6 +739,12 @@ def test_project_document_upload_and_stale_index_reload(isolated_project_storage
 
 
 def test_question_analytics_are_recorded_and_summarised(isolated_project_storage):
+    import auth
+    import access_control as access
+    project = app.create_project("Alpha Project")
+    user_id = auth.create_user("Test Student", "student", "test-password-long", "Student")
+    access.assign_project(app.st.session_state, user_id, project.id)
+    auth.login(app.st.session_state, "student", "test-password-long")
     app.record_question_analytics(
         "How do we handle stakeholder feedback for our prototype?",
         project_id="alpha-project",

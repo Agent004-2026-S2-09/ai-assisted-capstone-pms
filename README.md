@@ -1,7 +1,9 @@
-# Capstone Assistant — Version 2, Sprint 2
+# Capstone Assistant — Version 3, Sprint 3
 
-**Release status:** Sprint 2 complete  
-**Current release:** Version 2 / Sprint 2  
+**Release status:** Sprint 3 implemented
+
+**Current release:** Version 3 / Sprint 3
+
 **Delivery plan:** Seven iterative sprints
 
 Capstone Assistant is a Streamlit application that answers questions using the
@@ -9,9 +11,11 @@ approved UC Canberra Capstone documents in `knowledge_base/`. It reads PDF,
 Word, Excel, CSV, PowerPoint, Markdown and text files. Scanned PDF pages are processed
 locally with Tesseract OCR.
 
-Version 2 adds the completed Sprint 2 project workspace while preserving the
-Sprint 1 General Capstone Assistant. Later sprints will add features and record
-fixes incrementally. See [CHANGELOG.md](CHANGELOG.md) for the release history.
+Version 3 adds SQLite persistence, database-backed login and role-based project
+access while preserving the Sprint 1 assistant and Sprint 2 workspace. Forgotten
+passwords are replaced through expiring reset codes; existing passwords are never
+revealed. Later sprints will add features and record fixes incrementally. See
+[CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Sprint 1 scope
 
@@ -31,7 +35,9 @@ fixes incrementally. See [CHANGELOG.md](CHANGELOG.md) for the release history.
 - Store project profiles, team members, milestones and meeting notes.
 - Support project-specific document uploads and isolated project indexes.
 - Restrict students and mentors to their assigned project teams in the
-  prototype role selector.
+  prototype role selector (replaced by database login in Sprint 3).
+- Convenors can oversee all Capstone projects, while each Student can be
+  assigned to only one project.
 - Add a bounded retrieval path for the 128K context-window limit by searching
   first, then compressing selected documents into query-relevant excerpts.
 - Stream longer assistant responses progressively after the answer has passed
@@ -46,8 +52,8 @@ fixes incrementally. See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Development roadmap
 
-The project will be developed over seven sprints. Version 2 / Sprint 2 is the
-current completed baseline. Each subsequent sprint will add features, address
+The project will be developed over seven sprints. Version 3 / Sprint 3 is the
+current implementation. Each subsequent sprint will add features, address
 identified defects and receive a new entry in `CHANGELOG.md`.
 
 ## Current interface
@@ -78,7 +84,7 @@ identified defects and receive a new entry in `CHANGELOG.md`.
 - Git, if cloning the repository
 - Tesseract OCR 5
 - An AgentAus API endpoint and API key
-- An administrator password of your choice
+- A database account created with `manage.py` (see Sprint 3 setup)
 
 ## 1. Get the project
 
@@ -184,13 +190,12 @@ python -m pip install -r requirements.txt
 
 ## 6. Configure the application
 
-Copy `.env.example` to a new file named `.env` in the project root, next to
-`app.py`, and replace the placeholder values:
+Create a local `.env` file in the project root, next to `app.py`, and add your
+private configuration values:
 
 ```dotenv
 AGENTAUS_API_KEY=replace-with-your-api-key
 API_ENDPOINT=https://your-agentaus-host/api/v1/chat/completions
-ADMIN_PASSWORD=choose-a-local-test-password
 ```
 
 Do not commit or share `.env`. Ask the project owner for the test endpoint and
@@ -234,9 +239,21 @@ python -m pip install -r requirements-dev.txt
 pytest -q
 ```
 
-## 8. Start Capstone Assistant
+## Password reset
+
+For forgotten passwords, contact an administrator for a single-use reset code,
+then choose **Forgot password?** on the sign-in page.
+
+Existing installations upgrade safely to schema version 2 on startup. Existing
+users, assignments, the original capstone project and both demo projects are retained.
+
+## 8. Initialize accounts and start Capstone Assistant
+
+SQLite initializes automatically, but an initial account must be created locally:
 
 ```bash
+python manage.py init
+python manage.py create-user --name "Local Administrator" --username admin@example.org --role Administrator
 streamlit run app.py
 ```
 
@@ -248,9 +265,10 @@ Always start Streamlit from the project root so it loads
 change does not appear, stop Streamlit completely, start it again from this
 folder, and hard-refresh the browser.
 
-Runtime project records are stored in `project_data/`, and project-specific
+Runtime project records are stored in SQLite at `project_data/capstone.sqlite3`, and project-specific
 uploads are stored in `project_knowledge/<project-id>/`. These folders are
-ignored by Git because they may contain local or confidential project material.
+ignored for new files by Git because they may contain local or confidential project material.
+Files already tracked by Git remain tracked; review existing repository data separately.
 
 ## 9. Suggested test procedure
 
@@ -258,7 +276,7 @@ ignored by Git because they may contain local or confidential project material.
 2. Ask the same question using different wording—for example, use both “due” and
    “deadline”—and compare the answers.
 3. Ask a short follow-up question to check conversation handling.
-4. Sign in to **Administration** with `ADMIN_PASSWORD`.
+4. Sign in with an Administrator database account and open **Administration**.
 5. Upload a small PDF, DOCX or XLSX document containing a unique test fact.
 6. For OCR, upload a scanned/image-only PDF with clear printed English text.
 7. Ask a question whose answer appears only in that uploaded file.
@@ -388,7 +406,6 @@ production values as TOML:
 ```toml
 AGENTAUS_API_KEY = "your-api-key"
 API_ENDPOINT = "https://your-public-agentaus-host/api/v1/chat/completions"
-ADMIN_PASSWORD = "your-admin-password"
 ```
 
 `API_ENDPOINT` takes precedence over `HOST_NAME`, so remove a stale endpoint or

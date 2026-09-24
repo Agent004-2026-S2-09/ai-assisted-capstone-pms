@@ -29,3 +29,11 @@ Thumbs.db
 *.swp
 
 
+
+# Private runtime project records, documents and SQLite databases
+project_data/
+project_knowledge/
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
