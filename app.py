@@ -4028,7 +4028,7 @@ def render_project_overview(project):
         status_options = ["Planning", "Active", "On Hold", "Completed"]
         status_index = status_options.index(project.status) if project.status in status_options else 1
         status = st.selectbox("Status", status_options, index=status_index)
-        submitted = st.form_submit_button("Save Project", type="primary", disabled=auth.current_user(st.session_state)["role"] == "Student")
+        submitted = st.form_submit_button("Save Project", type="primary")
 
     if submitted:
         if not name.strip():
@@ -4040,7 +4040,7 @@ def render_project_overview(project):
         project.sponsor = sponsor.strip()
         project.mentor = mentor.strip()
         project.status = status
-        _save_project_from_ui(project)
+        _save_project_from_ui(project, allow_student_content=True)
         st.success("Project updated.")
         st.rerun()
 
@@ -4073,7 +4073,7 @@ def render_project_team(project):
     with st.form(f"add_team_member_{project.id}"):
         name = st.text_input("Team member name")
         role = st.text_input("Project role")
-        submitted = st.form_submit_button("Add Team Member", disabled=auth.current_user(st.session_state)["role"] == "Student")
+        submitted = st.form_submit_button("Add Team Member")
 
     if submitted:
         if not name.strip():
@@ -4086,7 +4086,7 @@ def render_project_team(project):
                 "role": role.strip(),
             }
         )
-        _save_project_from_ui(project)
+        _save_project_from_ui(project, allow_student_content=True)
         st.rerun()
 
 

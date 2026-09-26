@@ -45,7 +45,7 @@ def test_login_navigation_project_visibility_and_logout(role, monkeypatch):
     navigation.set_value("📁 Project Workspace").run()
     assert not at.exception
     save = next(widget for widget in at.button if widget.label == "Save Project")
-    assert save.disabled == (role == "Student")
+    assert not save.disabled
     if role == "Administrator":
         next(widget for widget in at.radio if widget.label == "Go to").set_value("⚙️ Administration").run()
         assert not at.exception

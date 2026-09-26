@@ -144,6 +144,8 @@ def test_student_can_update_meetings_milestones_and_project_documents(projects):
     alpha, _ = projects
     sign_in_role("Student", alpha)
     project = app.get_project(alpha.id)
+    project.description = "Student project overview update"
+    project.team.append({"id": "student-member", "name": "Student member", "role": "Developer"})
     project.meetings.append({"id": "student-meeting", "title": "Student meeting"})
     project.milestones.append({"id": "student-milestone", "name": "Student milestone"})
     app.update_project(project, allow_student_content=True)
@@ -152,8 +154,11 @@ def test_student_can_update_meetings_milestones_and_project_documents(projects):
         [("student-note.txt", b"Student project note")],
         allow_student_content=True,
     )
-    assert app.get_project(alpha.id).meetings[0]["id"] == "student-meeting"
-    assert app.get_project(alpha.id).milestones[0]["id"] == "student-milestone"
+    saved = app.get_project(alpha.id)
+    assert saved.description == "Student project overview update"
+    assert saved.team[0]["id"] == "student-member"
+    assert saved.meetings[0]["id"] == "student-meeting"
+    assert saved.milestones[0]["id"] == "student-milestone"
     assert any(path.name == "student-note.txt" for path in app.list_project_documents(alpha.id))
 
 
