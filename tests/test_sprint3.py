@@ -140,6 +140,23 @@ def test_student_cannot_mutate_projects_or_grant_assignments(projects):
             operation()
 
 
+def test_student_can_update_meetings_milestones_and_project_documents(projects):
+    alpha, _ = projects
+    sign_in_role("Student", alpha)
+    project = app.get_project(alpha.id)
+    project.meetings.append({"id": "student-meeting", "title": "Student meeting"})
+    project.milestones.append({"id": "student-milestone", "name": "Student milestone"})
+    app.update_project(project, allow_student_content=True)
+    app.install_project_uploaded_files(
+        alpha.id,
+        [("student-note.txt", b"Student project note")],
+        allow_student_content=True,
+    )
+    assert app.get_project(alpha.id).meetings[0]["id"] == "student-meeting"
+    assert app.get_project(alpha.id).milestones[0]["id"] == "student-milestone"
+    assert any(path.name == "student-note.txt" for path in app.list_project_documents(alpha.id))
+
+
 def test_student_can_only_be_assigned_to_one_project(projects):
     alpha, beta = projects
     admin_state = dict(app.st.session_state)

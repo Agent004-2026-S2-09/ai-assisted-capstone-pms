@@ -669,8 +669,11 @@ def create_project(name, code="", description="", sponsor="", mentor=""):
     return project
 
 
-def update_project(updated_project):
-    require_project_access(updated_project.id if isinstance(updated_project, Project) else updated_project.get("id"), write=True)
+def update_project(updated_project, allow_student_content=False):
+    require_project_access(
+        updated_project.id if isinstance(updated_project, Project) else updated_project.get("id"),
+        write=not allow_student_content,
+    )
     if not isinstance(updated_project, Project):
         updated_project = Project.from_dict(updated_project)
     updated_project.normalise()
@@ -1956,9 +1959,9 @@ def load_project_index(project_id):
     ]
 
 
-def install_project_uploaded_files(project_id, validated_files):
+def install_project_uploaded_files(project_id, validated_files, allow_student_content=False):
     """Validate extraction and atomically apply project-specific uploads."""
-    require_project_access(project_id, write=True)
+    require_project_access(project_id, write=not allow_student_content)
 
     validate_project_id(project_id)
     project_dir = get_project_knowledge_dir(project_id)
@@ -2024,10 +2027,14 @@ def install_project_uploaded_files(project_id, validated_files):
             raise
 
 
-def save_project_documents(project_id, uploaded_files):
-    require_project_access(project_id, write=True)
+def save_project_documents(project_id, uploaded_files, allow_student_content=False):
+    require_project_access(project_id, write=not allow_student_content)
     validated_files = [validate_uploaded_file(file) for file in uploaded_files]
-    install_project_uploaded_files(project_id, validated_files)
+    install_project_uploaded_files(
+        project_id,
+        validated_files,
+        allow_student_content=allow_student_content,
+    )
     return len(validated_files)
 
 
@@ -2041,8 +2048,8 @@ def list_project_documents(project_id):
     ]
 
 
-def delete_project_document(project_id, filename):
-    require_project_access(project_id, write=True)
+def delete_project_document(project_id, filename, allow_student_content=False):
+    require_project_access(project_id, write=not allow_student_content)
     validate_project_id(project_id)
     safe_name = Path(filename).name
     path = get_project_knowledge_dir(project_id) / safe_name
@@ -3996,9 +4003,9 @@ def _valid_date(value):
     return False
 
 
-def _save_project_from_ui(project):
+def _save_project_from_ui(project, allow_student_content=False):
     try:
-        update_project(project)
+        update_project(project, allow_student_content=allow_student_content)
     except ValueError as error:
         st.error(str(error))
         st.stop()
@@ -4104,7 +4111,7 @@ def render_project_milestones(project):
                     project.milestones = [
                         item for item in project.milestones if item.get("id") != milestone_id
                     ]
-                    _save_project_from_ui(project)
+                    _save_project_from_ui(project, allow_student_content=True)
                     st.rerun()
     else:
         st.info("No project milestones have been added.")
@@ -4118,7 +4125,7 @@ def render_project_milestones(project):
             ["Planned", "In Progress", "Completed", "At Risk"],
         )
         notes = st.text_area("Notes")
-        submitted = st.form_submit_button("Add Milestone", disabled=auth.current_user(st.session_state)["role"] == "Student")
+        submitted = st.form_submit_button("Add Milestone")
 
     if submitted:
         if not name.strip():
@@ -4136,7 +4143,7 @@ def render_project_milestones(project):
                 "notes": notes.strip(),
             }
         )
-        _save_project_from_ui(project)
+        _save_project_from_ui(project, allow_student_content=True)
         st.rerun()
 
 
@@ -4162,13 +4169,13 @@ def render_project_meetings(project):
                 if st.button(
                     "Delete meeting",
                     key=f"delete_meeting_{project.id}_{meeting.get('id', index)}",
-                    disabled=auth.current_user(st.session_state)["role"] == "Student",
+                    disabled=False,
                 ):
                     meeting_id = meeting.get("id")
                     project.meetings = [
                         item for item in project.meetings if item.get("id") != meeting_id
                     ]
-                    _save_project_from_ui(project)
+                    _save_project_from_ui(project, allow_student_content=True)
                     st.rerun()
     else:
         st.info("No meetings recorded yet.")
@@ -4181,7 +4188,7 @@ def render_project_meetings(project):
         discussion = st.text_area("Key discussion")
         decisions = st.text_area("Decisions")
         actions = st.text_area("Actions")
-        submitted = st.form_submit_button("Add Meeting", type="primary", disabled=auth.current_user(st.session_state)["role"] == "Student")
+        submitted = st.form_submit_button("Add Meeting", type="primary")
 
     if submitted:
         if not title.strip():
@@ -4201,7 +4208,7 @@ def render_project_meetings(project):
                 "actions": actions.strip(),
             }
         )
-        _save_project_from_ui(project)
+        _save_project_from_ui(project, allow_student_content=True)
         st.rerun()
 
 
@@ -4218,19 +4225,19 @@ def render_project_knowledge(project):
         type=["pdf", "docx", "txt", "md", "pptx", "xlsx", "csv"],
         accept_multiple_files=True,
         key=f"project_files_{project.id}",
-        disabled=auth.current_user(st.session_state)["role"] == "Student",
+        disabled=False,
     )
     st.caption(
         f"Accepted: PDF, DOCX, XLSX, CSV, PPTX, TXT and MD · Up to {MAX_UPLOAD_SIZE_MB} MB per file"
     )
 
-    if st.button("Add to Project Knowledge", type="primary", key=f"add_project_docs_{project.id}", disabled=auth.current_user(st.session_state)["role"] == "Student"):
+    if st.button("Add to Project Knowledge", type="primary", key=f"add_project_docs_{project.id}"):
         if not uploaded_files:
             st.warning("Choose at least one document.")
         else:
             try:
                 with st.spinner("Reading documents and updating project search..."):
-                    count = save_project_documents(project.id, uploaded_files)
+                    count = save_project_documents(project.id, uploaded_files, allow_student_content=True)
                 st.success(f"{count} project document(s) added.")
                 st.rerun()
             except (OSError, ValueError) as error:
@@ -4255,17 +4262,17 @@ def render_project_knowledge(project):
             if st.button(
                 "Delete",
                 key=f"delete_project_doc_{project.id}_{file.name}",
-                disabled=not confirm_delete or auth.current_user(st.session_state)["role"] == "Student",
+                disabled=not confirm_delete,
             ):
                 try:
-                    delete_project_document(project.id, file.name)
+                    delete_project_document(project.id, file.name, allow_student_content=True)
                     st.success("Document deleted.")
                     st.rerun()
                 except (OSError, ValueError) as error:
                     st.error(f"The document could not be deleted: {error}")
 
     st.divider()
-    if st.button("Refresh Project Search", key=f"rebuild_project_index_{project.id}", disabled=auth.current_user(st.session_state)["role"] == "Student"):
+    if st.button("Refresh Project Search", key=f"rebuild_project_index_{project.id}"):
         documents, errors = rebuild_project_index(project.id)
         if errors:
             st.warning("Some documents could not be processed.")
