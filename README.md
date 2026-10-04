@@ -89,6 +89,56 @@ assignments and workflows are preserved in this release.
 - Preserve persistent project records, uploads and SQLite data as deployable
   application data while excluding environment secrets.
 
+## Sprint 3 scope
+
+**Sprint 3 – Database, Login & User Access**
+
+- Design and implement the SQLite database.
+- Implement database-backed user authentication and protected sessions.
+- Implement Student, Mentor, Convenor and Administrator privileges.
+- Restrict Students to authorised projects and Mentors to assigned teams.
+- Provide Convenors and Administrators with the appropriate wider project
+  oversight capabilities.
+- Add password hashing, session expiry, password reset and first-login
+  password-change workflows.
+- Test authentication, role identification, project access and data isolation.
+- Preserve existing users, password hashes, projects and assignments during
+  additive database migrations.
+
+**Status:** Database & Access Control Complete
+
+## Sprint 4 scope
+
+**Sprint 4 – AI & System Performance Dashboard**
+
+- Define and implement AI monitoring and evaluation metrics.
+- Develop the Administrator AI and System Performance Dashboard.
+- Integrate and test API monitoring, retrieval-quality monitoring, response
+  feedback, prompt monitoring and structured AI evaluation.
+- Add prompt version management for general and project-specific assistance.
+- Add SQLite vector embeddings, embedding-model metadata and hybrid retrieval.
+- Add Administrator evaluation of response relevance, grounded accuracy,
+  usability and hallucination occurrence.
+- Add Word, Excel, PDF and PowerPoint response exports.
+- Add WBS-style Gantt scheduling, Excel schedule import and automatic
+  Gantt-to-Tasks backlog synchronisation.
+- Add the AI-enabled Tasks board with CRUD operations and guarded AI actions.
+- Add Administrator feature toggles for project-specific scheduling and Tasks
+  capabilities.
+- Add team-member directory validation, mentor/student role filtering and the
+  four-student project-team limit.
+- Add date pickers for milestones, meetings and Gantt schedule dates.
+- Add metadata-only audit logging, response-verification status and robust
+  Agentaus failure handling.
+- Preserve GitHub and Streamlit Cloud deployment configuration and existing
+  persistent application data.
+
+**Status:** Performance Dashboard Complete
+
+LMS integration is intentionally not included because the external LMS service
+is not yet available. Existing local users, assignments, project records and
+project documents remain the current source of truth.
+
 ## Development roadmap
 
 The project will be developed over seven sprints. Version 4 / Sprint 4 is the
@@ -298,7 +348,7 @@ pytest -q
 For forgotten passwords, contact an administrator for a single-use reset code,
 then choose **Forgot password?** on the sign-in page.
 
-Existing installations upgrade safely to schema version 7 on startup. Existing
+Existing installations upgrade safely to schema version 8 on startup. Existing
 users, assignments, projects and password hashes are retained. The migration
 does not import accounts or data from any other project.
 
@@ -474,11 +524,13 @@ prompt management, prompt archive and manual AI evaluation pages. Users may
 submit feedback on their own completed responses, while Administrators can
 review the resulting metrics and comments.
 
-The monitoring migration adds `prompt_versions`, `ai_interactions`,
-`ai_prompt_archive`, `response_feedback`, `ai_evaluations`,
-`api_service_events`, `retrieval_events`, `document_embeddings` and
-`embedding_runs` tables. It does not replace the existing SQLite database or
-user records.
+The monitoring and performance migrations add `prompt_versions`,
+`ai_interactions`, `ai_prompt_archive`, `response_feedback`,
+`ai_evaluations`, `api_service_events`, `retrieval_events`,
+`document_embeddings`, `embedding_runs`, `gantt_plans`, `kanban_boards`,
+`app_settings` and `project_audit_log` tables. Completed response text is
+retained in a bounded Administrator-only monitoring field for evaluation. The
+migrations do not replace the existing SQLite database or user records.
 
 ## Scheduling, Kanban and account lifecycle
 
