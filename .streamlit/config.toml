@@ -1,15 +1,27 @@
 [server]
 maxUploadSize = 25
+address = "0.0.0.0"
+port = 8501
+headless = true
 
 [theme]
 base = "light"
-primaryColor = "#2563EB"
-backgroundColor = "#F6F8FC"
+font = "sans-serif"
+primaryColor = "#2FC8FF"
+backgroundColor = "#F4F4F4"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#172033"
+textColor = "#001B2F"
+borderColor = "#96E3FF"
+baseRadius = "14px"
+buttonRadius = "12px"
+headingFontSizes = ["2.15rem", "1.65rem", "1.25rem"]
+headingFontWeights = [700, 700, 650]
+linkUnderline = false
+showWidgetBorder = true
 
 [theme.sidebar]
-backgroundColor = "#0B1F3A"
-secondaryBackgroundColor = "#132E52"
+backgroundColor = "#001B2F"
+secondaryBackgroundColor = "#005B85"
 textColor = "#F8FAFC"
-primaryColor = "#93C5FD"
+primaryColor = "#2FC8FF"
+borderColor = "#2FC8FF"

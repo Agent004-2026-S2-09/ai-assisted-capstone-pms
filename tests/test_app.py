@@ -1,10 +1,13 @@
 from types import SimpleNamespace
+import io
 import random
 
 import pytest
 from openpyxl import Workbook
 
 import app
+import gantt
+import kanban
 
 
 class SessionState(dict):
@@ -87,6 +90,125 @@ def test_api_messages_include_current_question_once():
 
     assert sum(message["content"].count(question) for message in messages) == 1
     assert messages[-1] == {"role": "user", "content": question}
+
+
+def test_project_profile_includes_authorised_schedule_and_tasks_context():
+    project = app.create_project("AI Context Project", code="AI-CONTEXT")
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "1",
+        "name": "Implement retrieval",
+        "type": "Task",
+        "start": "2026-10-01",
+        "finish": "2026-10-07",
+        "progress": 50,
+        "resource": "Test Administrator",
+        "predecessors": [],
+        "details": "Validate vector search quality",
+        "milestone": False,
+    })
+    kanban.add_card(
+        app.st.session_state,
+        project.id,
+        "Review AI evidence",
+        "Check the project sources before release.",
+    )
+
+    profile = app.build_project_profile(project)
+
+    assert "GANTT SCHEDULE" in profile
+    assert "Implement retrieval" in profile
+    assert "50%" in profile
+    assert "TASKS BOARD" in profile
+    assert "Review AI evidence" in profile
+
+
+def test_project_search_planner_is_told_about_authorised_structured_context(monkeypatch):
+    project = app.create_project("Planner Context Project")
+    calls = []
+
+    def fake_agentaus(messages):
+        calls.append(messages)
+        return {"choices": [{"message": {"content": '{"action":"search","queries":["project tasks"]}'}}]}
+
+    monkeypatch.setattr(app, "call_agentaus", fake_agentaus)
+    app.plan_information_search("What are my project tasks?", [], history=[], project=project)
+
+    assert "SELECTED PROJECT DATABASE CONTEXT" in calls[0][0]["content"]
+    assert "Gantt schedule" in calls[0][0]["content"]
+
+
+def test_project_specific_assistant_uses_only_project_documents():
+    selected_project = app.create_project("Scoped assistant project")
+    general = [{"scope": "general", "source": "general.txt", "text": "General guidance"}]
+    project = [{"scope": "project", "project_id": selected_project.id, "source": "alpha.txt", "text": "Alpha guidance"}]
+
+    assert app._assistant_search_documents(general, project, selected_project) == project
+    assert app._assistant_search_documents(general, project, None) == general
+
+
+def test_completed_project_task_questions_use_exact_schedule_records():
+    project = app.create_project("Completion Facts Project")
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "1",
+        "name": "Completed implementation",
+        "type": "Task",
+        "start": "2026-10-01",
+        "finish": "2026-10-02",
+        "progress": 100,
+        "resource": "Test Administrator",
+        "predecessors": [],
+        "details": "Finished",
+        "milestone": False,
+    })
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "2",
+        "name": "Unfinished review",
+        "type": "Task",
+        "start": "2026-10-03",
+        "finish": "2026-10-04",
+        "progress": 50,
+        "resource": "Test Administrator",
+        "predecessors": [],
+        "details": "Still in progress",
+        "milestone": False,
+    })
+
+    context = app._structured_project_completion_context(
+        "Please list all completed tasks", project
+    )
+
+    assert "Authoritative completion count: 1" in context
+    assert "Completed implementation" in context
+    assert "Unfinished review" not in context
+
+
+def test_completion_context_still_uses_ai_generation_and_grounding(monkeypatch):
+    project = app.create_project("AI Completion Response Project")
+    context = app._structured_project_completion_context("list all completed tasks", project)
+    calls = []
+
+    def fake_agentaus(messages):
+        calls.append(messages)
+        return {"choices": [{"message": {"content": "AI-generated completion response"}}]}
+
+    monkeypatch.setattr(app, "call_agentaus", fake_agentaus)
+    monkeypatch.setenv("ENABLE_ANSWER_VALIDATION", "true")
+    answer = app.generate_response(
+        "Please list all completed tasks",
+        [{
+            "scope": "project",
+            "project_id": project.id,
+            "record_type": "structured_project_context",
+            "source": "",
+            "location": "Project schedule and Tasks",
+            "text": context,
+        }],
+        project=project,
+    )
+
+    assert answer == "AI-generated completion response"
+    assert len(calls) == 2
+    assert "Authoritative completion count" in calls[0][0]["content"]
 
 
 def test_deleted_document_invalidates_index(isolated_knowledge_base, monkeypatch):
@@ -736,6 +858,65 @@ def test_project_document_upload_and_stale_index_reload(isolated_project_storage
     reloaded = app.load_project_index(project.id)
 
     assert any("audit logging" in document["text"] for document in reloaded)
+
+
+def test_project_text_document_can_be_edited_in_app_and_reindexed(isolated_project_storage):
+    project = app.create_project("Editable Knowledge Project")
+    app.save_project_documents(
+        project.id,
+        [UploadedFile("working-notes.md", b"Original project guidance")],
+        allow_student_content=True,
+    )
+    document = app.get_project_knowledge_dir(project.id) / "working-notes.md"
+
+    app.save_document_text(
+        document,
+        "Updated project guidance for the team",
+        allow_student_content=True,
+    )
+
+    assert document.read_text(encoding="utf-8") == "Updated project guidance for the team"
+    assert any("Updated project guidance" in item["text"] for item in app.load_project_index(project.id))
+
+
+def test_project_word_document_can_be_edited_in_app_and_reindexed(isolated_project_storage):
+    project = app.create_project("Editable Word Project")
+    document = app.Document()
+    document.add_heading("Original heading", level=1)
+    document.add_paragraph("Original project guidance")
+    content = io.BytesIO()
+    document.save(content)
+    app.save_project_documents(
+        project.id,
+        [UploadedFile("working-notes.docx", content.getvalue())],
+        allow_student_content=True,
+    )
+    path = app.get_project_knowledge_dir(project.id) / "working-notes.docx"
+
+    app.save_document_text(
+        path,
+        "Updated heading\nUpdated project guidance",
+        allow_student_content=True,
+    )
+
+    saved = app.Document(str(path))
+    assert [paragraph.text for paragraph in saved.paragraphs] == [
+        "Updated heading",
+        "Updated project guidance",
+    ]
+    assert any("Updated project guidance" in item["text"] for item in app.load_project_index(project.id))
+
+
+def test_binary_knowledge_documents_are_not_rewritten_as_plain_text(isolated_project_storage):
+    project = app.create_project("Protected Format Project")
+    document = app.get_project_knowledge_dir(project.id) / "reference.pdf"
+    document.write_bytes(b"%PDF-1.7")
+    with pytest.raises(ValueError, match="Only TXT, Markdown, CSV and DOCX"):
+        app.save_document_text(
+            document,
+            "Do not replace binary content",
+            allow_student_content=True,
+        )
 
 
 def test_question_analytics_are_recorded_and_summarised(isolated_project_storage):

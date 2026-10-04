@@ -42,6 +42,22 @@ def test_successful_login_and_hashed_password():
     assert encoded != auth.hash_password(PASSWORD)
 
 
+def test_browser_session_token_can_restore_after_streamlit_refresh():
+    auth.create_user("Refresh Admin", "refresh-admin", PASSWORD, "Administrator")
+    first_session = {}
+    assert auth.login(first_session, "refresh-admin", PASSWORD)
+    token = first_session["auth_token"]
+
+    refreshed_session = {}
+    assert auth.restore_session(refreshed_session, token)
+    assert auth.current_user(refreshed_session)["username"] == "refresh-admin"
+
+    auth.logout(first_session)
+    revoked_session = {}
+    assert not auth.restore_session(revoked_session, token)
+    assert not revoked_session
+
+
 @pytest.mark.parametrize("username,password", [("admin@test.local", "invalid"), ("unknown", PASSWORD)])
 def test_invalid_login(username, password):
     assert auth.authenticate(username, password) is None
@@ -113,6 +129,7 @@ def test_private_retrieval_and_assistant_reject_foreign_context(projects, monkey
         lambda: app.retrieve_information("secret", beta_docs),
         lambda: app.execute_search_plan({"action": "search", "queries": ["secret"]}, beta_docs),
         lambda: app.plan_information_search("secret", beta_docs),
+        lambda: app._structured_project_completion_context("list all completed tasks", beta),
         lambda: app.build_private_context(alpha_docs + beta_docs),
         lambda: app.build_project_profile(beta),
         lambda: app.generate_response("secret", beta_docs, project=alpha),
@@ -144,6 +161,8 @@ def test_student_can_update_meetings_milestones_and_project_documents(projects):
     alpha, _ = projects
     sign_in_role("Student", alpha)
     project = app.get_project(alpha.id)
+    original_description = project.description
+    original_team = list(project.team)
     project.description = "Student project overview update"
     project.team.append({"id": "student-member", "name": "Student member", "role": "Developer"})
     project.meetings.append({"id": "student-meeting", "title": "Student meeting"})
@@ -155,8 +174,8 @@ def test_student_can_update_meetings_milestones_and_project_documents(projects):
         allow_student_content=True,
     )
     saved = app.get_project(alpha.id)
-    assert saved.description == "Student project overview update"
-    assert saved.team[0]["id"] == "student-member"
+    assert saved.description == original_description
+    assert saved.team == original_team
     assert saved.meetings[0]["id"] == "student-meeting"
     assert saved.milestones[0]["id"] == "student-milestone"
     assert any(path.name == "student-note.txt" for path in app.list_project_documents(alpha.id))

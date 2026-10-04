@@ -39,13 +39,15 @@ def test_login_navigation_project_visibility_and_logout(role, monkeypatch):
         projects = next(widget for widget in at.selectbox if widget.label == "Current project")
         assert projects.value == "General Capstone"
     navigation = next(widget for widget in at.radio if widget.label == "Go to")
+    assert "🔐 Change password" not in navigation.options
+    assert sum(widget.label == "Change password" for widget in at.button) == 1
     assert ("⚙️ Administration" in navigation.options) == (role == "Administrator")
     projects.select("Alpha (alpha)").run()
     navigation = next(widget for widget in at.radio if widget.label == "Go to")
     navigation.set_value("📁 Project Workspace").run()
     assert not at.exception
     save = next(widget for widget in at.button if widget.label == "Save Project")
-    assert not save.disabled
+    assert save.disabled == (role == "Student")
     if role == "Administrator":
         next(widget for widget in at.radio if widget.label == "Go to").set_value("⚙️ Administration").run()
         assert not at.exception

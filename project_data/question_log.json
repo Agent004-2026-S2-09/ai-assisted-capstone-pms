@@ -150,5 +150,102 @@
       "assited",
       "capstone"
     ]
+  },
+  {
+    "timestamp": "2026-10-04T06:20:12Z",
+    "role": "Administrator",
+    "project_id": "",
+    "question": "tell me everything you know about uc capstone projects",
+    "keywords": [
+      "everything",
+      "know",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-04T08:04:49Z",
+    "role": "Administrator",
+    "project_id": "",
+    "question": "hi",
+    "keywords": []
+  },
+  {
+    "timestamp": "2026-10-04T10:09:18Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all completed tasks",
+    "keywords": [
+      "list",
+      "all",
+      "completed",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-04T11:03:36Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all completed tasks",
+    "keywords": [
+      "list",
+      "all",
+      "completed",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-04T11:04:15Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all backlog tasks",
+    "keywords": [
+      "list",
+      "all",
+      "backlog",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-04T11:05:24Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "what support do students gets from the university for there capstone projects",
+    "keywords": [
+      "support",
+      "students",
+      "gets",
+      "university",
+      "there",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-04T11:20:49Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "write a summary of all support provided by the university",
+    "keywords": [
+      "write",
+      "summary",
+      "all",
+      "support",
+      "provided",
+      "university"
+    ]
+  },
+  {
+    "timestamp": "2026-10-04T12:01:08Z",
+    "role": "Administrator",
+    "project_id": "",
+    "question": "list all available capstone projects",
+    "keywords": [
+      "list",
+      "all",
+      "available",
+      "capstone",
+      "projects"
+    ]
   }
 ]

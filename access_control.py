@@ -2,6 +2,7 @@
 import json
 import secrets
 import time
+from datetime import datetime, timezone
 import auth
 import database
 
@@ -41,6 +42,53 @@ def require_project(state, project_id, write=False):
     if write and user["role"] == "Student":
         raise AccessDenied("Students have read-only project access.")
     return user
+
+
+def can_manage_project_profile(state, project_id):
+    """Return whether the current actor may change project identity/profile data."""
+    user = require_user(state)
+    return can_access_project(state, project_id) and user["role"] != "Student"
+
+
+def require_project_profile(state, project_id):
+    user = require_project(state, project_id)
+    if user["role"] == "Student":
+        raise AccessDenied("Students cannot change project profile or team assignments.")
+    return user
+
+
+def require_project_content(state, project_id):
+    """Authorize meetings, milestones and documents for an assigned project."""
+    return require_project(state, project_id)
+
+
+def require_team_management(state, project_id):
+    return require_project_profile(state, project_id)
+
+
+def record_audit(state, action, *, project_id=None, details=None, object_type=None, object_id=None):
+    """Record security-relevant metadata without storing prompts or file contents.
+
+    Audit failure is deliberately non-fatal: observability must not take down a
+    successful user operation. Values are bounded before persistence.
+    """
+    try:
+        user = auth.current_user(state) if state else None
+        payload = dict(details or {}) if isinstance(details, dict) else {"message": str(details or "")}
+        if object_type:
+            payload["object_type"] = str(object_type)[:80]
+        if object_id is not None:
+            payload["object_id"] = str(object_id)[:160]
+        encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))[:2000]
+        with database.connect() as db:
+            db.execute(
+                "INSERT INTO project_audit_log(created_at, user_id, project_id, action, details) VALUES (?, ?, ?, ?, ?)",
+                (datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 user.get("id") if user else None, project_id, str(action)[:120], encoded),
+            )
+    except Exception:
+        return False
+    return True
 
 
 def accessible_projects(state):
@@ -148,9 +196,48 @@ def update_user(state, user_id, role, active):
         db.execute("DELETE FROM password_resets WHERE user_id = ?", (user_id,))
 
 
+def update_user_profile(state, user_id, *, first_name, last_name, email, role, status, active=None):
+    actor = require_admin(state)
+    if role not in database.ROLES:
+        raise ValueError("Unsupported role.")
+    status = str(status or "").strip().lower()
+    if status not in {"pending", "active", "rejected", "disabled"}:
+        raise ValueError("Unsupported account status.")
+    first_name, last_name, email = str(first_name or "").strip(), str(last_name or "").strip(), str(email or "").strip().casefold()
+    display_name = " ".join(item for item in (first_name, last_name) if item).strip()
+    if not display_name:
+        raise ValueError("First name or last name is required.")
+    if email and "@" not in email:
+        raise ValueError("Enter a valid email address.")
+    active_value = int(status == "active") if active is None else int(bool(active))
+    if actor["id"] == user_id and (role != "Administrator" or not active_value):
+        raise ValueError("Use another administrator to change your own access.")
+    with database.connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        require_admin(state)
+        db.execute("""UPDATE users SET name=?, first_name=?, last_name=?, email=?, role=?,
+                     status=?, active=?, updated_at=? WHERE id=?""",
+                   (display_name, first_name, last_name, email, role, status, active_value,
+                    datetime.now(timezone.utc).isoformat(timespec="seconds"), user_id))
+        db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        db.execute("DELETE FROM password_resets WHERE user_id = ?", (user_id,))
+
+
 def create_user(state, *args, **kwargs):
     require_admin(state)
+    from settings import is_enabled
+    if not is_enabled("feature_user_creation"):
+        raise AccessDenied("User creation is disabled by an Administrator.")
     return auth.create_user(*args, **kwargs)
+
+
+def import_users(state, rows):
+    """Import administrator-provided accounts as one validated transaction."""
+    require_admin(state)
+    from settings import is_enabled
+    if not is_enabled("feature_user_creation"):
+        raise AccessDenied("User creation is disabled by an Administrator.")
+    return auth.create_users_batch(rows)
 
 
 def issue_password_reset(state, user_id):

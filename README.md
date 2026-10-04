@@ -1,8 +1,8 @@
-# Capstone Assistant — Version 3, Sprint 3
+# Capstone Assistant — Version 4
 
-**Release status:** Sprint 3 implemented
+**Release status:** Sprint 4 implemented
 
-**Current release:** Version 3 / Sprint 3
+**Current release:** Version 4 / Sprint 4
 
 **Delivery plan:** Seven iterative sprints
 
@@ -11,11 +11,49 @@ approved UC Canberra Capstone documents in `knowledge_base/`. It reads PDF,
 Word, Excel, CSV, PowerPoint, Markdown and text files. Scanned PDF pages are processed
 locally with Tesseract OCR.
 
-Version 3 adds SQLite persistence, database-backed login and role-based project
-access while preserving the Sprint 1 assistant and Sprint 2 workspace. Forgotten
-passwords are replaced through expiring reset codes; existing passwords are never
-revealed. Later sprints will add features and record fixes incrementally. See
+Version 3 introduced SQLite persistence, database-backed login and role-based
+project access while preserving the Sprint 1 assistant and Sprint 2 workspace.
+Forgotten passwords are replaced through expiring reset codes; existing
+passwords are never revealed. See
 [CHANGELOG.md](CHANGELOG.md) for the release history.
+
+Version 4 adds Administrator-only AI and system performance monitoring,
+response feedback, prompt intelligence, prompt version management and manual
+AI evaluation. The migration is additive and preserves existing users,
+projects and assignments.
+
+The AI response path also includes bounded multi-stage retrieval, document-wide
+report synthesis, grounded response validation and a SQLite-backed vector
+embedding index. API-service health, retrieval quality, embedding model status
+and index health are visible only to Administrators.
+
+The project workspace also provides optional Gantt scheduling and an
+AI-enabled Kanban task board. Gantt tasks can be created manually or imported
+from the downloadable Excel template using hierarchical codes such as `1`,
+`1.1` and `1.2`. New schedule tasks automatically receive one linked Kanban
+Backlog card. Administrators can enable or disable scheduling, Kanban, Kanban
+AI actions, Excel import, backlog synchronisation and user creation from
+Administration.
+
+## Authorization and operational safeguards
+
+Authorization is evaluated against the signed-in database session and current
+project assignments. Students can access only their assigned projects and may
+maintain project content such as meetings, milestones and documents, but cannot
+change project profile fields, mentor assignment or team membership. Mentors are
+limited to assigned teams, Convenors can oversee all projects, and performance
+monitoring and prompt/evaluation administration are restricted to Administrators.
+
+Project and workspace mutations produce bounded, metadata-only audit records.
+AI interaction, API-service and retrieval telemetry store hashes, counts,
+latencies and status information rather than unnecessary document contents.
+Streaming provider setup failures are recorded and handled through the normal
+fallback/error path. Grounded-answer verification status is tracked explicitly
+as validated, disabled or unavailable.
+
+The current prototype does not include LMS integration. User and team imports
+from an LMS remain a future integration boundary; the existing local accounts,
+assignments and workflows are preserved in this release.
 
 ## Sprint 1 scope
 
@@ -48,11 +86,12 @@ revealed. Later sprints will add features and record fixes incrementally. See
   internal source filenames or page references.
 - Capture local question trends so mentors and administrators can identify
   common areas of interest.
-- Protect local project records and uploads from accidental Git commits.
+- Preserve persistent project records, uploads and SQLite data as deployable
+  application data while excluding environment secrets.
 
 ## Development roadmap
 
-The project will be developed over seven sprints. Version 3 / Sprint 3 is the
+The project will be developed over seven sprints. Version 4 / Sprint 4 is the
 current implementation. Each subsequent sprint will add features, address
 identified defects and receive a new entry in `CHANGELOG.md`.
 
@@ -64,11 +103,12 @@ identified defects and receive a new entry in `CHANGELOG.md`.
   meetings and project-specific documents.
 - The assistant can answer with selected-project context while keeping project
   documents isolated from other projects.
-- The sidebar includes a Sprint 2 improvements panel summarising access
-  filtering, retrieval compression, streaming, slide interpretation and
-  question trend logging.
-- The Administration page includes Sprint 2 AI handling details for the context
-  budget, streaming path, slide/diagram indexing and question analytics.
+- Administrators can open AI and system performance, prompt intelligence,
+  prompt management and AI evaluation views.
+- Assistant responses support Helpful / Not helpful feedback with optional
+  comments; administrators can review monitoring and feedback data.
+- Completed responses can be formatted and downloaded as Word, Excel, PDF or
+  PowerPoint files.
 - The three guidance cards remain visible above the conversation at all times.
 - Assistant responses appear below the guidance cards.
 - Source filenames, document locations and page references remain internal and
@@ -76,6 +116,20 @@ identified defects and receive a new entry in `CHANGELOG.md`.
 - Every page displays `Powered by Trellis Data (agentaus AI)` in the footer.
 - The layout adapts to desktop and narrow screens and includes keyboard focus
   and reduced-motion accessibility styling.
+- Project Workspace places Gantt immediately after Meetings and Tasks after
+  Gantt when those features are enabled.
+- Project milestones, meetings and Gantt schedule dates use date pickers;
+  schedule finish dates cannot precede their start dates.
+- Project mentors are selected from active Mentor accounts, while project team
+  members are selected from active Student accounts. A project supports a
+  maximum of four students.
+- Administrators can download Gantt and user-account Excel templates.
+- Administrators can preview and atomically import user accounts from the
+  user-account Excel template; imported accounts must change their temporary
+  passwords at first login.
+- Newly created accounts support first-login temporary-password enforcement.
+- Users can change passwords inside the authenticated app. Password recovery is
+  handled through the administrator-issued reset-code workflow.
 
 ## What you need
 
@@ -84,7 +138,7 @@ identified defects and receive a new entry in `CHANGELOG.md`.
 - Git, if cloning the repository
 - Tesseract OCR 5
 - An AgentAus API endpoint and API key
-- A database account created with `manage.py` (see Sprint 3 setup)
+- A database account created with `manage.py`
 
 ## 1. Get the project
 
@@ -244,8 +298,9 @@ pytest -q
 For forgotten passwords, contact an administrator for a single-use reset code,
 then choose **Forgot password?** on the sign-in page.
 
-Existing installations upgrade safely to schema version 2 on startup. Existing
-users, assignments, the original capstone project and both demo projects are retained.
+Existing installations upgrade safely to schema version 7 on startup. Existing
+users, assignments, projects and password hashes are retained. The migration
+does not import accounts or data from any other project.
 
 ## 8. Initialize accounts and start Capstone Assistant
 
@@ -266,9 +321,11 @@ change does not appear, stop Streamlit completely, start it again from this
 folder, and hard-refresh the browser.
 
 Runtime project records are stored in SQLite at `project_data/capstone.sqlite3`, and project-specific
-uploads are stored in `project_knowledge/<project-id>/`. These folders are
-ignored for new files by Git because they may contain local or confidential project material.
-Files already tracked by Git remain tracked; review existing repository data separately.
+uploads are stored in `project_knowledge/<project-id>/`. These persistent data
+folders are intentionally included in the repository so the deployed
+application can initialise with its existing users and records. Review private
+data carefully before sharing the repository. Environment files and
+`.streamlit/secrets.toml` remain excluded from Git.
 
 ## 9. Suggested test procedure
 
@@ -284,6 +341,10 @@ Files already tracked by Git remain tracked; review existing repository data sep
 9. Confirm that the three guidance cards remain visible after sending messages.
 10. Confirm that the sidebar is dark blue and the footer says
     `Powered by Trellis Data (agentaus AI)`.
+11. Submit Helpful or Not helpful feedback on a completed answer.
+12. As an Administrator, open **AI Performance**, **Prompt Intelligence**,
+    **Prompt Management** and **AI Evaluation** and confirm that empty and
+    populated monitoring views render correctly.
 
 The application deliberately does not show source filenames or page numbers to
 end users.
@@ -325,6 +386,27 @@ end users.
   Set `ENABLE_ANSWER_VALIDATION=false` only if reduced API usage is preferred
   over the additional verification step.
 - Do not manually edit `knowledge_index/index.json`.
+
+### SQLite vector retrieval
+
+Each indexed information item is embedded and stored in the application SQLite
+database. The default deployment-safe model is `hashing-v1`, a deterministic
+384-dimensional local embedding model using word and phrase features. SQLite
+stores the vector bytes, model name, dimensions and content hash; retrieval
+combines these vector cosine scores with BM25, fuzzy matching and latent
+semantic scores. This keeps document contents and embeddings local and avoids a
+mandatory external model download on Streamlit Cloud.
+
+The model can be configured with `EMBEDDING_MODEL_NAME` and the vector size with
+`EMBEDDING_DIMENSIONS`. Re-indexing occurs automatically after document changes
+or when the model configuration changes.
+
+### API and retrieval monitoring
+
+Administrators can inspect provider-call counts, success rates, latency,
+failures, token usage, retrieval no-match rate, result counts, top scores,
+retrieval latency and daily retrieval trends. The telemetry stores hashes and
+metadata rather than question or response content in operational event tables.
 
 ## Retrieval, context budgeting and response streaming
 
@@ -377,6 +459,60 @@ Authenticated administrators can open **Recent AI usage** on the Administration
 page to view token counts returned by AgentAus and the estimated document-context
 budget for the most recent answer. These diagnostics are session-local and do
 not contain prompts, document text, API keys or passwords.
+
+## AI monitoring and evaluation
+
+Version 4 records privacy-conscious operational metrics in SQLite, including
+request timing, success or failure, assistant mode, prompt version, response
+length and provider token usage when returned. Full submitted questions and
+bounded completed response text are kept in restricted Administrator
+monitoring records for evaluation and documentation analysis. Response text is
+not exposed to ordinary users through the monitoring interface.
+
+Only Administrators can access the performance dashboard, prompt intelligence,
+prompt management, prompt archive and manual AI evaluation pages. Users may
+submit feedback on their own completed responses, while Administrators can
+review the resulting metrics and comments.
+
+The monitoring migration adds `prompt_versions`, `ai_interactions`,
+`ai_prompt_archive`, `response_feedback`, `ai_evaluations`,
+`api_service_events`, `retrieval_events`, `document_embeddings` and
+`embedding_runs` tables. It does not replace the existing SQLite database or
+user records.
+
+## Scheduling, Kanban and account lifecycle
+
+Gantt schedules are project-scoped and validate hierarchical codes, dates,
+progress, predecessor references and circular dependencies before saving.
+Excel imports are transactional and can add/update tasks by code or replace a
+schedule after confirmation. Imported and manually created tasks synchronise
+to one Kanban Backlog card using the Gantt task ID or code as the stable link.
+The schedule is displayed as a ProjectLibre/Microsoft Project-style task table
+with WBS, duration, dates, dependencies, resources and completion percentage.
+Moving a linked task through the Tasks workflow updates its schedule completion
+from 0% in Backlog to 100% in Done.
+
+The Kanban assistant accepts structured natural-language actions for creating,
+moving and updating cards. It is restricted to the selected project and does
+not execute ambiguous destructive actions through AI. Successful AI task-board
+actions immediately refresh the current Tasks view.
+
+Administrators can create accounts with username, first name, last name,
+email, role, temporary password and status. New administrator-created users
+must change their temporary password at first login. Existing users can change
+their password from the authenticated workspace. Passwords are hashed and are
+never stored in plain text.
+
+## Response exports
+
+Each completed assistant response includes an **Export this answer** control.
+Agentaus first organises the response into a structured title, summary,
+sections, bullets and tables without adding facts. The result can then be
+downloaded as Word (`.docx`), Excel (`.xlsx`), PDF (`.pdf`) or PowerPoint
+(`.pptx`).
+
+Export files are generated in memory and are not stored in the local database
+or uploaded to the repository.
 
 ## Troubleshooting
 

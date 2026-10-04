@@ -1,7 +1,5 @@
-# Local configuration and secretsgit 
+# Local configuration and secrets
 .env
-.env.*
-!.env.example
 .streamlit/secrets.toml
 
 # Python environments and generated files
@@ -30,10 +28,6 @@ Thumbs.db
 
 
 
-# Private runtime project records, documents and SQLite databases
-project_data/
-project_knowledge/
-*.sqlite3
-*.sqlite3-*
-*.db
-*.db-*
+# Persistent application data, project documents and SQLite databases are
+# intentionally tracked because they are required to initialise the deployed
+# application with its existing users and records.

@@ -1,4 +1,4 @@
-streamlit
+streamlit==1.65.0
 requests
 python-dotenv
 pypdf
@@ -9,3 +9,8 @@ pytesseract
 pypdfium2
 Pillow
 scikit-learn
+pandas
+numpy
+reportlab
+plotly
+streamlit-sortables
