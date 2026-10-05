@@ -92,6 +92,17 @@ def test_api_messages_include_current_question_once():
     assert messages[-1] == {"role": "user", "content": question}
 
 
+def test_answer_prompt_requires_real_visual_source_for_visual_requests(monkeypatch):
+    monkeypatch.setattr(app.prompts, "get_active_prompt", lambda name: {"prompt_text": ""})
+    messages, _, _ = app._build_answer_request("Can you generate visuals for the PowerPoint?", [])
+    prompt = messages[0]["content"]
+    assert "actual" in prompt and "visual source or a complete" in prompt
+    assert "slide-ready specification" in prompt
+    assert "fenced ```mermaid" in prompt
+    assert "Never claim that PowerPoint directly" in prompt
+    assert "renders arbitrary Mermaid source" in prompt
+
+
 def test_project_profile_includes_authorised_schedule_and_tasks_context():
     project = app.create_project("AI Context Project", code="AI-CONTEXT")
     gantt.add_task(app.st.session_state, project.id, {

@@ -247,5 +247,155 @@
       "capstone",
       "projects"
     ]
+  },
+  {
+    "timestamp": "2026-10-05T11:05:50Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list 10 available capstone project in excel layout format",
+    "keywords": [
+      "list",
+      "available",
+      "capstone",
+      "excel",
+      "layout",
+      "format"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:06:35Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list 10 available capstone projects",
+    "keywords": [
+      "list",
+      "available",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:06:56Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "list 10 available capstone project in excel layout format",
+    "keywords": [
+      "list",
+      "available",
+      "capstone",
+      "excel",
+      "layout",
+      "format"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:07:32Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "you only listed 1 i need 10",
+    "keywords": [
+      "only",
+      "listed"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:09:29Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "now write me a report in word format of one available capstone project with it complete details.",
+    "keywords": [
+      "now",
+      "write",
+      "report",
+      "word",
+      "format",
+      "one",
+      "available",
+      "capstone"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:12:38Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you get me everything we have done so far on our project in a PowerPoint style presentation so i can export it.",
+    "keywords": [
+      "get",
+      "everything",
+      "done",
+      "far",
+      "our",
+      "powerpoint",
+      "style",
+      "presentation"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:35:30Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "can you list 10 available capstone projects in excel style table format.",
+    "keywords": [
+      "list",
+      "available",
+      "capstone",
+      "projects",
+      "excel",
+      "style",
+      "table",
+      "format"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:37:14Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "write me a full report in word style format of everything you know about uc capstone project support that is available to students",
+    "keywords": [
+      "write",
+      "full",
+      "report",
+      "word",
+      "style",
+      "format",
+      "everything",
+      "know"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:41:22Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you generate a PowerPoint style presentation of everything you know about our project so far",
+    "keywords": [
+      "generate",
+      "powerpoint",
+      "style",
+      "presentation",
+      "everything",
+      "know",
+      "our",
+      "far"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:41:57Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "go ahead",
+    "keywords": [
+      "ahead"
+    ]
+  },
+  {
+    "timestamp": "2026-10-05T11:44:16Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you generate some visuals with it",
+    "keywords": [
+      "generate",
+      "some",
+      "visuals"
+    ]
   }
 ]
