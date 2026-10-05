@@ -2,6 +2,7 @@
 # CAPSTONE Assistant
 # UC Canberra Capstone Project Assistant
 # ============================================================
+# Deployment sync marker: 2026-10-05
 
 import os
 import re
