@@ -74,6 +74,42 @@ CURRENT_SPRINT = "Sprint 4"
 SUPPORT_EMAIL = "ITS-Capstone@canberra.edu.au"
 AUTH_COOKIE_NAME = "capstone_session"
 
+_AUTH_PERSISTENCE_COMPONENT = st.components.v2.component(
+    "capstone_auth_persistence",
+    html="<span aria-hidden='true'></span>",
+    js="""
+export default function (component) {
+    const { data, setStateValue } = component
+    const storageKey = (data && data.storageKey) || "capstone_session"
+    const requestedToken = (data && data.token) || ""
+    const shouldClear = Boolean(data && data.clear)
+
+    try {
+        if (shouldClear) {
+            window.localStorage.removeItem(storageKey)
+            setStateValue("token", "")
+            return
+        }
+
+        if (requestedToken) {
+            const storedToken = window.localStorage.getItem(storageKey) || ""
+            if (storedToken !== requestedToken) {
+                window.localStorage.setItem(storageKey, requestedToken)
+            }
+            return
+        }
+
+        const storedToken = window.localStorage.getItem(storageKey) || ""
+        setStateValue("token", storedToken)
+    } catch (error) {
+        // Private browsing or a browser policy may disable storage. The
+        // server-side session remains usable for the current tab.
+        setStateValue("token", "")
+    }
+}
+""",
+)
+
 def get_config(key: str, default: str = "") -> str:
     """Return a setting from Streamlit secrets, then the environment."""
     try:
@@ -485,11 +521,34 @@ def _write_browser_session_cookie(token, max_age=auth.SESSION_SECONDS):
         pass
 
 
-def _restore_browser_session():
+def _browser_persistence_token():
+    """Synchronise the local browser token through a Streamlit v2 component."""
+    clear = bool(st.session_state.pop("clear_browser_session", False))
+    current_token = st.session_state.get("auth_token", "")
+    try:
+        result = _AUTH_PERSISTENCE_COMPONENT(
+            key="capstone_auth_persistence_state",
+            data={
+                "storageKey": AUTH_COOKIE_NAME,
+                "token": current_token,
+                "clear": clear,
+            },
+            default={"token": current_token if not clear else ""},
+            on_token_change=lambda: None,
+            width="content",
+            height="content",
+        )
+        return str(getattr(result, "token", "") or "")
+    except (AttributeError, RuntimeError, TypeError, st.errors.StreamlitAPIException):
+        # Keep local development and test doubles compatible if CCv2 is absent.
+        return ""
+
+
+def _restore_browser_session(persisted_token=""):
     """Restore login state after a Streamlit browser refresh when possible."""
     if st.session_state.get("auth_token"):
         return auth.current_user(st.session_state)
-    token = _browser_session_cookie()
+    token = persisted_token or _browser_session_cookie()
     if token and auth.restore_session(st.session_state, token):
         return auth.current_user(st.session_state)
     if token:
@@ -4498,7 +4557,9 @@ def render_sidebar():
             st.write(f"**{user['name']}**")
             st.caption(f"{user['role']} · secure workspace")
         if st.button("Log out", width="stretch"):
+            _write_browser_session_cookie("", max_age=0)
             auth.logout(st.session_state)
+            st.session_state.clear_browser_session = True
             st.rerun()
         if st.button("Change password", width="stretch"):
             st.session_state.open_change_password = True
@@ -7060,7 +7121,8 @@ def main():
 
     database.initialize(legacy_file=PROJECTS_FILE)
     prompts.ensure_default_prompts()
-    user = _restore_browser_session()
+    persisted_token = _browser_persistence_token()
+    user = _restore_browser_session(persisted_token)
     if user is None:
         if st.session_state.get("auth_token"):
             auth.logout(st.session_state)
