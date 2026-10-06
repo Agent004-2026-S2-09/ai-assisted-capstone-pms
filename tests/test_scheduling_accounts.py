@@ -75,6 +75,95 @@ def test_drag_style_board_saves_update_linked_gantt_progress_without_card_metada
     assert "Progress:" not in kanban.get_board(state, "drag-progress")["cards"][card_id]["details"]
 
 
+def test_gantt_and_kanban_crud_stays_bidirectionally_synchronised():
+    state = {}
+    password = "bidirectional-admin-password"
+    auth.create_user("Bidirectional Admin", "bidirectional-admin", password, "Administrator")
+    assert auth.login(state, "bidirectional-admin", password)
+    database.write_projects([{"id": "bidirectional", "name": "Bidirectional", "profile": {"id": "bidirectional", "name": "Bidirectional"}}])
+
+    gantt.add_task(state, "bidirectional", {
+        "code": "1",
+        "name": "Initial schedule task",
+        "type": "Task",
+        "start": "2026-10-02",
+        "finish": "2026-10-05",
+        "progress": 0,
+        "resource": "",
+        "predecessors": [],
+        "details": "Initial details",
+        "milestone": False,
+    })
+    board = kanban.get_board(state, "bidirectional")
+    linked_card_id = next(iter(board["cards"]))
+    gantt_task_id = gantt.get_plan(state, "bidirectional")["tasks"][0]["id"]
+
+    gantt.update_task(
+        state,
+        "bidirectional",
+        gantt_task_id,
+        {**gantt.get_plan(state, "bidirectional")["tasks"][0], "name": "Renamed schedule task", "details": "Updated details"},
+    )
+    updated_card = kanban.get_board(state, "bidirectional")["cards"][linked_card_id]
+    assert updated_card["title"] == "Renamed schedule task"
+    assert updated_card["details"] == "Updated details"
+
+    gantt.delete_task(state, "bidirectional", gantt_task_id)
+    assert not kanban.get_board(state, "bidirectional")["cards"]
+
+    manual_card_id = kanban.add_card(state, "bidirectional", "Manual task", "Manual details")
+    plan = gantt.get_plan(state, "bidirectional")
+    assert len(plan["tasks"]) == 1
+    linked_task = plan["tasks"][0]
+    assert linked_task["name"] == "Manual task"
+
+    kanban.update_card(state, "bidirectional", manual_card_id, "Edited manual task", "Edited details")
+    linked_task = gantt.get_plan(state, "bidirectional")["tasks"][0]
+    assert linked_task["name"] == "Edited manual task"
+    assert linked_task["details"] == "Edited details"
+
+    kanban.move_card(state, "bidirectional", manual_card_id, "done")
+    assert gantt.get_plan(state, "bidirectional")["tasks"][0]["progress"] == 100
+    kanban.delete_card(state, "bidirectional", manual_card_id)
+    assert not gantt.get_plan(state, "bidirectional")["tasks"]
+
+
+def test_completed_gantt_milestones_are_linked_without_replacing_manual_records():
+    state = {}
+    password = "milestone-link-admin-password"
+    auth.create_user("Milestone Link Admin", "milestone-link-admin", password, "Administrator")
+    assert auth.login(state, "milestone-link-admin", password)
+    database.write_projects([{"id": "milestone-link", "name": "Milestone Link", "milestones": [{"id": "manual-1", "name": "Sponsor decision", "status": "Completed", "date": "2026-10-01", "notes": "Manual record"}]}])
+
+    gantt.add_task(state, "milestone-link", {
+        "code": "1",
+        "name": "Prototype accepted",
+        "type": "Milestone",
+        "start": "2026-10-02",
+        "finish": "2026-10-02",
+        "progress": 0,
+        "resource": "",
+        "predecessors": [],
+        "details": "Acceptance recorded by the project team.",
+        "milestone": True,
+    })
+    card_id = next(iter(kanban.get_board(state, "milestone-link")["cards"]))
+    records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
+    assert [item["id"] for item in records] == ["manual-1"]
+
+    kanban.move_card(state, "milestone-link", card_id, "done")
+    records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
+    assert [item["id"] for item in records if item.get("source") != "gantt"] == ["manual-1"]
+    linked = next(item for item in records if item.get("source") == "gantt")
+    assert linked["name"] == "Prototype accepted"
+    assert linked["status"] == "Completed"
+    assert linked["gantt_code"] == "1"
+
+    kanban.move_card(state, "milestone-link", card_id, "progress")
+    records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
+    assert next(item for item in records if item.get("source") == "gantt")["status"] == "In Progress"
+
+
 def test_feature_flags_are_admin_only():
     state = {}
     auth.create_user("Flag Admin", "flag-admin", "flag-admin-password", "Administrator")

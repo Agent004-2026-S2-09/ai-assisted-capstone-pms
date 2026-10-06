@@ -28,6 +28,7 @@ from uuid import uuid4
 import requests
 import streamlit as st
 import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
 
 import database
 import auth
@@ -562,6 +563,7 @@ def _restore_browser_session(persisted_token=""):
 
 ALLOWED_PROJECT_STATUSES = {"Planning", "Active", "On Hold", "Completed"}
 ALLOWED_MILESTONE_STATUSES = {"Planned", "In Progress", "Completed", "At Risk"}
+MILESTONE_SOURCES = {"manual", "gantt"}
 USER_ROLES = database.ROLES
 PROJECT_DIRECTORY_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _PROJECT_PROCESS_LOCK = threading.RLock()
@@ -593,6 +595,22 @@ def _clean_records(value, fields, status_field=None, allowed_statuses=None):
     return records
 
 
+def _clean_milestones(value):
+    records = _clean_records(
+        value,
+        ("name", "status", "date", "notes", "source", "gantt_task_id", "gantt_code"),
+        "status",
+        ALLOWED_MILESTONE_STATUSES,
+    )
+    for record in records:
+        source = str(record.get("source") or "manual").strip().casefold()
+        record["source"] = source if source in MILESTONE_SOURCES else "manual"
+        if record["source"] == "manual":
+            record["gantt_task_id"] = ""
+            record["gantt_code"] = ""
+    return records
+
+
 @dataclass
 class Project:
     id: str
@@ -619,12 +637,7 @@ class Project:
         self.status = self.status if self.status in ALLOWED_PROJECT_STATUSES else "Active"
         self.revision = max(0, _clean_integer(self.revision))
         self.team = _clean_records(self.team, ("name", "role", "user_id", "user_role", "username"))
-        self.milestones = _clean_records(
-            self.milestones,
-            ("name", "status", "date", "notes"),
-            "status",
-            ALLOWED_MILESTONE_STATUSES,
-        )
+        self.milestones = _clean_milestones(self.milestones)
         self.meetings = _clean_records(
             self.meetings,
             ("date", "title", "attendees", "discussion", "decisions", "actions"),
@@ -4998,6 +5011,30 @@ def render_project_overview(project):
     current_user = auth.current_user(st.session_state)
     can_edit_profile = current_user and current_user["role"] != "Student"
     st.subheader("📋 Project Overview")
+    if not can_edit_profile:
+        st.caption("Project overview is read-only for Students. Contact an Administrator or Convenor if a change is needed.")
+        with st.container(border=True):
+            first_row = st.columns(2)
+            with first_row[0]:
+                st.markdown("**Project name**")
+                st.write(project.name or "Not provided")
+            with first_row[1]:
+                st.markdown("**Project code**")
+                st.write(project.code or "Not provided")
+            st.markdown("**Project description**")
+            st.write(project.description or "Not provided")
+            second_row = st.columns(3)
+            with second_row[0]:
+                st.markdown("**Sponsor**")
+                st.write(project.sponsor or "Not provided")
+            with second_row[1]:
+                st.markdown("**Mentor**")
+                st.write(project.mentor or "Not assigned")
+            with second_row[2]:
+                st.markdown("**Status**")
+                st.write(project.status or "Not provided")
+        return
+
     mentors = _directory_users("Mentor")
     mentor_by_id = {str(user["id"]): user for user in mentors}
     selected_mentor_id = str(project.mentor_user_id or "")
@@ -5108,16 +5145,23 @@ def render_project_team(project):
 def render_project_milestones(project):
     require_project_access(project.id)
     st.subheader("🎯 Project Milestones")
+    st.caption("Manual milestones are independent records. Gantt-linked milestones appear here automatically when a Gantt milestone reaches 100%.")
 
     if project.milestones:
         for index, milestone in enumerate(project.milestones):
             with st.expander(milestone.get("name", "Milestone")):
+                source = "Gantt-linked" if milestone.get("source") == "gantt" else "Manual"
+                st.write("**Source:** " + source)
                 st.write("**Target date:** " + milestone.get("date", ""))
                 st.write("**Status:** " + milestone.get("status", ""))
+                if milestone.get("source") == "gantt" and milestone.get("gantt_code"):
+                    st.write("**Gantt code:** " + milestone.get("gantt_code", ""))
                 if milestone.get("notes"):
                     st.write("**Notes:**")
                     st.write(milestone.get("notes", ""))
-                if st.button(
+                if milestone.get("source") == "gantt":
+                    st.caption("This completion record is managed by the linked Gantt milestone.")
+                elif st.button(
                     "Delete milestone",
                     key=f"delete_milestone_{project.id}_{milestone.get('id', index)}",
                     disabled=auth.current_user(st.session_state)["role"] == "Student",
@@ -5132,6 +5176,7 @@ def render_project_milestones(project):
         st.info("No project milestones have been added.")
 
     st.divider()
+    st.caption("Add a milestone manually when it is not represented in the Gantt schedule.")
     with st.form(f"add_milestone_{project.id}"):
         name = st.text_input("Milestone")
         target_date = st.date_input("Target date", value=date.today())
@@ -5292,38 +5337,6 @@ def render_project_knowledge(project):
         st.rerun()
 
 
-def render_project_question_trends(project):
-    require_project_access(project.id)
-    st.subheader("📈 Question Trends")
-    records = [
-        record
-        for record in load_question_analytics()
-        if record.get("project_id") == project.id
-    ]
-    summary = summarise_question_analytics(records)
-    col1, col2 = st.columns(2)
-    col1.metric("Logged questions", summary["total"])
-    col2.metric("Common keywords", len(summary["keywords"]))
-    if not records:
-        st.info("No questions have been logged for this project yet.")
-        return
-    st.write("Common keywords")
-    st.dataframe(
-        [{"keyword": keyword, "count": count} for keyword, count in summary["keywords"]],
-        hide_index=True,
-        width="stretch",
-    )
-    st.write("Recent project questions")
-    st.dataframe(
-        [
-            {"timestamp": record.get("timestamp", ""), "role": record.get("role", ""), "question": record.get("question", "")}
-            for record in reversed(records[-20:])
-        ],
-        hide_index=True,
-        width="stretch",
-    )
-
-
 def _critical_task_ids(tasks):
     """Return the longest dependency chain for reference-style critical colouring."""
     by_id = {task["id"]: task for task in tasks}
@@ -5398,13 +5411,17 @@ def _render_gantt_chart(tasks):
         margin={"l": 10, "r": 20, "t": 20, "b": 35},
         xaxis={
             "type": "date", "rangeslider": {"visible": True},
+            "title": {"text": "Date"},
             "rangeselector": {"buttons": [
                 {"count": 1, "label": "1m", "step": "month", "stepmode": "backward"},
                 {"count": 3, "label": "3m", "step": "month", "stepmode": "backward"},
                 {"step": "all"},
             ]},
         },
-        yaxis={"categoryorder": "array", "categoryarray": order, "autorange": True},
+        yaxis={
+            "categoryorder": "array", "categoryarray": order, "autorange": True,
+            "title": {"text": "Tasks"},
+        },
         hovermode="closest", showlegend=True, legend={"orientation": "h", "y": 1.04, "x": 0},
     )
     st.plotly_chart(figure, width="stretch", config={"displaylogo": False, "scrollZoom": True})
@@ -5574,12 +5591,27 @@ other projects. The current board is:
     if not isinstance(actions, list) or not actions:
         raise ValueError("No explicit task action was identified.")
     completed = []
+    pending_deletes = []
     for action in actions[:10]:
         if str(action.get("action", "")).lower() == "delete":
-            raise ValueError("AI deletion requires an explicit manual confirmation in the task board.")
+            pending_deletes.append(action)
+            continue
         kanban.apply_ai_action(st.session_state, project_id, action)
         completed.append(str(action.get("action")))
-    return f"Completed {len(completed)} task-board action(s): {', '.join(completed)}."
+    if pending_deletes:
+        response = (
+            f"Completed {len(completed)} task-board action(s). " if completed else ""
+        ) + f"Confirmation is required to delete {len(pending_deletes)} card(s)."
+    else:
+        response = f"Completed {len(completed)} task-board action(s): {', '.join(completed)}."
+    return response, pending_deletes
+
+
+def _refresh_project_task_views(project_id):
+    """Force task-board components to remount after a persisted mutation."""
+    key = f"task_board_revision_{project_id}"
+    st.session_state[key] = int(st.session_state.get(key, 0)) + 1
+    st.rerun()
 
 
 def render_project_gantt(project):
@@ -5616,7 +5648,7 @@ def render_project_gantt(project):
                     try:
                         gantt.import_workbook(st.session_state, project.id, upload.getvalue(), replace=replace)
                         st.success("Schedule imported and linked Kanban backlog cards created or updated.")
-                        st.rerun()
+                        _refresh_project_task_views(project.id)
                     except (ValueError, PermissionError) as error:
                         st.error(str(error))
 
@@ -5644,7 +5676,7 @@ def render_project_gantt(project):
                 is_milestone = kind == "Milestone" or ("." not in code and kind != "Task")
                 gantt.add_task(st.session_state, project.id, {"code": code, "name": name, "type": kind, "start": start.isoformat(), "finish": (start if is_milestone else finish).isoformat(), "progress": progress, "resource": _resource_value(resource_ids, resource_by_id), "predecessors": [item.strip() for item in predecessors.split(",") if item.strip()], "details": details, "milestone": is_milestone})
                 st.success("Schedule item added and placed in the Kanban backlog.")
-                st.rerun()
+                _refresh_project_task_views(project.id)
             except (ValueError, PermissionError) as error:
                 st.error(str(error))
 
@@ -5693,12 +5725,12 @@ def render_project_gantt(project):
                         try:
                             gantt.update_task(st.session_state, project.id, task["id"], {**task, "code": edited_code.strip(), "name": edited_name, "type": edited_type, "start": edited_start.isoformat(), "finish": edited_finish.isoformat(), "progress": edited_progress, "resource": _resource_value(edited_resource_ids, resource_by_id), "predecessors": [item.strip() for item in edited_predecessors.split(",") if item.strip()], "details": edited_details, "milestone": edited_type == "Milestone", "summary": edited_type == "Summary"})
                             st.success("Schedule item updated and its linked Kanban card synchronised.")
-                            st.rerun()
+                            _refresh_project_task_views(project.id)
                         except (ValueError, PermissionError) as error:
                             st.error(str(error))
                     if st.button("Delete selected item", key=f"gantt_delete_{project.id}_{task['id']}"):
                         gantt.delete_task(st.session_state, project.id, task["id"])
-                        st.rerun()
+                        _refresh_project_task_views(project.id)
             st.dataframe(tasks, hide_index=True, width="stretch")
 
 
@@ -5744,6 +5776,7 @@ def render_project_kanban(project):
                 labels[label] = card_id
                 items.append(label)
         containers.append({"header": column["title"], "items": items})
+    revision = int(st.session_state.get(f"task_board_revision_{project.id}", 0))
     sorted_containers = sort_items(containers, multi_containers=True, direction="vertical", custom_style="""
     .sortable-component.vertical { background: transparent; gap: 8px; flex-wrap: nowrap; overflow-x: hidden; align-items: stretch; width: 100%; }
     .sortable-component.vertical .sortable-container { background: #F4F4F4; border: 1px solid #96E3FF; border-radius: 14px; min-height: 230px; min-width: 0; width: 0; flex: 1 1 0; padding: 0; }
@@ -5751,12 +5784,12 @@ def render_project_kanban(project):
     .sortable-component.vertical .sortable-container-body { background: #F4F4F4; border-radius: 0 0 14px 14px; min-height: 180px; min-width: 0; padding: 6px; }
     .sortable-component.vertical .sortable-item { display: block; background: white; color: #001B2F; border: 1px solid #96E3FF; border-left: 4px solid #2FC8FF; border-radius: 10px; margin: 0 0 6px; padding: 8px; box-shadow: 0 2px 7px rgba(0,27,47,.10); white-space: pre-wrap; overflow-wrap: anywhere; height: auto; font-size: .78rem; }
     .sortable-component.vertical .sortable-item:last-child { margin-bottom: 0; }
-    """, key=f"kanban_sort_{project.id}")
+    """, key=f"kanban_sort_{project.id}_{revision}")
     if sorted_containers != containers:
         for column, sorted_column in zip(board["columns"], sorted_containers):
             column["cardIds"] = [labels[item] for item in sorted_column.get("items", []) if item in labels]
         kanban.save_board(st.session_state, project.id, board)
-        st.rerun()
+        _refresh_project_task_views(project.id)
     with st.expander("Add or move a card"):
         with st.form(f"kanban_card_{project.id}"):
             title = st.text_input("Card title")
@@ -5766,7 +5799,7 @@ def render_project_kanban(project):
         if submitted:
             try:
                 kanban.add_card(st.session_state, project.id, title, details, column["id"])
-                st.rerun()
+                _refresh_project_task_views(project.id)
             except (ValueError, PermissionError) as error:
                 st.error(str(error))
     if total:
@@ -5787,21 +5820,22 @@ def render_project_kanban(project):
                     if edited_card:
                         try:
                             kanban.update_card(st.session_state, project.id, card["id"], edited_title, edited_details)
-                            st.rerun()
+                            _refresh_project_task_views(project.id)
                         except (ValueError, PermissionError) as error:
                             st.error(str(error))
                     target = st.selectbox("Move to", board["columns"], index=next((i for i, col in enumerate(board["columns"]) if card["id"] in col["cardIds"]), 0), format_func=lambda item: item["title"], key=f"kanban_move_{project.id}")
                     if st.button("Move card", key=f"kanban_move_button_{project.id}"):
                         kanban.move_card(st.session_state, project.id, card["id"], target["id"])
-                        st.rerun()
+                        _refresh_project_task_views(project.id)
                     if st.button("Delete card", key=f"kanban_delete_{project.id}_{card['id']}"):
                         kanban.delete_card(st.session_state, project.id, card["id"])
-                        st.rerun()
+                        _refresh_project_task_views(project.id)
 
     if settings.is_enabled("feature_kanban_ai"):
         st.subheader("Agentaus task assistant")
-        st.caption("Ask the AI to create, update or move project task cards. Ambiguous or destructive actions require clarification.")
+        st.caption("Ask the AI to create, update, move or delete project task cards. Deletions require confirmation.")
         history_key = f"kanban_ai_history_{project.id}"
+        pending_delete_key = f"kanban_ai_pending_deletes_{project.id}"
         history = _get_kanban_ai_history(st.session_state, project.id)
         for entry in history:
             with st.chat_message("user", avatar="👤"):
@@ -5812,13 +5846,37 @@ def render_project_kanban(project):
             else:
                 with st.chat_message("assistant", avatar="🎓"):
                     st.markdown(entry["response"])
+        pending_deletes = st.session_state.get(pending_delete_key, [])
+        if pending_deletes:
+            st.warning("Confirm each AI-requested card deletion below.")
+            for index, action in enumerate(pending_deletes):
+                title = str(action.get("title") or "Untitled task")
+                if st.button(
+                    f"Confirm delete: {title}",
+                    key=f"kanban_ai_confirm_delete_{project.id}_{index}",
+                ):
+                    try:
+                        kanban.apply_ai_action(st.session_state, project.id, action)
+                        remaining = pending_deletes[:index] + pending_deletes[index + 1:]
+                        st.session_state[pending_delete_key] = remaining
+                        history.append({
+                            "question": f"Confirm deletion of {title}",
+                            "response": f"Deleted the task card \"{title}\" and its linked schedule item.",
+                        })
+                        _refresh_project_task_views(project.id)
+                    except (ValueError, RuntimeError, PermissionError) as error:
+                        st.error(str(error))
+            if st.button("Cancel pending deletions", key=f"kanban_ai_cancel_delete_{project.id}"):
+                st.session_state[pending_delete_key] = []
+                st.rerun()
         question = st.chat_input("For example: create cards for research, prototype and testing", key=f"kanban_ai_{project.id}")
         if question:
             try:
-                response = execute_kanban_ai_action(project.id, question)
+                response, pending_deletes = execute_kanban_ai_action(project.id, question)
                 history.append({"question": question, "response": response})
                 st.session_state[history_key] = history
-                st.rerun()
+                st.session_state[pending_delete_key] = pending_deletes
+                _refresh_project_task_views(project.id)
             except (ValueError, RuntimeError, PermissionError) as error:
                 history.append({"question": question, "error": str(error)})
                 st.session_state[history_key] = history
@@ -5877,7 +5935,7 @@ def project_workspace_page():
         tab_labels.append("📊 Gantt")
     if settings.is_enabled("feature_kanban"):
         tab_labels.append("🗂️ Tasks")
-    tab_labels.extend(["📚 Project Knowledge", "📈 Question Trends"])
+    tab_labels.append("📚 Project Knowledge")
     tabs = st.tabs(tab_labels)
     overview_tab, team_tab, milestone_tab, meeting_tab = tabs[:4]
     cursor = 4
@@ -5885,7 +5943,7 @@ def project_workspace_page():
     cursor += 1 if gantt_tab else 0
     kanban_tab = tabs[cursor] if settings.is_enabled("feature_kanban") else None
     cursor += 1 if kanban_tab else 0
-    knowledge_tab, trends_tab = tabs[cursor:cursor + 2]
+    knowledge_tab = tabs[cursor]
     with overview_tab:
         render_project_overview(project)
     with team_tab:
@@ -5902,8 +5960,6 @@ def project_workspace_page():
             render_project_kanban(project)
     with knowledge_tab:
         render_project_knowledge(project)
-    with trends_tab:
-        render_project_question_trends(project)
 
 
 # ============================================================
@@ -6917,7 +6973,20 @@ def render_ai_performance():
     series = monitoring.latency_series(st.session_state, days)
     if series:
         latency_values = [int(row["latency_ms"]) for row in series]
-        st.line_chart({"Latency (ms)": latency_values})
+        latency_chart = pd.DataFrame(
+            {
+                "Time": [row["created_at"] for row in series],
+                "Latency (ms)": [int(row["latency_ms"]) for row in series],
+            }
+        )
+        st.line_chart(
+            latency_chart,
+            x="Time",
+            y="Latency (ms)",
+            x_label="Time",
+            y_label="Latency (ms)",
+            alt="AI response latency over time",
+        )
         by_mode = defaultdict(list)
         for row in series:
             by_mode[row["assistant_mode"]].append(int(row["latency_ms"]))
@@ -6931,12 +7000,12 @@ def render_ai_performance():
     else:
         st.info("No successful AI interactions are available for this period.")
 
-    st.subheader("Recent API errors")
+    st.subheader("Recent failed AI interactions")
     errors = monitoring.recent_errors(st.session_state)
     if errors:
         st.dataframe(errors, hide_index=True)
     else:
-        st.info("No recorded API errors.")
+        st.info("No failed AI interactions recorded.")
 
     st.subheader("Recent response feedback")
     feedback = monitoring.recent_feedback(st.session_state, days)
@@ -6947,8 +7016,6 @@ def render_ai_performance():
         )
     else:
         st.info("No feedback has been submitted for this period.")
-    st.info("Operational monitoring records latency, success/failure, prompt version and usage metrics. Full prompts are available only in the Administrator prompt-intelligence view.")
-
     st.divider()
     st.subheader("API service monitoring")
     api_cards = st.columns(5)
@@ -6971,7 +7038,17 @@ def render_ai_performance():
     retrieval_cards[4].metric("Average search time", f"{int(retrieval_metrics['avg_latency']):,} ms")
     if retrieval_metrics["daily"]:
         st.line_chart(
-            {"No-match searches": [int(row["no_match"]) for row in retrieval_metrics["daily"]]},
+            pd.DataFrame(
+                {
+                    "Date": [row["day"] for row in retrieval_metrics["daily"]],
+                    "No-match searches": [int(row["no_match"]) for row in retrieval_metrics["daily"]],
+                }
+            ),
+            x="Date",
+            y="No-match searches",
+            x_label="Date",
+            y_label="Number of searches",
+            alt="Daily retrieval searches with no matching results",
         )
     else:
         st.info("No retrieval-quality telemetry is available for this period.")
@@ -6988,6 +7065,101 @@ def render_ai_performance():
             f"Last {last_run['scope']} embedding run: {last_run['document_count']:,} documents · "
             f"{last_run['duration_ms']:,} ms · {last_run['created_at']}"
         )
+
+
+PROMPT_WORD_CLOUD_COLORS = (
+    "#005B85", "#007FA3", "#0099B8", "#1565C0", "#2F80ED",
+    "#6A4C93", "#8E5BB7", "#D14D72", "#E07A5F", "#B8860B",
+)
+
+
+def _prompt_word_cloud_image(terms):
+    """Build a deterministic rounded-rectangle word cloud from term counts."""
+    if not terms:
+        return None
+    terms = sorted(terms, key=lambda item: int(item[1]), reverse=True)[:10]
+
+    width, height = 900, 560
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    rectangle_box = (8, 8, width - 8, height - 8)
+    draw.rounded_rectangle(rectangle_box, radius=28, fill="#F7FBFD", outline="#96E3FF", width=3)
+
+    font_candidates = (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    )
+
+    def get_font(font_size):
+        for font_path in font_candidates:
+            try:
+                return ImageFont.truetype(font_path, font_size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    def color_word(word):
+        index = sum((position + 1) * ord(character) for position, character in enumerate(word))
+        return PROMPT_WORD_CLOUD_COLORS[index % len(PROMPT_WORD_CLOUD_COLORS)]
+
+    max_count = max(int(count) for _, count in terms) or 1
+    placed = []
+    for index, (term, count) in enumerate(terms[:20]):
+        word = str(term)
+        font_size = 22 + round(86 * (max(1, int(count)) / max_count) ** 0.7)
+        font = get_font(font_size)
+        bbox = font.getbbox(word)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        padding = 6
+        layer = Image.new("RGBA", (text_width + padding * 2, text_height + padding * 2), (0, 0, 0, 0))
+        layer_draw = ImageDraw.Draw(layer)
+        layer_draw.text((padding - bbox[0], padding - bbox[1]), word, font=font, fill=color_word(word))
+        if index % 5 == 2:
+            layer = layer.rotate(90, expand=True, resample=Image.Resampling.BICUBIC)
+        elif index % 5 == 4:
+            layer = layer.rotate(-18, expand=True, resample=Image.Resampling.BICUBIC)
+
+        layer_width, layer_height = layer.size
+        placed_successfully = False
+        for step in range(420):
+            angle = index * 1.7 + step * 0.38
+            distance = min(step * 1.55, min(width, height) * 0.42)
+            center_x = width / 2 + math.cos(angle) * distance * 1.35
+            center_y = height / 2 + math.sin(angle) * distance * 0.78
+            left = round(center_x - layer_width / 2)
+            top = round(center_y - layer_height / 2)
+            right, bottom = left + layer_width, top + layer_height
+            if left < 16 or top < 16 or right > width - 16 or bottom > height - 16:
+                continue
+            candidate = (left - 3, top - 3, right + 3, bottom + 3)
+            if any(
+                candidate[0] < existing[2]
+                and candidate[2] > existing[0]
+                and candidate[1] < existing[3]
+                and candidate[3] > existing[1]
+                for existing in placed
+            ):
+                continue
+            image.alpha_composite(layer, (left, top))
+            placed.append(candidate)
+            placed_successfully = True
+            break
+        if not placed_successfully:
+            # Keep every selected term visible even when the decorative
+            # collision layout cannot find a free spiral position.
+            fallback_font = get_font(18)
+            fallback_bbox = fallback_font.getbbox(word)
+            fallback_width = fallback_bbox[2] - fallback_bbox[0]
+            fallback_height = fallback_bbox[3] - fallback_bbox[1]
+            fallback_columns = 3
+            fallback_cell_width = (width - 32) / fallback_columns
+            fallback_row = index // fallback_columns
+            fallback_column = index % fallback_columns
+            fallback_x = round(16 + fallback_column * fallback_cell_width + (fallback_cell_width - fallback_width) / 2 - fallback_bbox[0])
+            fallback_y = round(20 + fallback_row * 125 + (82 - fallback_height) / 2 - fallback_bbox[1])
+            draw.text((fallback_x, fallback_y), word, font=fallback_font, fill=color_word(word))
+    return image
 
 
 def render_prompt_intelligence():
@@ -7008,16 +7180,29 @@ def render_prompt_intelligence():
 
     themes, trends, explorer = st.tabs(["Question themes", "Trends", "Prompt explorer"])
     with themes:
-        st.subheader("Frequently requested topics")
         topic_rows = [{"Topic": term, "Questions": count} for term, count in terms]
-        st.dataframe(topic_rows, hide_index=True, alt="Frequently requested assistant topics")
         if terms:
+            st.subheader("Top 10 words")
+            cloud_image = _prompt_word_cloud_image(terms[:10])
+            if cloud_image is not None:
+                _, cloud_column, _ = st.columns([1, 2, 1])
+                with cloud_column:
+                    st.image(
+                        cloud_image,
+                        width=460,
+                        alt="Rounded rectangular word cloud of frequently requested assistant topics; word size represents question count.",
+                    )
+            st.subheader("Topic frequency chart")
             st.bar_chart(
                 pd.DataFrame(topic_rows),
                 x="Topic",
                 y="Questions",
+                x_label="Topic",
+                y_label="Number of questions",
                 alt="Frequently requested assistant topics by question count",
             )
+        st.subheader("Frequently requested topics table")
+        st.dataframe(topic_rows, hide_index=True, alt="Frequently requested assistant topics and question counts")
         st.caption("Common filler words are excluded from the topic summary.")
         st.write("Documentation opportunities: " + ", ".join(term for term, _ in terms[:8]) + ".")
     with trends:
@@ -7025,7 +7210,20 @@ def render_prompt_intelligence():
         by_role = Counter(row["user_role"] for row in rows)
         by_mode = Counter(row["assistant_mode"] for row in rows)
         st.subheader("Questions over time")
-        st.line_chart({"Questions": [daily[key] for key in sorted(daily)]})
+        questions_over_time = pd.DataFrame(
+            {
+                "Date": list(sorted(daily)),
+                "Questions": [daily[key] for key in sorted(daily)],
+            }
+        )
+        st.line_chart(
+            questions_over_time,
+            x="Date",
+            y="Questions",
+            x_label="Date",
+            y_label="Number of questions",
+            alt="Questions captured per day",
+        )
         st.subheader("Questions by role")
         st.dataframe([{"Role": key, "Questions": value} for key, value in sorted(by_role.items())], hide_index=True)
         st.subheader("General versus project-specific")

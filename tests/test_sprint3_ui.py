@@ -46,8 +46,14 @@ def test_login_navigation_project_visibility_and_logout(role, monkeypatch):
     navigation = next(widget for widget in at.radio if widget.label == "Go to")
     navigation.set_value("📁 Project Workspace").run()
     assert not at.exception
-    save = next(widget for widget in at.button if widget.label == "Save Project")
-    assert save.disabled == (role == "Student")
+    assert not any(tab.label == "📈 Question Trends" for tab in at.tabs)
+    save_buttons = [widget for widget in at.button if widget.label == "Save Project"]
+    if role == "Student":
+        assert not save_buttons
+        assert any("Project overview is read-only" in widget.value for widget in at.caption)
+    else:
+        assert len(save_buttons) == 1
+        assert not save_buttons[0].disabled
     if role == "Administrator":
         next(widget for widget in at.radio if widget.label == "Go to").set_value("⚙️ Administration").run()
         assert not at.exception

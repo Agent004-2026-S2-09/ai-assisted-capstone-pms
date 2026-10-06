@@ -62,6 +62,7 @@ def _normalise(plan):
             "predecessors": [str(value).strip() for value in raw.get("predecessors", []) if str(value).strip()],
             "details": str(raw.get("details") or "").strip()[:3000], "milestone": milestone,
             "summary": bool(raw.get("summary")), "kanban_card_id": raw.get("kanban_card_id"),
+            "project_milestone_id": raw.get("project_milestone_id"),
         })
     return {"tasks": tasks}
 
@@ -124,6 +125,11 @@ def get_plan(state, project_id, seed_tasks=None):
 def save_plan(state, project_id, plan):
     access.require_project(state, project_id)
     plan = _normalise(plan)
+    import milestones
+    for task in plan["tasks"]:
+        milestone_id = milestones.sync_gantt_milestone(state, project_id, task)
+        if milestone_id:
+            task["project_milestone_id"] = milestone_id
     _validate(plan)
     with database.connect() as db:
         db.execute("""INSERT INTO gantt_plans(project_id, plan_json, updated_at) VALUES (?, ?, ?)
@@ -133,13 +139,13 @@ def save_plan(state, project_id, plan):
     return plan
 
 
-def add_task(state, project_id, task):
+def add_task(state, project_id, task, *, sync_kanban=True):
     plan = get_plan(state, project_id)
     item = dict(task)
     item["id"] = uuid.uuid4().hex
     plan["tasks"].append(item)
     plan = save_plan(state, project_id, plan)
-    if settings.is_enabled("feature_backlog_sync"):
+    if sync_kanban and settings.is_enabled("feature_backlog_sync"):
         import kanban
         for saved in plan["tasks"][-1:]:
             saved["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, saved)
@@ -147,7 +153,7 @@ def add_task(state, project_id, task):
     return plan
 
 
-def update_task(state, project_id, task_id, task):
+def update_task(state, project_id, task_id, task, *, sync_kanban=True):
     plan = get_plan(state, project_id)
     for index, current in enumerate(plan["tasks"]):
         if current["id"] == task_id:
@@ -155,7 +161,7 @@ def update_task(state, project_id, task_id, task):
             item["id"] = task_id
             plan["tasks"][index] = item
             plan = save_plan(state, project_id, plan)
-            if settings.is_enabled("feature_backlog_sync"):
+            if sync_kanban and settings.is_enabled("feature_backlog_sync"):
                 import kanban
                 item["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, item)
                 plan["tasks"][index] = item
@@ -164,7 +170,7 @@ def update_task(state, project_id, task_id, task):
     raise ValueError("The schedule task could not be found.")
 
 
-def delete_task(state, project_id, task_id):
+def delete_task(state, project_id, task_id, *, sync_kanban=True):
     plan = get_plan(state, project_id)
     target = next((task for task in plan["tasks"] if task["id"] == task_id), None)
     if not target:
@@ -175,6 +181,15 @@ def delete_task(state, project_id, task_id):
     save_plan(state, project_id, plan)
     access.record_audit(state, "gantt_task_deleted", project_id=project_id,
                         details={"task_id": task_id, "code": target.get("code", "")})
+    if sync_kanban and settings.is_enabled("feature_backlog_sync"):
+        import kanban
+        kanban.delete_linked_card(
+            state,
+            project_id,
+            gantt_task_id=target.get("id"),
+            gantt_code=target.get("code"),
+            sync_gantt=False,
+        )
     return plan
 
 
@@ -224,6 +239,7 @@ def import_workbook(state, project_id, content, *, replace=False):
     plan = save_plan(state, project_id, plan)
     if settings.is_enabled("feature_backlog_sync"):
         import kanban
+        kanban.remove_orphaned_gantt_cards(state, project_id, plan["tasks"])
         for task in plan["tasks"]:
             task["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, task)
         plan = save_plan(state, project_id, plan)

@@ -108,6 +108,15 @@ def _sync_linked_gantt_progress(state, project_id, card, column_id):
     gantt.save_plan(state, project_id, plan)
 
 
+def _next_gantt_code(plan):
+    top_level_codes = []
+    for task in plan.get("tasks", []):
+        code = str(task.get("code", "")).strip()
+        if code.isdigit():
+            top_level_codes.append(int(code))
+    return str(max(top_level_codes, default=0) + 1)
+
+
 def add_card(state, project_id, title, details="", column_id="backlog", *, gantt_task_id=None, gantt_code=None, source="manual"):
     board = get_board(state, project_id)
     if column_id not in {column["id"] for column in board["columns"]}:
@@ -116,8 +125,39 @@ def add_card(state, project_id, title, details="", column_id="backlog", *, gantt
     if not title:
         raise ValueError("Card title is required.")
     card_id = uuid.uuid4().hex
-    board["cards"][card_id] = {"id": card_id, "title": title[:160], "details": str(details or "").strip()[:3000], "gantt_task_id": gantt_task_id, "gantt_code": gantt_code, "source": source}
+    card = {"id": card_id, "title": title[:160], "details": str(details or "").strip()[:3000], "gantt_task_id": gantt_task_id, "gantt_code": gantt_code, "source": source}
+    board["cards"][card_id] = card
     next(column for column in board["columns"] if column["id"] == column_id)["cardIds"].append(card_id)
+    if (
+        source in {"manual", "ai"}
+        and not gantt_task_id
+        and not gantt_code
+        and settings.is_enabled("feature_backlog_sync")
+    ):
+        import gantt
+        plan = gantt.get_plan(state, project_id)
+        code = _next_gantt_code(plan)
+        task_plan = gantt.add_task(
+            state,
+            project_id,
+            {
+                "code": code,
+                "name": card["title"],
+                "type": "Task",
+                "start": datetime.now(timezone.utc).date().isoformat(),
+                "finish": datetime.now(timezone.utc).date().isoformat(),
+                "progress": COLUMN_PROGRESS[column_id],
+                "resource": "",
+                "predecessors": [],
+                "details": card["details"],
+                "milestone": False,
+            },
+            sync_kanban=False,
+        )
+        linked_task = next(task for task in task_plan["tasks"] if task.get("code") == code)
+        card.update({"gantt_task_id": linked_task["id"], "gantt_code": code})
+        linked_task["kanban_card_id"] = card_id
+        gantt.save_plan(state, project_id, task_plan)
     save_board(state, project_id, board)
     return card_id
 
@@ -145,8 +185,25 @@ def update_card(state, project_id, card_id, title, details):
     card = board["cards"].get(card_id)
     if not card or not str(title or "").strip():
         raise ValueError("The Kanban card could not be updated.")
-    card["title"] = str(title).strip()[:160]
-    card["details"] = str(details or "").strip()[:3000]
+    updated_title = str(title).strip()[:160]
+    updated_details = str(details or "").strip()[:3000]
+    if settings.is_enabled("feature_backlog_sync") and (card.get("gantt_task_id") or card.get("gantt_code")):
+        import gantt
+        plan = gantt.get_plan(state, project_id)
+        linked_task = next(
+            (
+                task for task in plan["tasks"]
+                if (card.get("gantt_task_id") and task.get("id") == card.get("gantt_task_id"))
+                or (card.get("gantt_code") and task.get("code") == card.get("gantt_code"))
+            ),
+            None,
+        )
+        if linked_task:
+            linked_task["name"] = updated_title
+            linked_task["details"] = updated_details
+            gantt.update_task(state, project_id, linked_task["id"], linked_task, sync_kanban=False)
+    card["title"] = updated_title
+    card["details"] = updated_details
     save_board(state, project_id, board)
 
 
@@ -160,12 +217,57 @@ def move_card(state, project_id, card_id, column_id):
     save_board(state, project_id, board)
 
 
-def delete_card(state, project_id, card_id):
+def delete_card(state, project_id, card_id, *, sync_gantt=True):
     board = get_board(state, project_id)
+    card = board["cards"].get(card_id)
+    if sync_gantt and card and settings.is_enabled("feature_backlog_sync") and (card.get("gantt_task_id") or card.get("gantt_code")):
+        import gantt
+        try:
+            gantt.delete_task(state, project_id, card.get("gantt_task_id"), sync_kanban=False)
+        except ValueError:
+            plan = gantt.get_plan(state, project_id)
+            linked_task = next(
+                (
+                    task for task in plan["tasks"]
+                    if card.get("gantt_code") and task.get("code") == card.get("gantt_code")
+                ),
+                None,
+            )
+            if linked_task:
+                gantt.delete_task(state, project_id, linked_task["id"], sync_kanban=False)
     board["cards"].pop(card_id, None)
     for column in board["columns"]:
         column["cardIds"] = [value for value in column["cardIds"] if value != card_id]
     save_board(state, project_id, board)
+
+
+def delete_linked_card(state, project_id, *, gantt_task_id=None, gantt_code=None, sync_gantt=False):
+    board = get_board(state, project_id)
+    card_id = next(
+        (
+            card["id"] for card in board["cards"].values()
+            if (gantt_task_id and card.get("gantt_task_id") == gantt_task_id)
+            or (gantt_code and card.get("gantt_code") == gantt_code)
+        ),
+        None,
+    )
+    if card_id:
+        delete_card(state, project_id, card_id, sync_gantt=sync_gantt)
+
+
+def remove_orphaned_gantt_cards(state, project_id, tasks):
+    """Remove linked cards whose Gantt tasks disappeared during replacement imports."""
+    valid_ids = {task.get("id") for task in tasks}
+    valid_codes = {task.get("code") for task in tasks if task.get("code")}
+    board = get_board(state, project_id)
+    orphan_ids = [
+        card["id"] for card in board["cards"].values()
+        if (card.get("gantt_task_id") or card.get("gantt_code"))
+        and card.get("gantt_task_id") not in valid_ids
+        and card.get("gantt_code") not in valid_codes
+    ]
+    for card_id in orphan_ids:
+        delete_card(state, project_id, card_id, sync_gantt=False)
 
 
 def apply_ai_action(state, project_id, action):
