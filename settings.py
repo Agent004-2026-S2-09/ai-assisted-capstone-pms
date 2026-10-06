@@ -12,6 +12,11 @@ FEATURES = {
     "feature_kanban": "Tasks",
 }
 
+DEFAULT_SUPPORT_EMAIL = "ITS-Capstone@canberra.edu.au"
+TEXT_SETTINGS = {
+    "support_email": "Capstone support email",
+}
+
 # Account administration is an administrator responsibility, not a workspace
 # tab. It is therefore always available to administrators and is not exposed
 # as a user-facing feature toggle.
@@ -62,4 +67,33 @@ def update_settings(state, values):
         db.execute(
             "INSERT INTO project_audit_log(created_at, user_id, action, details) VALUES (?, ?, ?, ?)",
             (now, actor["id"], "feature_settings_updated", json.dumps({key: bool(value) for key, value in values.items()})),
+        )
+
+
+def get_text_setting(key, default=""):
+    if key not in TEXT_SETTINGS:
+        raise ValueError("Unsupported text setting.")
+    with database.connect() as db:
+        row = db.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    return str(row["value"]).strip() if row and str(row["value"]).strip() else default
+
+
+def update_text_setting(state, key, value):
+    actor = access.require_admin(state)
+    if key not in TEXT_SETTINGS:
+        raise ValueError("Unsupported text setting.")
+    value = str(value or "").strip()
+    if key == "support_email":
+        if not value or "@" not in value or len(value) > 320:
+            raise ValueError("Enter a valid support email address.")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with database.connect() as db:
+        db.execute(
+            "INSERT INTO app_settings(key, value, updated_at, updated_by) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, updated_by=excluded.updated_by",
+            (key, value, now, actor["id"]),
+        )
+        db.execute(
+            "INSERT INTO project_audit_log(created_at, user_id, action, details) VALUES (?, ?, ?, ?)",
+            (now, actor["id"], "text_setting_updated", json.dumps({key: value})),
         )
