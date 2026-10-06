@@ -5,6 +5,7 @@
 # Deployment sync marker: 2026-10-05
 
 import os
+import importlib
 import re
 import csv
 import random
@@ -37,6 +38,7 @@ import monitoring
 import prompts
 import vector_store
 import settings
+settings = importlib.reload(settings)
 import gantt
 import kanban
 import templates
@@ -72,7 +74,7 @@ APP_TAGLINE = "Your UC Canberra Capstone Project Assistant"
 APP_VERSION = "Version 4"
 CURRENT_SPRINT = "Sprint 4"
 
-SUPPORT_EMAIL = settings.DEFAULT_SUPPORT_EMAIL
+SUPPORT_EMAIL = getattr(settings, "DEFAULT_SUPPORT_EMAIL", "ITS-Capstone@canberra.edu.au")
 AUTH_COOKIE_NAME = "capstone_session"
 
 _AUTH_PERSISTENCE_COMPONENT = st.components.v2.component(
@@ -133,7 +135,8 @@ API_ENDPOINT = get_config("API_ENDPOINT") or (
 
 
 def get_support_email():
-    return settings.get_text_setting("support_email", SUPPORT_EMAIL)
+    get_setting = getattr(settings, "get_text_setting", None)
+    return get_setting("support_email", SUPPORT_EMAIL) if get_setting else SUPPORT_EMAIL
 
 BASE_DIR = Path(__file__).resolve().parent
 ASSET_DIR = BASE_DIR / "assets"
