@@ -6034,61 +6034,6 @@ def admin_page_legacy():
         width="stretch",
     )
 
-    with st.expander("Recent AI usage"):
-        usage_history = st.session_state.get("api_usage", [])
-        if usage_history:
-            st.dataframe(
-                list(reversed(usage_history)),
-                hide_index=True,
-                width="stretch",
-            )
-        else:
-            st.caption("No token-usage data has been returned in this session.")
-
-        context_usage = st.session_state.get("last_context_usage")
-        if context_usage:
-            st.caption(
-                "Last document context: "
-                f"approximately {context_usage['estimated_tokens']:,} of "
-                f"{context_usage['token_budget']:,} tokens; "
-                f"{context_usage['included_items']} of "
-                f"{context_usage['total_items']} retrieved items included."
-            )
-
-    with st.expander("Student question trends"):
-        question_records = load_question_analytics()
-        summary = summarise_question_analytics(question_records)
-        col_a, col_b, col_c = st.columns(3)
-        col_a.metric("Logged questions", summary["total"])
-        col_b.metric("Project topics", len(summary["by_project"]))
-        col_c.metric("Common keywords", len(summary["keywords"]))
-        if question_records:
-            keyword_rows = [
-                {"keyword": keyword, "count": count}
-                for keyword, count in summary["keywords"]
-            ]
-            project_rows = [
-                {"project": project_id, "count": count}
-                for project_id, count in summary["by_project"]
-            ]
-            st.write("Common keywords")
-            st.dataframe(keyword_rows, hide_index=True, width="stretch")
-            st.write("Questions by project")
-            st.dataframe(project_rows, hide_index=True, width="stretch")
-            recent_rows = [
-                {
-                    "timestamp": record.get("timestamp", ""),
-                    "role": record.get("role", ""),
-                    "project_id": record.get("project_id") or "General Capstone",
-                    "question": record.get("question", ""),
-                }
-                for record in reversed(question_records[-20:])
-            ]
-            st.write("Recent questions")
-            st.dataframe(recent_rows, hide_index=True, width="stretch")
-        else:
-            st.caption("No student questions have been logged yet.")
-
     st.divider()
 
     # --------------------------------------------------------
@@ -6362,7 +6307,7 @@ def render_knowledge_admin():
             st.rerun()
 
 
-def render_ai_usage_admin():
+def render_recent_ai_usage():
     access.require_admin(st.session_state)
     st.subheader("Recent AI usage")
     usage_history = st.session_state.get("api_usage", [])
@@ -6381,57 +6326,15 @@ def render_ai_usage_admin():
         )
 
 
-def render_question_trends_admin():
-    access.require_admin(st.session_state)
-    st.subheader("Student question trends")
-    question_records = load_question_analytics()
-    summary = summarise_question_analytics(question_records)
-    col_a, col_b, col_c = st.columns(3)
-    col_a.metric("Logged questions", summary["total"])
-    col_b.metric("Project topics", len(summary["by_project"]))
-    col_c.metric("Common keywords", len(summary["keywords"]))
-    if not question_records:
-        st.caption("No student questions have been logged yet.")
-        return
-    st.write("Common keywords")
-    st.dataframe(
-        [{"keyword": keyword, "count": count} for keyword, count in summary["keywords"]],
-        hide_index=True,
-        width="stretch",
-    )
-    st.write("Questions by project")
-    st.dataframe(
-        [{"project": project_id, "count": count} for project_id, count in summary["by_project"]],
-        hide_index=True,
-        width="stretch",
-    )
-    st.write("Recent questions")
-    st.dataframe(
-        [
-            {
-                "timestamp": record.get("timestamp", ""),
-                "role": record.get("role", ""),
-                "project_id": record.get("project_id") or "General Capstone",
-                "question": record.get("question", ""),
-            }
-            for record in reversed(question_records[-20:])
-        ],
-        hide_index=True,
-        width="stretch",
-    )
-
-
 def admin_page():
     access.require_admin(st.session_state)
     st.title("⚙️ Administration")
     st.caption("Manage users, projects, approved information and operational records.")
-    user_tab, project_tab, knowledge_tab, usage_tab, trends_tab, settings_tab = st.tabs(
+    user_tab, project_tab, knowledge_tab, settings_tab = st.tabs(
         [
             "👤 Users and access",
             "📁 Projects",
             "📚 Knowledge base",
-            "🧾 AI usage",
-            "📈 Question trends",
             "⚙️ Feature settings",
         ]
     )
@@ -6441,10 +6344,6 @@ def admin_page():
         render_project_admin()
     with knowledge_tab:
         render_knowledge_admin()
-    with usage_tab:
-        render_ai_usage_admin()
-    with trends_tab:
-        render_question_trends_admin()
     with settings_tab:
         render_feature_settings()
 
@@ -7028,6 +6927,9 @@ def render_ai_performance():
         st.dataframe(api_metrics["stages"], hide_index=True, width="stretch")
     else:
         st.info("No provider API telemetry is available for this period.")
+
+    st.divider()
+    render_recent_ai_usage()
 
     st.subheader("Retrieval quality")
     retrieval_cards = st.columns(5)

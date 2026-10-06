@@ -505,8 +505,8 @@ answer validation is disabled, the initial answer is streamed directly. If the
 AgentAus endpoint does not provide a valid event stream, the app falls back to
 the existing complete JSON response before showing any text.
 
-Authenticated administrators can open **Recent AI usage** on the Administration
-page to view token counts returned by AgentAus and the estimated document-context
+Authenticated administrators can open **AI Performance** to view **Recent AI
+usage**, including token counts returned by AgentAus and the estimated document-context
 budget for the most recent answer. These diagnostics are session-local and do
 not contain prompts, document text, API keys or passwords.
 
