@@ -3867,6 +3867,13 @@ the currently selected project. Use them for project-specific questions. Never
 infer or expose information about a different project or the general Capstone
 collection. When project-specific details are insufficient, recommend
 confirming with the project sponsor, mentor or project team.
+
+For questions about the project name, ID, code, sponsor, mentor, team,
+milestones, meetings, schedule or tasks, treat the matching records in the
+selected project profile as authoritative. Preserve exact names, IDs, dates,
+statuses and counts, and list every matching person or record requested by the
+student. Do not replace a complete profile answer with a shorter document
+excerpt.
 """
     selection_instruction = ""
     if results and all(result.get("requested_list") for result in results):
@@ -4182,7 +4189,11 @@ def generate_response(
         private_context,
         project_profile=build_project_profile(project),
     )
-    return remove_source_section(answer)
+    return ensure_project_profile_answer_complete(
+        question,
+        remove_source_section(answer),
+        project=project,
+    )
 
 
 def answer_validation_enabled():
@@ -4190,6 +4201,17 @@ def answer_validation_enabled():
 
 
 def _build_validation_messages(question, draft_answer, private_context, project_profile=""):
+    profile_completeness_instruction = ""
+    if project_profile and re.search(
+        r"\b(?:who|which|team|mentor|member|people|person)\b",
+        str(question or ""),
+        flags=re.IGNORECASE,
+    ):
+        profile_completeness_instruction = """
+For this person or team question, explicitly preserve every matching person
+name and role from the selected project profile. A count or general statement
+about the team is incomplete when the question asks who the people are.
+"""
     validation_prompt = f"""
 You are a strict factual editor. Check the draft answer against the supplied
 internal information. Return only the corrected final answer.
@@ -4202,6 +4224,7 @@ Rules:
 - Do not add a Sources or References section.
 - Do not reveal source filenames, document locations or page numbers.
 - If the information is insufficient, recommend confirming with {get_support_email()}.
+{profile_completeness_instruction}
 
 SELECTED PROJECT PROFILE
 {project_profile}
@@ -4244,6 +4267,37 @@ def validate_grounded_answer(question, draft_answer, private_context, project_pr
         return draft_answer
 
 
+def ensure_project_profile_answer_complete(question, answer, project=None):
+    """Complete omitted people facts from the authorised project profile."""
+    if not project or not re.search(
+        r"\b(?:who|which|team|mentor|member|people|person)\b",
+        str(question or ""),
+        flags=re.IGNORECASE,
+    ):
+        return answer
+
+    project = get_project(project.id)
+    people = []
+    if project.mentor:
+        people.append((project.mentor, "Mentor"))
+    people.extend(
+        (member.get("name", ""), member.get("role", "Team member"))
+        for member in project.team
+        if member.get("name")
+    )
+    missing = [
+        person for person in people
+        if person[0].casefold() not in str(answer or "").casefold()
+    ]
+    if not missing:
+        return answer
+
+    lines = ["For clarity, the project records list:"]
+    lines.extend(f"- {role}: {name}" for name, role in people)
+    base = remove_source_section(answer).rstrip()
+    return (base + "\n\n" if base else "") + "\n".join(lines)
+
+
 def _without_source_section(chunks):
     """Stream complete lines while suppressing any model-added sources block."""
 
@@ -4282,19 +4336,26 @@ def generate_response_stream(question, results, status=None, project=None):
     if results and requests_complete_document(question):
         if status is not None:
             status.update(label=":shimmer[Preparing the complete document report]")
-        yield _document_report(question, results, project=project)
+        report = _document_report(question, results, project=project)
+        yield ensure_project_profile_answer_complete(question, report, project=project)
         return
     if not answer_validation_enabled():
         st.session_state.last_validation_status = "disabled"
         if status is not None:
             status.update(label=":shimmer[Writing your answer]")
         emitted = False
+        streamed = []
         try:
             for chunk in _without_source_section(
                 call_agentaus_stream(messages, stage="answer")
             ):
                 emitted = True
+                streamed.append(chunk)
                 yield chunk
+            base = remove_source_section("".join(streamed))
+            completed = ensure_project_profile_answer_complete(question, base, project=project)
+            if completed != base:
+                yield completed[len(base):]
         except Exception:
             if emitted:
                 raise
@@ -4303,7 +4364,11 @@ def generate_response_stream(question, results, status=None, project=None):
             answer = extract_agentaus_text(result)
             if not answer:
                 raise RuntimeError("Agentaus returned an empty response.")
-            yield remove_source_section(answer)
+            yield ensure_project_profile_answer_complete(
+                question,
+                remove_source_section(answer),
+                project=project,
+            )
         return
 
     if status is not None:
@@ -4323,12 +4388,18 @@ def generate_response_stream(question, results, status=None, project=None):
     if status is not None:
         status.update(label=":shimmer[Checking and writing your answer]")
     emitted = False
+    streamed = []
     try:
         for chunk in _without_source_section(
             call_agentaus_stream(validation_messages, stage="answer_validation")
         ):
             emitted = True
+            streamed.append(chunk)
             yield chunk
+        base = remove_source_section("".join(streamed))
+        completed = ensure_project_profile_answer_complete(question, base, project=project)
+        if completed != base:
+            yield completed[len(base):]
         st.session_state.last_validation_status = "validated"
     except Exception:
         if emitted:
@@ -4340,7 +4411,11 @@ def generate_response_stream(question, results, status=None, project=None):
             private_context,
             project_profile=project_profile,
         )
-        yield remove_source_section(checked)
+        yield ensure_project_profile_answer_complete(
+            question,
+            remove_source_section(checked),
+            project=project,
+        )
 
 
 # ============================================================
