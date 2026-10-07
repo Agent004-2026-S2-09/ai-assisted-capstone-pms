@@ -3847,6 +3847,7 @@ def _build_answer_request(
     question,
     results,
     project=None,
+    return_profile=False,
 ):
 
     if project:
@@ -4096,6 +4097,8 @@ Never reveal the internal process.
         max_history=8,
     )
 
+    if return_profile:
+        return messages, private_context, context_metadata, project_profile
     return messages, private_context, context_metadata
 
 
@@ -4164,10 +4167,11 @@ def generate_response(
 ):
     """Generate and validate a complete, non-streaming response."""
 
-    messages, private_context, context_metadata = _build_answer_request(
+    messages, private_context, context_metadata, project_profile = _build_answer_request(
         question,
         results,
         project=project,
+        return_profile=True,
     )
     st.session_state.last_context_usage = context_metadata
 
@@ -4187,7 +4191,7 @@ def generate_response(
         question,
         answer,
         private_context,
-        project_profile=build_project_profile(project),
+        project_profile=project_profile,
     )
     return ensure_project_profile_answer_complete(
         question,
@@ -4270,30 +4274,41 @@ def validate_grounded_answer(question, draft_answer, private_context, project_pr
 def ensure_project_profile_answer_complete(question, answer, project=None):
     """Complete omitted people facts from the authorised project profile."""
     if not project or not re.search(
-        r"\b(?:who|which|team|mentor|member|people|person)\b",
+        r"\b(?:who|which|team|mentor|member|people|person|sponsor|code|identifier|id|name)\b",
         str(question or ""),
         flags=re.IGNORECASE,
     ):
         return answer
 
     project = get_project(project.id)
-    people = []
-    if project.mentor:
-        people.append((project.mentor, "Mentor"))
-    people.extend(
-        (member.get("name", ""), member.get("role", "Team member"))
-        for member in project.team
-        if member.get("name")
-    )
+    lowered_question = str(question or "").casefold()
+    facts = []
+    if re.search(r"\b(?:who|mentor|team|member|people|person)\b", lowered_question):
+        if project.mentor:
+            facts.append((project.mentor, "Mentor"))
+        facts.extend(
+            (member.get("name", ""), member.get("role", "Team member"))
+            for member in project.team
+            if member.get("name")
+        )
+    if "sponsor" in lowered_question and project.sponsor:
+        facts.append((project.sponsor, "Sponsor"))
+    if re.search(r"\b(?:project\s+)?code\b", lowered_question) and project.code:
+        facts.append((project.code, "Project code"))
+    if re.search(r"\b(?:project\s+)?(?:id|identifier)\b", lowered_question) and project.id:
+        facts.append((project.id, "Project ID"))
+    if re.search(r"\bproject\s+name\b", lowered_question) and project.name:
+        facts.append((project.name, "Project name"))
+    facts = list(dict.fromkeys(facts))
     missing = [
-        person for person in people
-        if person[0].casefold() not in str(answer or "").casefold()
+        fact for fact in facts
+        if fact[0].casefold() not in str(answer or "").casefold()
     ]
-    if not missing:
+    if not facts or not missing:
         return answer
 
     lines = ["For clarity, the project records list:"]
-    lines.extend(f"- {role}: {name}" for name, role in people)
+    lines.extend(f"- {role}: {value}" for value, role in facts)
     base = remove_source_section(answer).rstrip()
     return (base + "\n\n" if base else "") + "\n".join(lines)
 
@@ -4325,12 +4340,12 @@ def _without_source_section(chunks):
 def generate_response_stream(question, results, status=None, project=None):
     """Yield the final response, streaming the grounded validation pass."""
 
-    messages, private_context, context_metadata = _build_answer_request(
+    messages, private_context, context_metadata, project_profile = _build_answer_request(
         question,
         results,
         project=project,
+        return_profile=True,
     )
-    project_profile = build_project_profile(project)
     st.session_state.last_context_usage = context_metadata
     st.session_state.last_validation_status = "pending"
     if results and requests_complete_document(question):

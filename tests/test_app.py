@@ -1003,6 +1003,15 @@ def test_project_answer_prompt_prioritises_authoritative_profile_records():
     assert "Recorded Mentor" in completed
     assert "Recorded Student" in completed
 
+    identity = app.ensure_project_profile_answer_complete(
+        "What sponsor, mentor, and project code are recorded?",
+        "The project has recorded identity details.",
+        project=project,
+    )
+    assert "Recorded Sponsor" in identity
+    assert "Recorded Mentor" in identity
+    assert "PROFILE-01" in identity
+
     validation_prompt = app._build_validation_messages(
         "Who is the mentor and who is on the team?",
         "The project has a team.",
@@ -1053,3 +1062,22 @@ def test_project_profile_context_cannot_accept_foreign_project_records():
             [foreign],
             project=alpha,
         )
+
+
+def test_answer_generation_reuses_project_profile_for_validation(monkeypatch):
+    project = app.create_project("Profile Reuse Project")
+    profile_calls = []
+
+    def fake_profile(value):
+        profile_calls.append(value.id if value else None)
+        return "SELECTED PROJECT PROFILE"
+
+    monkeypatch.setattr(app, "build_project_profile", fake_profile)
+    monkeypatch.setattr(
+        app,
+        "call_agentaus",
+        lambda messages: {"choices": [{"message": {"content": "Grounded answer"}}]},
+    )
+
+    assert app.generate_response("What is this project about?", [], project=project) == "Grounded answer"
+    assert profile_calls == [project.id]
