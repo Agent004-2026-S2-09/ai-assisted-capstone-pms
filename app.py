@@ -935,31 +935,16 @@ def _directory_label(user):
 
 
 def _project_resource_entries(project, current_resource=""):
-    """Return searchable resource choices limited to the authorised project team."""
+    """Return only active Student accounts linked to the current project team."""
     entries = []
     seen_ids = set()
     student_by_id = {str(user["id"]): user for user in _directory_users("Student")}
-    mentor_by_id = {str(user["id"]): user for user in _directory_users("Mentor")}
-    if project.mentor_user_id and str(project.mentor_user_id) in mentor_by_id:
-        user = mentor_by_id[str(project.mentor_user_id)]
-        entries.append({"id": str(user["id"]), "name": _directory_name(user), "label": _directory_label(user)})
-        seen_ids.add(str(user["id"]))
     for member in project.team:
         member_id = str(member.get("user_id") or "")
         if member_id and member_id in student_by_id and member_id not in seen_ids:
             user = student_by_id[member_id]
             entries.append({"id": member_id, "name": _directory_name(user), "label": _directory_label(user)})
             seen_ids.add(member_id)
-        elif not member_id and str(member.get("name") or "").strip():
-            legacy_name = str(member["name"]).strip()
-            entries.append({"id": f"legacy:{legacy_name.casefold()}", "name": legacy_name, "label": legacy_name})
-
-    known_values = {value.casefold() for entry in entries for value in (entry["name"], entry["label"])}
-    for value in re.split(r"[,;]", str(current_resource or "")):
-        value = value.strip()
-        if value and value.casefold() not in known_values:
-            entries.append({"id": f"legacy-resource:{value.casefold()}", "name": value, "label": f"{value} (existing resource)"})
-            known_values.add(value.casefold())
     return entries
 
 

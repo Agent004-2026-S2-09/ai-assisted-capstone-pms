@@ -39,18 +39,23 @@ def test_project_directory_filters_roles_and_limits_students():
 
 def test_gantt_resources_are_searchable_existing_project_members_only():
     student_id = auth.create_user("Resource Student", "resource-student", PASSWORD, "Student")
+    inactive_id = auth.create_user("Inactive Student", "inactive-student", PASSWORD, "Student", active=False)
     mentor_id = auth.create_user("Resource Mentor", "resource-mentor", PASSWORD, "Mentor")
     project = app.create_project("Resource Project", mentor_user_id=str(mentor_id))
-    project.team = [{"id": str(student_id), "user_id": str(student_id), "name": "", "role": "Developer"}]
+    project.team = [
+        {"id": str(student_id), "user_id": str(student_id), "name": "", "role": "Developer"},
+    ]
     app.update_project(project, allow_student_content=True)
     project = app.get_project(project.id)
+    project.team.append(
+        {"id": str(inactive_id), "user_id": str(inactive_id), "name": "", "role": "Developer"}
+    )
 
     entries = app._project_resource_entries(project)
     names = {entry["name"] for entry in entries}
-    assert names == {"Resource Student", "Resource Mentor"}
+    assert names == {"Resource Student"}
     assert {entry["label"] for entry in entries} == {
         "Resource Student · resource-student",
-        "Resource Mentor · resource-mentor",
     }
 
     entries, options, defaults, by_id = app._resource_selection(project, "Resource Student")
