@@ -1,0 +1,254 @@
+"""AgentAus AI service client and provider telemetry bridge.
+
+This module owns provider communication, streaming, safe error messages, and
+usage extraction without depending on the Streamlit page layer.
+"""
+
+import json
+import os
+import time
+from datetime import datetime
+
+import requests
+import streamlit as st
+
+from app_modules import monitoring
+
+
+def _config(key, default=""):
+    try:
+        value = st.secrets.get(key)
+    except st.errors.StreamlitSecretNotFoundError:
+        value = None
+    return str(value if value is not None else os.getenv(key, default)).strip()
+
+
+def _endpoint():
+    host = _config("HOST_NAME")
+    return _config("API_ENDPOINT") or (
+        f"{host.rstrip('/')}/api/v1/chat/completions" if host else ""
+    )
+
+
+def _credentials(endpoint=None, api_key=None):
+    return (
+        str(endpoint if endpoint is not None else _endpoint()).strip(),
+        str(api_key if api_key is not None else _config("AGENTAUS_API_KEY")).strip(),
+    )
+
+
+def call(messages, *, state=None, endpoint=None, api_key=None):
+    endpoint, api_key = _credentials(endpoint, api_key)
+    if not api_key:
+        raise RuntimeError("AGENTAUS_API_KEY is not configured in Streamlit secrets or the environment.")
+    if not endpoint:
+        raise RuntimeError("Configure API_ENDPOINT, or set HOST_NAME in Streamlit secrets or the environment.")
+
+    started = time.perf_counter()
+    response = None
+    try:
+        response = requests.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"messages": messages, "stream": False, "system_prompt_overwrite": True},
+            timeout=90,
+        )
+        response.raise_for_status()
+        try:
+            result = response.json()
+        except requests.exceptions.JSONDecodeError as error:
+            raise RuntimeError("Agentaus returned an invalid response.") from error
+        if not isinstance(result, dict):
+            raise RuntimeError("Agentaus returned an unexpected response format.")
+        usage = result.get("usage") or {}
+        monitoring.log_api_service_event(
+            state=state, stage="completion", latency_ms=(time.perf_counter() - started) * 1000,
+            success=True, http_status=response.status_code,
+            input_tokens=usage.get("input_tokens", usage.get("prompt_tokens")),
+            output_tokens=usage.get("output_tokens", usage.get("completion_tokens")),
+            total_tokens=usage.get("total_tokens"),
+        )
+        return result
+    except Exception as error:
+        monitoring.log_api_service_event(
+            state=state, stage="completion", latency_ms=(time.perf_counter() - started) * 1000,
+            success=False, http_status=getattr(getattr(error, "response", None), "status_code", None),
+            error_type=type(error).__name__,
+        )
+        raise
+
+
+def api_error_message(error):
+    if isinstance(error, requests.exceptions.ConnectionError):
+        return (
+            "The AI service endpoint could not be reached. In Streamlit Cloud, "
+            "confirm that API_ENDPOINT is a public HTTPS URL whose hostname resolves from the internet."
+        )
+    if isinstance(error, requests.exceptions.Timeout):
+        return "The AI service did not respond in time. Please try again shortly."
+    if isinstance(error, requests.exceptions.HTTPError):
+        response = error.response
+        if response is not None:
+            return f"The AI service rejected the request (HTTP {response.status_code})."
+    return "The AI assistant service is currently unavailable. Please try again shortly."
+
+
+def check(endpoint=None, api_key=None):
+    endpoint, api_key = _credentials(endpoint, api_key)
+    if not endpoint:
+        return {"online": False, "label": "Agentaus API offline", "detail": "API endpoint is not configured."}
+    if not api_key:
+        return {"online": False, "label": "Agentaus API offline", "detail": "API credentials are not configured."}
+    try:
+        response = requests.get(
+            endpoint,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=(2, 3),
+            allow_redirects=False,
+        )
+    except requests.exceptions.Timeout:
+        return {"online": False, "label": "Agentaus API offline", "detail": "The service did not respond within 3 seconds."}
+    except requests.exceptions.RequestException:
+        return {"online": False, "label": "Agentaus API offline", "detail": "The service could not be reached."}
+
+    status_code = int(response.status_code)
+    if 200 <= status_code < 400 or status_code == 405:
+        return {"online": True, "label": "Agentaus API online", "detail": "Service is reachable."}
+    if status_code in {401, 403}:
+        return {"online": False, "label": "Agentaus API offline", "detail": "The service rejected the configured credentials."}
+    if status_code >= 500:
+        return {"online": False, "label": "Agentaus API offline", "detail": f"The service returned HTTP {status_code}."}
+    return {"online": True, "label": "Agentaus API online", "detail": f"Service is reachable (HTTP {status_code} to the GET probe)."}
+
+
+def record_usage(result, stage, state=None):
+    usage = result.get("usage") if isinstance(result, dict) else None
+    if not isinstance(usage, dict):
+        return
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    total_tokens = usage.get("total_tokens")
+    if total_tokens is None and isinstance(input_tokens, int) and isinstance(output_tokens, int):
+        total_tokens = input_tokens + output_tokens
+    entry = {
+        "stage": stage,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "recorded_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    state = state if state is not None else st.session_state
+    history = state.setdefault("api_usage", [])
+    history.append(entry)
+    del history[:-50]
+
+
+def _stream_event_text(event):
+    try:
+        choice = event.get("choices", [])[0]
+    except (AttributeError, IndexError, TypeError):
+        return ""
+    content = choice.get("delta", {}).get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict) and item.get("text")
+        )
+    return ""
+
+
+def stream(messages, *, stage="answer", state=None, endpoint=None, api_key=None):
+    endpoint, api_key = _credentials(endpoint, api_key)
+    if not api_key:
+        raise RuntimeError("AGENTAUS_API_KEY is not configured in Streamlit secrets or the environment.")
+    if not endpoint:
+        raise RuntimeError("Configure API_ENDPOINT, or set HOST_NAME in Streamlit secrets or the environment.")
+    state = state if state is not None else st.session_state
+    started = time.perf_counter()
+    response = None
+    try:
+        response = requests.post(
+            endpoint,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+            json={"messages": messages, "stream": True, "system_prompt_overwrite": True},
+            stream=True,
+            timeout=(10, 90),
+        )
+        response.raise_for_status()
+    except Exception as error:
+        monitoring.log_api_service_event(
+            state=state, stage=stage, latency_ms=(time.perf_counter() - started) * 1000,
+            success=False, http_status=getattr(response, "status_code", None),
+            error_type=type(error).__name__,
+        )
+        if response is not None:
+            response.close()
+        raise
+
+    yielded_text = False
+    stream_error = None
+    try:
+        if "text/event-stream" not in response.headers.get("Content-Type", "").lower():
+            result = response.json()
+            record_usage(result, stage, state)
+            text = extract_text(result)
+            if not text:
+                raise RuntimeError("Agentaus returned an empty response.")
+            yielded_text = True
+            yield text
+            return
+
+        for raw_line in response.iter_lines(decode_unicode=True):
+            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+            line = str(line or "").strip()
+            if not line or line.startswith(":") or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                event = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            record_usage(event, stage, state)
+            text = _stream_event_text(event)
+            if text:
+                yielded_text = True
+                yield text
+        if not yielded_text:
+            raise RuntimeError("Agentaus returned an empty stream.")
+    except Exception as error:
+        stream_error = error
+        raise
+    finally:
+        monitoring.log_api_service_event(
+            state=state, stage=stage, latency_ms=(time.perf_counter() - started) * 1000,
+            success=bool(yielded_text and stream_error is None),
+            http_status=getattr(response, "status_code", None),
+            error_type=type(stream_error).__name__ if stream_error else None,
+        )
+        if response is not None:
+            response.close()
+
+
+def extract_text(result):
+    try:
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            return "\n".join(
+                str(item.get("text"))
+                for item in content
+                if isinstance(item, dict) and item.get("text")
+            ).strip()
+        return str(content).strip()
+    except Exception:
+        return ""

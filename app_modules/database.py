@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 ROLES = ("Student", "Mentor", "Convenor", "Administrator")
 SCHEMA_VERSION = 8
-DEFAULT_PATH = Path(__file__).resolve().parent / "project_data" / "capstone.sqlite3"
+DEFAULT_PATH = Path(__file__).resolve().parent.parent / "project_data" / "capstone.sqlite3"
 
 
 def database_path():

@@ -8,8 +8,8 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 from pptx import Presentation
 
-from exporting import build_export
-from export_ui import detect_export_intent, is_export_only_request, split_trailing_export_request
+from app_modules.exporting import build_export
+from app_modules.export_ui import detect_export_intent, is_export_only_request, split_trailing_export_request
 
 
 DOCUMENT = {

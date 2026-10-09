@@ -4,9 +4,9 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-import access_control as access
-import database
-import settings
+from app_modules import access_control as access
+from app_modules import database
+from app_modules import settings
 
 
 DEFAULT_COLUMNS = (("backlog", "Backlog"), ("todo", "To do"), ("progress", "In progress"), ("review", "Review"), ("done", "Done"))
@@ -91,7 +91,7 @@ def _sync_linked_gantt_progress(state, project_id, card, column_id):
     task_code = card.get("gantt_code")
     if not task_id and not task_code:
         return
-    import gantt
+    from app_modules import gantt
 
     plan = gantt.get_plan(state, project_id)
     task = next(
@@ -105,6 +105,7 @@ def _sync_linked_gantt_progress(state, project_id, card, column_id):
     if not task:
         return
     task["progress"] = COLUMN_PROGRESS[column_id]
+    task["status"] = "Completed" if column_id == "done" else "In Progress" if column_id in {"progress", "review"} else "Planned"
     gantt.save_plan(state, project_id, plan)
 
 
@@ -134,7 +135,7 @@ def add_card(state, project_id, title, details="", column_id="backlog", *, gantt
         and not gantt_code
         and settings.is_enabled("feature_backlog_sync")
     ):
-        import gantt
+        from app_modules import gantt
         plan = gantt.get_plan(state, project_id)
         code = _next_gantt_code(plan)
         task_plan = gantt.add_task(
@@ -188,7 +189,7 @@ def update_card(state, project_id, card_id, title, details):
     updated_title = str(title).strip()[:160]
     updated_details = str(details or "").strip()[:3000]
     if settings.is_enabled("feature_backlog_sync") and (card.get("gantt_task_id") or card.get("gantt_code")):
-        import gantt
+        from app_modules import gantt
         plan = gantt.get_plan(state, project_id)
         linked_task = next(
             (
@@ -221,7 +222,7 @@ def delete_card(state, project_id, card_id, *, sync_gantt=True):
     board = get_board(state, project_id)
     card = board["cards"].get(card_id)
     if sync_gantt and card and settings.is_enabled("feature_backlog_sync") and (card.get("gantt_task_id") or card.get("gantt_code")):
-        import gantt
+        from app_modules import gantt
         try:
             gantt.delete_task(state, project_id, card.get("gantt_task_id"), sync_kanban=False)
         except ValueError:

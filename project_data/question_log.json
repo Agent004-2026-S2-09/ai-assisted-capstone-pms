@@ -397,5 +397,28 @@
       "some",
       "visuals"
     ]
+  },
+  {
+    "timestamp": "2026-10-09T13:07:14Z",
+    "role": "Administrator",
+    "project_id": "",
+    "question": "hi",
+    "keywords": []
+  },
+  {
+    "timestamp": "2026-10-09T13:12:34Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you generate a PowerPoint style presentation of everything you know about our project so far",
+    "keywords": [
+      "generate",
+      "powerpoint",
+      "style",
+      "presentation",
+      "everything",
+      "know",
+      "our",
+      "far"
+    ]
   }
 ]

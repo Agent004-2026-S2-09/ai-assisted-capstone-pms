@@ -29,38 +29,49 @@ from uuid import uuid4
 import requests
 import streamlit as st
 import pandas as pd
-from PIL import Image, ImageDraw, ImageFont
 
-import database
-import auth
-import access_control as access
-import monitoring
-import prompts
-import vector_store
-import settings
+from app_modules import database
+from app_modules import auth
+from app_modules import access_control as access
+from app_modules import monitoring
+from app_modules import prompts
+from app_modules import vector_store
+from app_modules import settings
 settings = importlib.reload(settings)
-import gantt
-import kanban
-import templates
-from export_ui import render_export
+from app_modules import gantt
+from app_modules import kanban
+from app_modules import milestones
+from app_modules import templates
+from app_modules.export_ui import render_export
+from app_modules.core.paths import (
+    ASSET_DIR,
+    BASE_DIR,
+    INDEX_DIR,
+    INDEX_FILE,
+    KB_DIR,
+    PROJECTS_FILE,
+    PROJECT_DATA_DIR,
+    PROJECT_KNOWLEDGE_DIR,
+    UC_LOGO_PATH,
+    UC_LOGO_WHITE_PATH,
+    ensure_runtime_directories,
+)
 
 from dotenv import load_dotenv
 
-from pypdf import PdfReader
-from docx import Document
-from docx.table import Table
-from docx.text.paragraph import Paragraph
-from pptx import Presentation
-from openpyxl import load_workbook
-from openpyxl.utils import get_column_letter
-import pypdfium2 as pdfium
-import pytesseract
-from sklearn.decomposition import TruncatedSVD
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import normalize
-import plotly.graph_objects as go
-from streamlit_sortables import sort_items
+
+def __getattr__(name):
+    """Load legacy document constructors only when callers request them."""
+    if name == "Document":
+        from docx import Document
+
+        return Document
+    if name == "Presentation":
+        from pptx import Presentation
+
+        return Presentation
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 
 # ============================================================
@@ -138,23 +149,7 @@ def get_support_email():
     get_setting = getattr(settings, "get_text_setting", None)
     return get_setting("support_email", SUPPORT_EMAIL) if get_setting else SUPPORT_EMAIL
 
-BASE_DIR = Path(__file__).resolve().parent
-ASSET_DIR = BASE_DIR / "assets"
-UC_LOGO_PATH = ASSET_DIR / "uc_logo_inline_padded.png"
-UC_LOGO_WHITE_PATH = ASSET_DIR / "uc-logo-white-padded.png"
-
-KB_DIR = BASE_DIR / "knowledge_base"
-INDEX_DIR = BASE_DIR / "knowledge_index"
-PROJECT_DATA_DIR = BASE_DIR / "project_data"
-PROJECT_KNOWLEDGE_DIR = BASE_DIR / "project_knowledge"
-
-KB_DIR.mkdir(parents=True, exist_ok=True)
-INDEX_DIR.mkdir(parents=True, exist_ok=True)
-PROJECT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-PROJECT_KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
-
-INDEX_FILE = INDEX_DIR / "index.json"
-PROJECTS_FILE = PROJECT_DATA_DIR / "projects.json"
+ensure_runtime_directories()
 INDEX_VERSION = 5
 OCR_MIN_TEXT_CHARACTERS = 80
 MAX_UPLOAD_SIZE_MB = 25
@@ -1121,277 +1116,49 @@ def summarise_question_analytics(records):
 
 
 # ============================================================
-# AGENTAUS
+# AI SERVICE FACADE
 # ============================================================
 
+from app_modules.services import ai_client
+
+AGENTAUS_API_KEY = ai_client._config("AGENTAUS_API_KEY")
+API_ENDPOINT = ai_client._endpoint()
+
+
 def call_agentaus(messages):
-    """Send a conversation to the Agentaus chat endpoint."""
-
-    if not AGENTAUS_API_KEY:
-        raise RuntimeError(
-            "AGENTAUS_API_KEY is not configured in Streamlit secrets or the environment."
-        )
-
-    if not API_ENDPOINT:
-        raise RuntimeError(
-            "Configure API_ENDPOINT, or set HOST_NAME in Streamlit secrets or the environment."
-        )
-
-    headers = {
-        "Authorization": f"Bearer {AGENTAUS_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-    payload = {
-        "messages": messages,
-        "stream": False,
-        "system_prompt_overwrite": True,
-    }
-
-    started = time.perf_counter()
-    try:
-        response = requests.post(
-            API_ENDPOINT,
-            headers=headers,
-            json=payload,
-            timeout=90,
-        )
-        response.raise_for_status()
-        try:
-            result = response.json()
-        except requests.exceptions.JSONDecodeError as error:
-            raise RuntimeError("Agentaus returned an invalid response.") from error
-        if not isinstance(result, dict):
-            raise RuntimeError("Agentaus returned an unexpected response format.")
-        usage = result.get("usage") or {}
-        monitoring.log_api_service_event(
-            state=st.session_state, stage="completion", latency_ms=(time.perf_counter() - started) * 1000,
-            success=True, http_status=response.status_code,
-            input_tokens=usage.get("input_tokens", usage.get("prompt_tokens")),
-            output_tokens=usage.get("output_tokens", usage.get("completion_tokens")),
-            total_tokens=usage.get("total_tokens"),
-        )
-        return result
-    except Exception as error:
-        monitoring.log_api_service_event(
-            state=st.session_state, stage="completion", latency_ms=(time.perf_counter() - started) * 1000,
-            success=False, http_status=getattr(getattr(error, "response", None), "status_code", None),
-            error_type=type(error).__name__,
-        )
-        raise
+    return ai_client.call(
+        messages,
+        state=st.session_state,
+        endpoint=API_ENDPOINT,
+        api_key=AGENTAUS_API_KEY,
+    )
 
 
 def api_service_error_message(error):
-    """Return a safe, actionable message for an AgentAus request failure."""
-
-    if isinstance(error, requests.exceptions.ConnectionError):
-        return (
-            "The AI service endpoint could not be reached. In Streamlit Cloud, "
-            "confirm that API_ENDPOINT is a public HTTPS URL whose hostname "
-            "resolves from the internet."
-        )
-    if isinstance(error, requests.exceptions.Timeout):
-        return "The AI service did not respond in time. Please try again shortly."
-    if isinstance(error, requests.exceptions.HTTPError):
-        response = error.response
-        if response is not None:
-            return f"The AI service rejected the request (HTTP {response.status_code})."
-    return "The AI assistant service is currently unavailable. Please try again shortly."
+    return ai_client.api_error_message(error)
 
 
 @st.cache_data(ttl=30, show_spinner=False)
 def check_agentaus_api():
-    """Perform a lightweight, cached reachability check without invoking a model."""
-    endpoint = str(API_ENDPOINT or "").strip()
-    api_key = str(AGENTAUS_API_KEY or "").strip()
-    if not endpoint:
-        return {"online": False, "label": "Agentaus API offline", "detail": "API endpoint is not configured."}
-    if not api_key:
-        return {"online": False, "label": "Agentaus API offline", "detail": "API credentials are not configured."}
-    try:
-        response = requests.get(
-            endpoint,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=(2, 3),
-            allow_redirects=False,
-        )
-    except requests.exceptions.Timeout:
-        return {"online": False, "label": "Agentaus API offline", "detail": "The service did not respond within 3 seconds."}
-    except requests.exceptions.RequestException:
-        return {"online": False, "label": "Agentaus API offline", "detail": "The service could not be reached."}
-
-    status_code = int(response.status_code)
-    # A POST-only chat endpoint commonly returns 405 to a harmless GET. That
-    # still proves that the configured host and route are reachable.
-    if 200 <= status_code < 400 or status_code == 405:
-        return {"online": True, "label": "Agentaus API online", "detail": "Service is reachable."}
-    if status_code in {401, 403}:
-        return {"online": False, "label": "Agentaus API offline", "detail": "The service rejected the configured credentials."}
-    if status_code >= 500:
-        return {"online": False, "label": "Agentaus API offline", "detail": f"The service returned HTTP {status_code}."}
-    return {"online": True, "label": "Agentaus API online", "detail": f"Service is reachable (HTTP {status_code} to the GET probe)."}
+    return ai_client.check(API_ENDPOINT, AGENTAUS_API_KEY)
 
 
 def record_api_usage(result, stage):
-    """Retain recent provider token usage for the current Streamlit session."""
-
-    usage = result.get("usage") if isinstance(result, dict) else None
-    if not isinstance(usage, dict):
-        return
-    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
-    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
-    total_tokens = usage.get("total_tokens")
-    if total_tokens is None and isinstance(input_tokens, int) and isinstance(output_tokens, int):
-        total_tokens = input_tokens + output_tokens
-    entry = {
-        "stage": stage,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": total_tokens,
-        "recorded_at": datetime.now().isoformat(timespec="seconds"),
-    }
-    history = st.session_state.setdefault("api_usage", [])
-    history.append(entry)
-    del history[:-50]
-
-
-def _stream_event_text(event):
-    """Extract text from an OpenAI-compatible chat completion chunk."""
-
-    try:
-        choice = event.get("choices", [])[0]
-    except (AttributeError, IndexError, TypeError):
-        return ""
-    content = choice.get("delta", {}).get("content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            str(item.get("text", ""))
-            for item in content
-            if isinstance(item, dict) and item.get("text")
-        )
-    return ""
+    return ai_client.record_usage(result, stage, st.session_state)
 
 
 def call_agentaus_stream(messages, stage="answer"):
-    """Yield an AgentAus answer from SSE, with JSON-response compatibility."""
-
-    if not AGENTAUS_API_KEY:
-        raise RuntimeError(
-            "AGENTAUS_API_KEY is not configured in Streamlit secrets or the environment."
-        )
-    if not API_ENDPOINT:
-        raise RuntimeError(
-            "Configure API_ENDPOINT, or set HOST_NAME in Streamlit secrets or the environment."
-        )
-
-    started = time.perf_counter()
-    response = None
-    try:
-        response = requests.post(
-            API_ENDPOINT,
-            headers={
-                "Authorization": f"Bearer {AGENTAUS_API_KEY}",
-                "Content-Type": "application/json",
-                "Accept": "text/event-stream",
-            },
-            json={
-                "messages": messages,
-                "stream": True,
-                "system_prompt_overwrite": True,
-            },
-            stream=True,
-            timeout=(10, 90),
-        )
-        response.raise_for_status()
-    except Exception as error:
-        monitoring.log_api_service_event(
-            state=st.session_state, stage=stage,
-            latency_ms=(time.perf_counter() - started) * 1000,
-            success=False, http_status=getattr(response, "status_code", None),
-            error_type=type(error).__name__,
-        )
-        if response is not None:
-            response.close()
-        raise
-    yielded_text = False
-    stream_error = None
-    try:
-        if "text/event-stream" not in response.headers.get("Content-Type", "").lower():
-            result = response.json()
-            record_api_usage(result, stage)
-            text = extract_agentaus_text(result)
-            if not text:
-                raise RuntimeError("Agentaus returned an empty response.")
-            yielded_text = True
-            yield text
-            return
-
-        for raw_line in response.iter_lines(decode_unicode=True):
-            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
-            line = str(line or "").strip()
-            if not line or line.startswith(":") or not line.startswith("data:"):
-                continue
-            data = line[5:].strip()
-            if data == "[DONE]":
-                break
-            try:
-                event = json.loads(data)
-            except json.JSONDecodeError:
-                continue
-            record_api_usage(event, stage)
-            text = _stream_event_text(event)
-            if text:
-                yielded_text = True
-                yield text
-        if not yielded_text:
-            raise RuntimeError("Agentaus returned an empty stream.")
-    except Exception as error:
-        stream_error = error
-        raise
-    finally:
-        monitoring.log_api_service_event(
-            state=st.session_state, stage=stage, latency_ms=(time.perf_counter() - started) * 1000,
-            success=bool(yielded_text and stream_error is None),
-            http_status=getattr(response, "status_code", None),
-            error_type=type(stream_error).__name__ if stream_error else None,
-        )
-        if response is not None:
-            response.close()
+    yield from ai_client.stream(
+        messages,
+        stage=stage,
+        state=st.session_state,
+        endpoint=API_ENDPOINT,
+        api_key=AGENTAUS_API_KEY,
+    )
 
 
 def extract_agentaus_text(result):
-    """Safely extract assistant text from Agentaus response."""
-
-    try:
-        content = (
-            result
-            .get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        )
-
-        if isinstance(content, str):
-            return content.strip()
-
-        if isinstance(content, list):
-            parts = []
-
-            for item in content:
-                if isinstance(item, dict):
-                    text = item.get("text")
-
-                    if text:
-                        parts.append(str(text))
-
-            return "\n".join(parts).strip()
-
-        return str(content).strip()
-
-    except Exception:
-        return ""
-
+    return ai_client.extract_text(result)
 
 # ============================================================
 # DOCUMENT EXTRACTION
@@ -1404,6 +1171,9 @@ def ocr_available():
 def _ocr_pdf_page(path, page_index):
     if not ocr_available():
         return ""
+    import pypdfium2 as pdfium
+    import pytesseract
+
     document = pdfium.PdfDocument(str(path))
     try:
         page = document[page_index]
@@ -1423,6 +1193,8 @@ def _ocr_pdf_page(path, page_index):
 
 def extract_pdf(path):
     authorise_document_path(path)
+    from pypdf import PdfReader
+
     chunks = []
     reader = PdfReader(str(path))
     total_pages = len(reader.pages)
@@ -1656,6 +1428,10 @@ def extract_project_records(page_items, minimum_records=3):
 
 def extract_docx(path):
     authorise_document_path(path)
+    from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
     document = Document(str(path))
     results, section, buffer = [], "Document", []
 
@@ -1747,6 +1523,8 @@ def _shape_alt_text(shape):
 def extract_pptx(path):
 
     authorise_document_path(path)
+    from pptx import Presentation
+
     presentation = Presentation(str(path))
 
     chunks = []
@@ -1795,6 +1573,9 @@ def extract_pptx(path):
 def extract_xlsx(path):
 
     authorise_document_path(path)
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+
     workbook = load_workbook(
         filename=path,
         read_only=True,
@@ -2171,6 +1952,8 @@ def read_editable_document(path):
     authorise_document_path(path)
     path = Path(path)
     if path.suffix.lower() == ".docx":
+        from docx import Document
+
         document = Document(str(path))
         return "\n".join(paragraph.text for paragraph in document.paragraphs)
     if path.suffix.lower() not in EDITABLE_DOCUMENT_EXTENSIONS:
@@ -2183,6 +1966,8 @@ def _edited_document_bytes(path, content):
     path = Path(path)
     if path.suffix.lower() != ".docx":
         return str(content or "").encode("utf-8")
+    from docx import Document
+
     document = Document(str(path))
     lines = str(content or "").splitlines()
     paragraphs = document.paragraphs
@@ -2946,6 +2731,9 @@ def _semantic_corpus_key(documents):
 @st.cache_resource(max_entries=4, show_spinner=False)
 def _build_semantic_index(corpus_key, _documents):
     """Build and cache the read-only local LSA index for a corpus revision."""
+    from sklearn.decomposition import TruncatedSVD
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.preprocessing import normalize
 
     texts = [
         " ".join(
@@ -2985,6 +2773,8 @@ def _semantic_scores(question, documents):
     another service or requiring a model download. Exact identifiers and titles
     are still handled deterministically before this stage.
     """
+
+    from sklearn.metrics.pairwise import cosine_similarity
 
     sqlite_scores = vector_store.score_documents(question, documents)
     if len(documents) < 3:
@@ -5256,38 +5046,60 @@ def render_project_team(project):
 def render_project_milestones(project):
     require_project_access(project.id)
     st.subheader("🎯 Project Milestones")
-    st.caption("Manual milestones are independent records. Gantt-linked milestones appear here automatically when a Gantt milestone reaches 100%.")
+    st.caption("Milestones are linked to Gantt items with type Milestone. Changes made here are written back to Gantt and Kanban automatically.")
 
     if project.milestones:
         for index, milestone in enumerate(project.milestones):
             with st.expander(milestone.get("name", "Milestone")):
                 source = "Gantt-linked" if milestone.get("source") == "gantt" else "Manual"
                 st.write("**Source:** " + source)
-                st.write("**Target date:** " + milestone.get("date", ""))
-                st.write("**Status:** " + milestone.get("status", ""))
                 if milestone.get("source") == "gantt" and milestone.get("gantt_code"):
                     st.write("**Gantt code:** " + milestone.get("gantt_code", ""))
-                if milestone.get("notes"):
-                    st.write("**Notes:**")
-                    st.write(milestone.get("notes", ""))
-                if milestone.get("source") == "gantt":
-                    st.caption("This completion record is managed by the linked Gantt milestone.")
-                elif st.button(
-                    "Delete milestone",
+                with st.form(f"edit_milestone_{project.id}_{milestone.get('id', index)}"):
+                    edited_name = st.text_input("Milestone", value=milestone.get("name", ""))
+                    edited_date = st.date_input(
+                        "Target date",
+                        value=_date_picker_value(milestone.get("date")),
+                        key=f"milestone_date_{project.id}_{milestone.get('id', index)}",
+                    )
+                    statuses = ["Planned", "In Progress", "Completed", "At Risk"]
+                    current_status = milestone.get("status", "Planned")
+                    edited_status = st.selectbox(
+                        "Status", statuses,
+                        index=statuses.index(current_status) if current_status in statuses else 0,
+                    )
+                    edited_notes = st.text_area("Notes", value=milestone.get("notes", ""))
+                    save_milestone = st.form_submit_button("Save milestone", type="primary")
+                if save_milestone:
+                    try:
+                        milestones.update_milestone(
+                            st.session_state,
+                            project.id,
+                            milestone.get("id"),
+                            name=edited_name,
+                            target_date=edited_date.isoformat(),
+                            status=edited_status,
+                            notes=edited_notes,
+                        )
+                        st.success("Milestone updated and linked schedule records synchronised.")
+                        st.rerun()
+                    except (ValueError, PermissionError) as error:
+                        st.error(str(error))
+                if st.button(
+                    "Delete milestone and linked schedule task",
                     key=f"delete_milestone_{project.id}_{milestone.get('id', index)}",
-                    disabled=auth.current_user(st.session_state)["role"] == "Student",
                 ):
-                    milestone_id = milestone.get("id")
-                    project.milestones = [
-                        item for item in project.milestones if item.get("id") != milestone_id
-                    ]
-                    _save_project_from_ui(project, allow_student_content=True)
-                    st.rerun()
+                    try:
+                        milestones.delete_milestone(st.session_state, project.id, milestone.get("id"))
+                        st.success("Milestone and linked task deleted.")
+                        st.rerun()
+                    except (ValueError, PermissionError) as error:
+                        st.error(str(error))
     else:
         st.info("No project milestones have been added.")
 
     st.divider()
-    st.caption("Add a milestone manually when it is not represented in the Gantt schedule.")
+    st.caption("Adding a milestone here creates a linked Gantt milestone and Kanban task when scheduling is enabled.")
     with st.form(f"add_milestone_{project.id}"):
         name = st.text_input("Milestone")
         target_date = st.date_input("Target date", value=date.today())
@@ -5302,17 +5114,34 @@ def render_project_milestones(project):
         if not name.strip():
             st.warning("Milestone name is required.")
             return
-        project.milestones.append(
-            {
-                "id": uuid4().hex,
-                "name": name.strip(),
-                "date": target_date.isoformat(),
-                "status": status,
-                "notes": notes.strip(),
-            }
-        )
-        _save_project_from_ui(project, allow_student_content=True)
-        st.rerun()
+        try:
+            if settings.is_enabled("feature_gantt"):
+                gantt.add_task(
+                    st.session_state,
+                    project.id,
+                    {
+                        "code": gantt.next_top_level_code(st.session_state, project.id),
+                        "name": name.strip(),
+                        "type": "Milestone",
+                        "start": target_date.isoformat(),
+                        "finish": target_date.isoformat(),
+                        "progress": {"Planned": 0, "In Progress": 50, "Completed": 100}.get(status, 0),
+                        "status": status,
+                        "resource": "",
+                        "predecessors": [],
+                        "details": notes.strip(),
+                        "milestone": True,
+                    },
+                )
+                st.success("Milestone added to Gantt and Kanban.")
+            else:
+                project.milestones.append(
+                    {"id": uuid4().hex, "name": name.strip(), "date": target_date.isoformat(), "status": status, "notes": notes.strip()}
+                )
+                _save_project_from_ui(project, allow_student_content=True)
+            st.rerun()
+        except (ValueError, PermissionError) as error:
+            st.error(str(error))
 
 
 def render_project_meetings(project):
@@ -5478,6 +5307,8 @@ def _critical_task_ids(tasks):
 
 
 def _render_gantt_chart(tasks):
+    import plotly.graph_objects as go
+
     dated = []
     for task in tasks:
         start = _parse_date(task.get("start"))
@@ -5669,6 +5500,90 @@ def _render_gantt_table(tasks):
     )
 
 
+def _render_gantt_editor(project_id, tasks):
+    """Render the schedule as an editable table while keeping IDs protected."""
+    if not tasks:
+        st.info("No schedule tasks have been added yet.")
+        return None
+    rows = [
+        {
+            "Task ID": task["id"],
+            "WBS": task.get("code", ""),
+            "Task name": task.get("name", ""),
+            "Type": task.get("type", "Task"),
+            "Status": task.get("status", "Planned"),
+            "Start": task.get("start", ""),
+            "Finish": task.get("finish", ""),
+            "Progress (%)": int(task.get("progress", 0)),
+            "Resource / owner": task.get("resource", ""),
+            "Predecessors": ", ".join(task.get("predecessors", [])),
+            "Details": task.get("details", ""),
+        }
+        for task in tasks
+    ]
+    editor_key = f"gantt_editor_{project_id}_{st.session_state.get(f'task_board_revision_{project_id}', 0)}"
+    edited = st.data_editor(
+        pd.DataFrame(rows),
+        key=editor_key,
+        hide_index=True,
+        width="stretch",
+        height="content",
+        num_rows="delete",
+        disabled=["Task ID", "WBS"],
+        column_config={
+            "Task ID": None,
+            "Type": st.column_config.SelectboxColumn(options=["Task", "Milestone", "Summary"], required=True),
+            "Status": st.column_config.SelectboxColumn(options=["Planned", "In Progress", "Completed", "At Risk"], required=True),
+            "Progress (%)": st.column_config.NumberColumn(min_value=0, max_value=100, step=1, format="%d%%"),
+        },
+        alt="Editable project schedule with tasks, milestones, dates, progress and ownership",
+    )
+    original = {task["id"]: task for task in tasks}
+    edited_ids = {str(row.get("Task ID")) for row in edited.to_dict("records")}
+    removed_ids = [task_id for task_id in original if task_id not in edited_ids]
+    changed = bool(removed_ids)
+    try:
+        for task_id in removed_ids:
+            gantt.delete_task(st.session_state, project_id, task_id)
+        for row in edited.to_dict("records"):
+            task_id = str(row.get("Task ID") or "")
+            current = original.get(task_id)
+            if not current:
+                continue
+            edited_type = str(row.get("Type") or "Task")
+            start = str(row.get("Start") or "").strip()
+            finish = str(row.get("Finish") or start).strip()
+            edited_progress = int(row.get("Progress (%)") or 0)
+            edited_status = str(row.get("Status") or "Planned")
+            if edited_type == "Milestone":
+                if edited_progress != int(current.get("progress", 0)) and edited_status == current.get("status", "Planned"):
+                    edited_status = "Completed" if edited_progress >= 100 else "In Progress" if edited_progress > 0 else "Planned"
+                elif edited_status != "At Risk":
+                    edited_progress = {"Planned": 0, "In Progress": 50, "Completed": 100}.get(edited_status, edited_progress)
+            payload = {
+                **current,
+                "name": str(row.get("Task name") or "").strip(),
+                "type": edited_type,
+                "status": edited_status,
+                "start": start,
+                "finish": start if edited_type == "Milestone" else finish,
+                "progress": edited_progress,
+                "resource": str(row.get("Resource / owner") or "").strip(),
+                "predecessors": [item.strip() for item in str(row.get("Predecessors") or "").split(",") if item.strip()],
+                "details": str(row.get("Details") or "").strip(),
+                "milestone": edited_type == "Milestone",
+                "summary": edited_type == "Summary",
+            }
+            if payload != current:
+                gantt.update_task(st.session_state, project_id, task_id, payload)
+                changed = True
+        if changed:
+            _refresh_project_task_views(project_id)
+    except (ValueError, PermissionError, TypeError) as error:
+        st.error(f"The schedule change could not be saved: {error}")
+    return edited
+
+
 def _parse_date(value):
     try:
         return datetime.strptime(str(value), "%Y-%m-%d").date()
@@ -5739,7 +5654,7 @@ def render_project_gantt(project):
     kpi[1].metric("Complete", sum(int(task.get("progress", 0)) >= 100 for task in tasks))
     kpi[2].metric("Critical tasks", len(critical))
     kpi[3].metric("Resources", len({task.get("resource") for task in tasks if task.get("resource")}))
-    _render_gantt_table(tasks)
+    _render_gantt_editor(project.id, tasks)
 
     if settings.is_enabled("feature_gantt_import"):
         with st.expander("Import schedule from Excel"):
@@ -5768,6 +5683,7 @@ def render_project_gantt(project):
             code = st.text_input("Code", placeholder="1 or 1.1")
             name = st.text_input("Task or milestone name")
             kind = st.selectbox("Type", ["Task", "Milestone", "Summary"])
+            item_status = st.selectbox("Status", ["Planned", "In Progress", "Completed", "At Risk"])
             start = st.date_input("Start date", value=date.today())
             finish = st.date_input("Finish date", value=start, min_value=start)
             progress = st.slider("Progress", 0, 100, 0)
@@ -5784,8 +5700,8 @@ def render_project_gantt(project):
             submitted = st.form_submit_button("Add to schedule", type="primary")
         if submitted:
             try:
-                is_milestone = kind == "Milestone" or ("." not in code and kind != "Task")
-                gantt.add_task(st.session_state, project.id, {"code": code, "name": name, "type": kind, "start": start.isoformat(), "finish": (start if is_milestone else finish).isoformat(), "progress": progress, "resource": _resource_value(resource_ids, resource_by_id), "predecessors": [item.strip() for item in predecessors.split(",") if item.strip()], "details": details, "milestone": is_milestone})
+                is_milestone = kind == "Milestone"
+                gantt.add_task(st.session_state, project.id, {"code": code, "name": name, "type": kind, "start": start.isoformat(), "finish": (start if is_milestone else finish).isoformat(), "progress": {"Planned": 0, "In Progress": 50, "Completed": 100}.get(item_status, progress) if is_milestone else progress, "status": item_status, "resource": _resource_value(resource_ids, resource_by_id), "predecessors": [item.strip() for item in predecessors.split(",") if item.strip()], "details": details, "milestone": is_milestone})
                 st.success("Schedule item added and placed in the Kanban backlog.")
                 _refresh_project_task_views(project.id)
             except (ValueError, PermissionError) as error:
@@ -5808,6 +5724,9 @@ def render_project_gantt(project):
                         type_options = ["Task", "Milestone", "Summary"]
                         current_type = task.get("type", "Milestone" if task.get("milestone") else "Task")
                         edited_type = st.selectbox("Type", type_options, index=type_options.index(current_type) if current_type in type_options else 0)
+                        statuses = ["Planned", "In Progress", "Completed", "At Risk"]
+                        current_status = task.get("status", "Planned")
+                        edited_status = st.selectbox("Status", statuses, index=statuses.index(current_status) if current_status in statuses else 0)
                         edited_start = st.date_input(
                             "Start date",
                             value=_date_picker_value(task.get("start")),
@@ -5834,7 +5753,7 @@ def render_project_gantt(project):
                         edited = st.form_submit_button("Save schedule changes", type="primary")
                     if edited:
                         try:
-                            gantt.update_task(st.session_state, project.id, task["id"], {**task, "code": edited_code.strip(), "name": edited_name, "type": edited_type, "start": edited_start.isoformat(), "finish": edited_finish.isoformat(), "progress": edited_progress, "resource": _resource_value(edited_resource_ids, resource_by_id), "predecessors": [item.strip() for item in edited_predecessors.split(",") if item.strip()], "details": edited_details, "milestone": edited_type == "Milestone", "summary": edited_type == "Summary"})
+                            gantt.update_task(st.session_state, project.id, task["id"], {**task, "code": edited_code.strip(), "name": edited_name, "type": edited_type, "status": edited_status, "start": edited_start.isoformat(), "finish": edited_start.isoformat() if edited_type == "Milestone" else edited_finish.isoformat(), "progress": {"Planned": 0, "In Progress": 50, "Completed": 100}.get(edited_status, edited_progress) if edited_type == "Milestone" else edited_progress, "resource": _resource_value(edited_resource_ids, resource_by_id), "predecessors": [item.strip() for item in edited_predecessors.split(",") if item.strip()], "details": edited_details, "milestone": edited_type == "Milestone", "summary": edited_type == "Summary"})
                             st.success("Schedule item updated and its linked Kanban card synchronised.")
                             _refresh_project_task_views(project.id)
                         except (ValueError, PermissionError) as error:
@@ -5851,6 +5770,8 @@ def _get_kanban_ai_history(state, project_id):
 
 
 def render_project_kanban(project):
+    from streamlit_sortables import sort_items
+
     access.require_user(st.session_state)
     if not settings.is_enabled("feature_kanban"):
         st.info("Kanban task management is currently disabled by an Administrator.")
@@ -6935,323 +6856,19 @@ def chat_page():
 # ADMINISTRATOR AI MONITORING
 # ============================================================
 
-def _percentile(values, fraction):
-    values = sorted(float(value) for value in values)
-    if not values:
-        return 0
-    position = (len(values) - 1) * fraction
-    lower = math.floor(position)
-    upper = math.ceil(position)
-    if lower == upper:
-        return values[lower]
-    return values[lower] + (values[upper] - values[lower]) * (position - lower)
-
 
 def render_ai_performance():
-    access.require_admin(st.session_state)
-    st.title("AI and system performance")
-    st.caption("Monitor reliability, response quality and AI service performance.")
-    days = st.selectbox("Time range", [7, 30, 90], index=1, format_func=lambda value: f"Last {value} days")
-    metrics = monitoring.dashboard_metrics(st.session_state, days)
-    api_metrics = monitoring.api_service_metrics(st.session_state, days)
-    retrieval_metrics = monitoring.retrieval_quality_metrics(st.session_state, days)
-    embedding_metrics = vector_store.health()
-    requests_count = int(metrics["requests"])
-    successful = int(metrics["successful"])
-    feedback_total = int(metrics["helpful"]) + int(metrics["not_helpful"])
-    success_rate = (successful / requests_count * 100) if requests_count else 0
-    helpful_rate = (int(metrics["helpful"]) / feedback_total * 100) if feedback_total else 0
-
-    first = st.columns(4)
-    first[0].metric("AI requests", requests_count)
-    first[1].metric("Successful", successful)
-    first[2].metric("Failed", int(metrics["failed"]))
-    first[3].metric("Average latency", f"{int(metrics['avg_latency']):,} ms")
-    second = st.columns(4)
-    second[0].metric("Helpful", int(metrics["helpful"]))
-    second[1].metric("Not helpful", int(metrics["not_helpful"]))
-    second[2].metric("Grounded accuracy", f"{float(metrics['grounded_accuracy']):.2f}/5")
-    second[3].metric("Hallucinations", int(metrics["hallucinations"]))
-    st.caption(
-        f"Average evaluated usability: {float(metrics['usability']):.2f}/5 "
-        f"across {int(metrics['evaluations'])} evaluation(s)."
-    )
-    st.progress(min(1.0, success_rate / 100), text=f"AI service success rate: {success_rate:.1f}%")
-    st.caption(f"Helpful-response rate: {helpful_rate:.1f}% across {feedback_total} submitted ratings.")
-
-    st.subheader("Response latency")
-    series = monitoring.latency_series(st.session_state, days)
-    if series:
-        latency_values = [int(row["latency_ms"]) for row in series]
-        latency_chart = pd.DataFrame(
-            {
-                "Time": [row["created_at"] for row in series],
-                "Latency (ms)": [int(row["latency_ms"]) for row in series],
-            }
-        )
-        st.line_chart(
-            latency_chart,
-            x="Time",
-            y="Latency (ms)",
-            x_label="Time",
-            y_label="Latency (ms)",
-            alt="AI response latency over time",
-        )
-        by_mode = defaultdict(list)
-        for row in series:
-            by_mode[row["assistant_mode"]].append(int(row["latency_ms"]))
-        st.dataframe(
-            [{"Assistant mode": mode, "Requests": len(values), "Average latency (ms)": round(sum(values) / len(values)),
-              "Median latency (ms)": round(_percentile(values, 0.5)), "95th percentile (ms)": round(_percentile(values, 0.95))}
-             for mode, values in sorted(by_mode.items())],
-            hide_index=True,
-        )
-        st.caption(f"Overall median: {round(_percentile(latency_values, 0.5)):,} ms · 95th percentile: {round(_percentile(latency_values, 0.95)):,} ms")
-    else:
-        st.info("No successful AI interactions are available for this period.")
-
-    st.subheader("Recent failed AI interactions")
-    errors = monitoring.recent_errors(st.session_state)
-    if errors:
-        st.dataframe(errors, hide_index=True)
-    else:
-        st.info("No failed AI interactions recorded.")
-
-    st.subheader("Recent response feedback")
-    feedback = monitoring.recent_feedback(st.session_state, days)
-    if feedback:
-        st.dataframe(
-            [{**row, "rating": "Helpful" if row["rating"] == 1 else "Not helpful"} for row in feedback],
-            hide_index=True,
-        )
-    else:
-        st.info("No feedback has been submitted for this period.")
-    st.divider()
-    st.subheader("API service monitoring")
-    api_cards = st.columns(5)
-    api_cards[0].metric("Provider calls", int(api_metrics["requests"]))
-    api_cards[1].metric("Provider success", f"{(int(api_metrics['successful']) / int(api_metrics['requests']) * 100) if api_metrics['requests'] else 0:.1f}%")
-    api_cards[2].metric("Average API latency", f"{int(api_metrics['avg_latency']):,} ms")
-    api_cards[3].metric("Total tokens", f"{int(api_metrics['total_tokens']):,}")
-    api_cards[4].metric("API failures", int(api_metrics["failed"]))
-    if api_metrics["stages"]:
-        st.dataframe(api_metrics["stages"], hide_index=True, width="stretch")
-    else:
-        st.info("No provider API telemetry is available for this period.")
-
-    st.divider()
-    render_recent_ai_usage()
-
-    st.subheader("Retrieval quality")
-    retrieval_cards = st.columns(5)
-    retrieval_cards[0].metric("Searches", int(retrieval_metrics["searches"]))
-    retrieval_cards[1].metric("No-match rate", f"{float(retrieval_metrics['no_match_rate']):.1f}%")
-    retrieval_cards[2].metric("Average results", f"{float(retrieval_metrics['avg_results']):.1f}")
-    retrieval_cards[3].metric("Average top score", f"{float(retrieval_metrics['avg_top_score']):.3f}")
-    retrieval_cards[4].metric("Average search time", f"{int(retrieval_metrics['avg_latency']):,} ms")
-    if retrieval_metrics["daily"]:
-        st.line_chart(
-            pd.DataFrame(
-                {
-                    "Date": [row["day"] for row in retrieval_metrics["daily"]],
-                    "No-match searches": [int(row["no_match"]) for row in retrieval_metrics["daily"]],
-                }
-            ),
-            x="Date",
-            y="No-match searches",
-            x_label="Date",
-            y_label="Number of searches",
-            alt="Daily retrieval searches with no matching results",
-        )
-    else:
-        st.info("No retrieval-quality telemetry is available for this period.")
-
-    st.subheader("SQLite vector embedding index")
-    embedding_cards = st.columns(4)
-    embedding_cards[0].metric("Embedded documents", int(embedding_metrics["document_count"]))
-    embedding_cards[1].metric("Embedding model", embedding_metrics["model_name"])
-    embedding_cards[2].metric("Vector dimensions", int(embedding_metrics["dimensions"]))
-    embedding_cards[3].metric("Embedding models", int(embedding_metrics["model_count"]))
-    last_run = embedding_metrics.get("last_run")
-    if last_run:
-        st.caption(
-            f"Last {last_run['scope']} embedding run: {last_run['document_count']:,} documents · "
-            f"{last_run['duration_ms']:,} ms · {last_run['created_at']}"
-        )
-
-
-PROMPT_WORD_CLOUD_COLORS = (
-    "#005B85", "#007FA3", "#0099B8", "#1565C0", "#2F80ED",
-    "#6A4C93", "#8E5BB7", "#D14D72", "#E07A5F", "#B8860B",
-)
-
-
-def _prompt_word_cloud_image(terms):
-    """Build a deterministic rounded-rectangle word cloud from term counts."""
-    if not terms:
-        return None
-    terms = sorted(terms, key=lambda item: int(item[1]), reverse=True)[:10]
-
-    width, height = 900, 560
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    rectangle_box = (8, 8, width - 8, height - 8)
-    draw.rounded_rectangle(rectangle_box, radius=28, fill="#F7FBFD", outline="#96E3FF", width=3)
-
-    font_candidates = (
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-    )
-
-    def get_font(font_size):
-        for font_path in font_candidates:
-            try:
-                return ImageFont.truetype(font_path, font_size)
-            except OSError:
-                continue
-        return ImageFont.load_default()
-
-    def color_word(word):
-        index = sum((position + 1) * ord(character) for position, character in enumerate(word))
-        return PROMPT_WORD_CLOUD_COLORS[index % len(PROMPT_WORD_CLOUD_COLORS)]
-
-    max_count = max(int(count) for _, count in terms) or 1
-    placed = []
-    for index, (term, count) in enumerate(terms[:20]):
-        word = str(term)
-        font_size = 22 + round(86 * (max(1, int(count)) / max_count) ** 0.7)
-        font = get_font(font_size)
-        bbox = font.getbbox(word)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        padding = 6
-        layer = Image.new("RGBA", (text_width + padding * 2, text_height + padding * 2), (0, 0, 0, 0))
-        layer_draw = ImageDraw.Draw(layer)
-        layer_draw.text((padding - bbox[0], padding - bbox[1]), word, font=font, fill=color_word(word))
-        if index % 5 == 2:
-            layer = layer.rotate(90, expand=True, resample=Image.Resampling.BICUBIC)
-        elif index % 5 == 4:
-            layer = layer.rotate(-18, expand=True, resample=Image.Resampling.BICUBIC)
-
-        layer_width, layer_height = layer.size
-        placed_successfully = False
-        for step in range(420):
-            angle = index * 1.7 + step * 0.38
-            distance = min(step * 1.55, min(width, height) * 0.42)
-            center_x = width / 2 + math.cos(angle) * distance * 1.35
-            center_y = height / 2 + math.sin(angle) * distance * 0.78
-            left = round(center_x - layer_width / 2)
-            top = round(center_y - layer_height / 2)
-            right, bottom = left + layer_width, top + layer_height
-            if left < 16 or top < 16 or right > width - 16 or bottom > height - 16:
-                continue
-            candidate = (left - 3, top - 3, right + 3, bottom + 3)
-            if any(
-                candidate[0] < existing[2]
-                and candidate[2] > existing[0]
-                and candidate[1] < existing[3]
-                and candidate[3] > existing[1]
-                for existing in placed
-            ):
-                continue
-            image.alpha_composite(layer, (left, top))
-            placed.append(candidate)
-            placed_successfully = True
-            break
-        if not placed_successfully:
-            # Keep every selected term visible even when the decorative
-            # collision layout cannot find a free spiral position.
-            fallback_font = get_font(18)
-            fallback_bbox = fallback_font.getbbox(word)
-            fallback_width = fallback_bbox[2] - fallback_bbox[0]
-            fallback_height = fallback_bbox[3] - fallback_bbox[1]
-            fallback_columns = 3
-            fallback_cell_width = (width - 32) / fallback_columns
-            fallback_row = index // fallback_columns
-            fallback_column = index % fallback_columns
-            fallback_x = round(16 + fallback_column * fallback_cell_width + (fallback_cell_width - fallback_width) / 2 - fallback_bbox[0])
-            fallback_y = round(20 + fallback_row * 125 + (82 - fallback_height) / 2 - fallback_bbox[1])
-            draw.text((fallback_x, fallback_y), word, font=fallback_font, fill=color_word(word))
-    return image
-
+    from app_modules.ui.pages.performance import render
+    return render(st.session_state, render_recent_ai_usage)
 
 def render_prompt_intelligence():
-    access.require_admin(st.session_state)
-    st.title("Prompt and topic intelligence")
-    st.caption("Use submitted questions to identify documentation and assistant improvements.")
-    days = st.select_slider("Analysis window", options=[7, 30, 90, 180], value=30, format_func=lambda value: f"Last {value} days")
-    rows = monitoring.prompt_analytics(st.session_state, days)
-    if not rows:
-        st.info("No captured prompts are available for this period yet.")
-        return
-    terms = monitoring.summarise_prompt_terms(rows, 20)
-    metrics = st.columns(4)
-    metrics[0].metric("Questions captured", f"{len(rows):,}")
-    metrics[1].metric("Average prompt length", f"{round(sum(len(row['question_text']) for row in rows) / len(rows))} chars")
-    metrics[2].metric("Active roles", len({row["user_role"] for row in rows}))
-    metrics[3].metric("Distinct terms", len(monitoring.summarise_prompt_terms(rows, 1000)))
+    from app_modules.ui.pages.prompt_intelligence import render
+    return render(st.session_state)
 
-    themes, trends, explorer = st.tabs(["Question themes", "Trends", "Prompt explorer"])
-    with themes:
-        topic_rows = [{"Topic": term, "Questions": count} for term, count in terms]
-        if terms:
-            st.subheader("Top 10 words")
-            cloud_image = _prompt_word_cloud_image(terms[:10])
-            if cloud_image is not None:
-                _, cloud_column, _ = st.columns([1, 2, 1])
-                with cloud_column:
-                    st.image(
-                        cloud_image,
-                        width=460,
-                        alt="Rounded rectangular word cloud of frequently requested assistant topics; word size represents question count.",
-                    )
-            st.subheader("Topic frequency chart")
-            st.bar_chart(
-                pd.DataFrame(topic_rows),
-                x="Topic",
-                y="Questions",
-                x_label="Topic",
-                y_label="Number of questions",
-                alt="Frequently requested assistant topics by question count",
-            )
-        st.subheader("Frequently requested topics table")
-        st.dataframe(topic_rows, hide_index=True, alt="Frequently requested assistant topics and question counts")
-        st.caption("Common filler words are excluded from the topic summary.")
-        st.write("Documentation opportunities: " + ", ".join(term for term, _ in terms[:8]) + ".")
-    with trends:
-        daily = Counter(row["created_at"][:10] for row in rows)
-        by_role = Counter(row["user_role"] for row in rows)
-        by_mode = Counter(row["assistant_mode"] for row in rows)
-        st.subheader("Questions over time")
-        questions_over_time = pd.DataFrame(
-            {
-                "Date": list(sorted(daily)),
-                "Questions": [daily[key] for key in sorted(daily)],
-            }
-        )
-        st.line_chart(
-            questions_over_time,
-            x="Date",
-            y="Questions",
-            x_label="Date",
-            y_label="Number of questions",
-            alt="Questions captured per day",
-        )
-        st.subheader("Questions by role")
-        st.dataframe([{"Role": key, "Questions": value} for key, value in sorted(by_role.items())], hide_index=True)
-        st.subheader("General versus project-specific")
-        st.dataframe([{"Mode": key, "Questions": value} for key, value in sorted(by_mode.items())], hide_index=True)
-    with explorer:
-        st.subheader("Captured prompts")
-        roles = sorted({row["user_role"] for row in rows})
-        selected_roles = st.multiselect("Filter by role", roles)
-        filtered = rows if not selected_roles else [row for row in rows if row["user_role"] in selected_roles]
-        st.dataframe(
-            [{"Time": row["created_at"], "Role": row["user_role"], "Mode": row["assistant_mode"],
-              "Question": row["question_text"], "Latency (ms)": row["latency_ms"]} for row in filtered],
-            hide_index=True,
-        )
 
+# ============================================================
+# MAIN
+# ============================================================
 
 def render_prompt_management():
     access.require_admin(st.session_state)
@@ -7325,9 +6942,6 @@ def render_ai_evaluation():
 
 
 # ============================================================
-# MAIN
-# ============================================================
-
 def main():
 
     database.initialize(legacy_file=PROJECTS_FILE)

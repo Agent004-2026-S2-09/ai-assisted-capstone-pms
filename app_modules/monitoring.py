@@ -6,12 +6,42 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 
-import access_control as access
-import auth
-import database
+from app_modules import access_control as access
+from app_modules import auth
+from app_modules import database
 
 MAX_FEEDBACK_COMMENT_LENGTH = 2000
 MAX_EVALUATION_RESPONSE_LENGTH = 50000
+
+PROMPT_TOPIC_RULES = (
+    ("Project planning and scheduling", (
+        "plan", "planning", "schedule", "scheduling", "gantt", "deadline", "timeline", "wbs",
+    )),
+    ("Tasks, Kanban and milestones", (
+        "task", "kanban", "backlog", "milestone", "sprint", "board", "progress", "assign",
+    )),
+    ("Documents and knowledge base", (
+        "document", "upload", "file", "pdf", "knowledge", "search", "source", "template",
+    )),
+    ("Assessment and capstone guidance", (
+        "assessment", "rubric", "capstone", "proposal", "report", "presentation", "requirement",
+    )),
+    ("Team, roles and access", (
+        "team", "role", "member", "student", "mentor", "sponsor", "login", "password", "access",
+    )),
+    ("Meetings, decisions and actions", (
+        "meeting", "minutes", "agenda", "decision", "action", "attendee", "discussion",
+    )),
+    ("Risks, issues and quality", (
+        "risk", "issue", "blocker", "quality", "testing", "test", "problem", "concern",
+    )),
+    ("AI assistant and prompts", (
+        "ai", "assistant", "prompt", "answer", "question", "chat", "response", "explain",
+    )),
+    ("Administration and system settings", (
+        "admin", "setting", "feature", "performance", "latency", "feedback", "account",
+    )),
+)
 
 
 def hash_request(text):
@@ -279,6 +309,36 @@ def summarise_prompt_terms(rows, maximum=15):
             if word not in stop_words:
                 terms[word] += 1
     return terms.most_common(maximum)
+
+
+def classify_prompt_topic(question):
+    """Return an explainable administrator-facing intent category."""
+    text = str(question or "").casefold()
+    for topic, keywords in PROMPT_TOPIC_RULES:
+        if any(re.search(rf"\b{re.escape(keyword)}\b", text) for keyword in keywords):
+            return topic
+    return "Other project information"
+
+
+def summarise_prompt_topics(rows, maximum=10):
+    """Group captured questions into clear topics with counts and examples."""
+    grouped = {}
+    for row in rows:
+        topic = classify_prompt_topic(row.get("question_text", ""))
+        entry = grouped.setdefault(topic, {"Topic": topic, "Questions": 0, "Example question": ""})
+        entry["Questions"] += 1
+        question = " ".join(str(row.get("question_text", "")).split())
+        if question and (not entry["Example question"] or len(question) < len(entry["Example question"])):
+            entry["Example question"] = question[:140]
+    total = sum(item["Questions"] for item in grouped.values())
+    topics = sorted(grouped.values(), key=lambda item: (-item["Questions"], item["Topic"]))
+    result = []
+    for item in topics[:max(1, int(maximum))]:
+        result.append({
+            **item,
+            "Share": f"{(item['Questions'] / total * 100):.1f}%" if total else "0.0%",
+        })
+    return result
 
 
 def _optional_user_id(state):

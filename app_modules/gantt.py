@@ -8,9 +8,9 @@ from datetime import datetime, date, timezone
 
 import openpyxl
 
-import access_control as access
-import database
-import settings
+from app_modules import access_control as access
+from app_modules import database
+from app_modules import settings
 
 
 CODE_RE = re.compile(r"^\d+(?:\.\d+)*$")
@@ -53,7 +53,12 @@ def _normalise(plan):
         except (TypeError, ValueError):
             progress = 0
         code = str(raw.get("code", "")).strip()
-        milestone = bool(raw.get("milestone")) or str(raw.get("type", "")).casefold() == "milestone" or (start and finish and start == finish and "." not in code)
+        type_name = str(raw.get("type") or "").strip()
+        milestone = type_name.casefold() == "milestone" or (not type_name and bool(raw.get("milestone")))
+        progress_status = "Completed" if progress >= 100 else "In Progress" if progress > 0 else "Planned"
+        status = str(raw.get("status") or "").strip()
+        if status not in {"Planned", "In Progress", "Completed", "At Risk"}:
+            status = progress_status
         tasks.append({
             "id": str(raw.get("id") or uuid.uuid4().hex), "code": code[:40],
             "name": str(raw["name"]).strip()[:160], "type": str(raw.get("type") or ("Milestone" if milestone else "Task"))[:20],
@@ -61,8 +66,9 @@ def _normalise(plan):
             "progress": progress, "resource": str(raw.get("resource") or "").strip()[:240],
             "predecessors": [str(value).strip() for value in raw.get("predecessors", []) if str(value).strip()],
             "details": str(raw.get("details") or "").strip()[:3000], "milestone": milestone,
+            "status": status,
             "summary": bool(raw.get("summary")), "kanban_card_id": raw.get("kanban_card_id"),
-            "project_milestone_id": raw.get("project_milestone_id"),
+            "project_milestone_id": raw.get("project_milestone_id") if milestone else None,
         })
     return {"tasks": tasks}
 
@@ -122,20 +128,32 @@ def get_plan(state, project_id, seed_tasks=None):
         return plan
 
 
+def next_top_level_code(state, project_id):
+    """Return the next available top-level WBS code for a new milestone."""
+    plan = get_plan(state, project_id)
+    values = [
+        int(str(task.get("code")).strip())
+        for task in plan["tasks"]
+        if str(task.get("code", "")).strip().isdigit()
+    ]
+    return str(max(values, default=0) + 1)
+
+
 def save_plan(state, project_id, plan):
     access.require_project(state, project_id)
     plan = _normalise(plan)
-    import milestones
+    _validate(plan)
+    from app_modules import milestones
     for task in plan["tasks"]:
         milestone_id = milestones.sync_gantt_milestone(state, project_id, task)
         if milestone_id:
             task["project_milestone_id"] = milestone_id
-    _validate(plan)
     with database.connect() as db:
         db.execute("""INSERT INTO gantt_plans(project_id, plan_json, updated_at) VALUES (?, ?, ?)
                      ON CONFLICT(project_id) DO UPDATE SET plan_json=excluded.plan_json, updated_at=excluded.updated_at""", (project_id, json.dumps(plan, ensure_ascii=False), _now()))
     access.record_audit(state, "gantt_plan_saved", project_id=project_id,
                         details={"task_count": len(plan["tasks"])})
+    milestones.remove_orphaned_gantt_milestones(state, project_id, plan["tasks"])
     return plan
 
 
@@ -146,7 +164,7 @@ def add_task(state, project_id, task, *, sync_kanban=True):
     plan["tasks"].append(item)
     plan = save_plan(state, project_id, plan)
     if sync_kanban and settings.is_enabled("feature_backlog_sync"):
-        import kanban
+        from app_modules import kanban
         for saved in plan["tasks"][-1:]:
             saved["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, saved)
         save_plan(state, project_id, plan)
@@ -162,7 +180,7 @@ def update_task(state, project_id, task_id, task, *, sync_kanban=True):
             plan["tasks"][index] = item
             plan = save_plan(state, project_id, plan)
             if sync_kanban and settings.is_enabled("feature_backlog_sync"):
-                import kanban
+                from app_modules import kanban
                 item["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, item)
                 plan["tasks"][index] = item
                 save_plan(state, project_id, plan)
@@ -182,7 +200,7 @@ def delete_task(state, project_id, task_id, *, sync_kanban=True):
     access.record_audit(state, "gantt_task_deleted", project_id=project_id,
                         details={"task_id": task_id, "code": target.get("code", "")})
     if sync_kanban and settings.is_enabled("feature_backlog_sync"):
-        import kanban
+        from app_modules import kanban
         kanban.delete_linked_card(
             state,
             project_id,
@@ -227,7 +245,7 @@ def import_workbook(state, project_id, content, *, replace=False):
             raise ValueError(f"Row {number}: Progress must be a whole number from 0 to 100.") from error
         if not 0 <= progress_value <= 100:
             raise ValueError(f"Row {number}: Progress must be between 0 and 100.")
-        milestone = str(kind or "").strip().casefold() == "milestone" or ("." not in code and str(kind or "").strip().casefold() != "task")
+        milestone = str(kind or "").strip().casefold() == "milestone"
         predecessor_values = [item.strip() for item in re.split(r"[,;]", str(predecessors or "")) if item.strip()]
         imported.append({"id": existing.get(code, {}).get("id") or uuid.uuid4().hex, "code": code, "name": name, "type": str(kind or ("Milestone" if milestone else "Task")), "start": start_date.isoformat(), "finish": (start_date if milestone else finish_date).isoformat(), "progress": progress_value, "resource": str(resource or ""), "predecessors": predecessor_values, "details": str(details or ""), "milestone": milestone, "summary": str(kind or "").casefold() == "summary"})
     plan = {"tasks": imported if replace else [*existing.values(), *[item for item in imported if item.get("code") not in existing]]}
@@ -238,7 +256,7 @@ def import_workbook(state, project_id, content, *, replace=False):
         plan["tasks"] = list(by_code.values())
     plan = save_plan(state, project_id, plan)
     if settings.is_enabled("feature_backlog_sync"):
-        import kanban
+        from app_modules import kanban
         kanban.remove_orphaned_gantt_cards(state, project_id, plan["tasks"])
         for task in plan["tasks"]:
             task["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, task)

@@ -8,8 +8,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 import pytest
-import auth
-import database
+from app_modules import auth
+from app_modules import database
 
 
 class TestSession(dict):

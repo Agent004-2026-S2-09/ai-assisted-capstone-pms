@@ -2,7 +2,7 @@ import pytest
 from plotly.io import to_json
 
 import app
-import auth
+from app_modules import auth
 
 
 PASSWORD = "directory-test-password"

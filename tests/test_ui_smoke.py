@@ -3,8 +3,8 @@ from datetime import date
 from streamlit.testing.v1 import AppTest
 
 import app
-import gantt
-import monitoring
+from app_modules import gantt
+from app_modules import monitoring
 
 
 def test_administrator_routes_render_without_exceptions():

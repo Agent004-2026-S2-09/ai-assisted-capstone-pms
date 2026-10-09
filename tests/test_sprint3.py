@@ -6,9 +6,9 @@ import time
 import pytest
 
 import app
-import auth
-import database
-import access_control as access
+from app_modules import auth
+from app_modules import database
+from app_modules import access_control as access
 
 PASSWORD = "a-long-test-password"
 
@@ -333,8 +333,8 @@ def test_profile_is_loaded_from_database_not_supplied_object(projects):
 
 
 def test_demo_cli_is_idempotent_and_prints_only_new_random_passwords(monkeypatch, capsys):
-    import manage
-    monkeypatch.setattr("sys.argv", ["manage.py", "seed-demo"])
+    from scripts import manage
+    monkeypatch.setattr("sys.argv", ["scripts/manage.py", "seed-demo"])
     manage.main()
     output = capsys.readouterr().out
     assert "DEVELOPMENT / DEMO ONLY" in output

@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timezone
 import time
 
-import database
+from app_modules import database
 
 SESSION_SECONDS = 8 * 60 * 60
 RESET_SECONDS = 30 * 60

@@ -6,9 +6,9 @@ import pytest
 from openpyxl import Workbook
 
 import app
-import gantt
-import kanban
-import access_control as access
+from app_modules import gantt
+from app_modules import kanban
+from app_modules import access_control as access
 
 
 class SessionState(dict):
@@ -756,8 +756,8 @@ def test_project_lifecycle_uses_revisions_and_removes_folders(isolated_project_s
 
 
 def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_project_storage):
-    import auth
-    import access_control as access
+    from app_modules import auth
+    from app_modules import access_control as access
 
     alpha = app.create_project("Alpha Project", mentor="Dr Mentor")
     beta = app.create_project("Beta Project", mentor="Other Mentor")
@@ -776,8 +776,8 @@ def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_pro
 
 
 def test_convenor_can_access_all_projects(isolated_project_storage):
-    import auth
-    import access_control as access
+    from app_modules import auth
+    from app_modules import access_control as access
 
     alpha = app.create_project("Alpha Project")
     beta = app.create_project("Beta Project")
@@ -932,8 +932,8 @@ def test_binary_knowledge_documents_are_not_rewritten_as_plain_text(isolated_pro
 
 
 def test_question_analytics_are_recorded_and_summarised(isolated_project_storage):
-    import auth
-    import access_control as access
+    from app_modules import auth
+    from app_modules import access_control as access
     project = app.create_project("Alpha Project")
     user_id = auth.create_user("Test Student", "student", "test-password-long", "Student")
     access.assign_project(app.st.session_state, user_id, project.id)

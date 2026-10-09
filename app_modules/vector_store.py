@@ -18,7 +18,7 @@ import numpy as np
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.preprocessing import normalize
 
-import database
+from app_modules import database
 
 
 DEFAULT_MODEL = "hashing-v1"

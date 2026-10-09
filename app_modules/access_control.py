@@ -3,8 +3,8 @@ import json
 import secrets
 import time
 from datetime import datetime, timezone
-import auth
-import database
+from app_modules import auth
+from app_modules import database
 
 
 class AccessDenied(PermissionError):
@@ -225,7 +225,7 @@ def update_user_profile(state, user_id, *, first_name, last_name, email, role, s
 
 def create_user(state, *args, **kwargs):
     require_admin(state)
-    from settings import is_enabled
+    from app_modules.settings import is_enabled
     if not is_enabled("feature_user_creation"):
         raise AccessDenied("User creation is disabled by an Administrator.")
     return auth.create_user(*args, **kwargs)
@@ -234,7 +234,7 @@ def create_user(state, *args, **kwargs):
 def import_users(state, rows):
     """Import administrator-provided accounts as one validated transaction."""
     require_admin(state)
-    from settings import is_enabled
+    from app_modules.settings import is_enabled
     if not is_enabled("feature_user_creation"):
         raise AccessDenied("User creation is disabled by an Administrator.")
     return auth.create_users_batch(rows)

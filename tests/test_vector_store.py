@@ -1,7 +1,7 @@
-import auth
-import database
-import monitoring
-import vector_store
+from app_modules import auth
+from app_modules import database
+from app_modules import monitoring
+from app_modules import vector_store
 
 
 def test_sqlite_vector_embeddings_are_rebuilt_and_scored():

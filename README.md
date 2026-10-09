@@ -31,9 +31,11 @@ The project workspace also provides optional Gantt scheduling and an
 AI-enabled Kanban task board. Gantt tasks can be created manually or imported
 from the downloadable Excel template using hierarchical codes such as `1`,
 `1.1` and `1.2`. New schedule tasks automatically receive one linked Kanban
-Backlog card. Administrators can enable or disable scheduling, Kanban, Kanban
-AI actions, Excel import, backlog synchronisation and user creation from
-Administration.
+Backlog card. Explicit Gantt items with type `Milestone` also create a linked
+Milestones record. Gantt, Kanban and linked Milestones support read, create,
+update and delete operations with stable cross-links and cascading cleanup.
+Administrators can enable or disable scheduling, Kanban, Kanban AI actions,
+Excel import, backlog synchronisation and user creation from Administration.
 
 ## Authorization and operational safeguards
 
@@ -139,6 +141,28 @@ LMS integration is intentionally not included because the external LMS service
 is not yet available. Existing local users, assignments, project records and
 project documents remain the current source of truth.
 
+## Application structure
+
+`app.py` remains the Streamlit entry point and compatibility facade. The
+application is organised by responsibility so the AI-driven workflow remains
+easy to test and extend:
+
+- `app_modules/core/paths.py` owns canonical runtime directories and assets.
+- `app_modules/services/ai_client.py` owns AgentAus requests, streaming,
+  provider health and usage telemetry.
+- `app_modules/ui/pages/` contains administrator analytics pages, including
+  prompt intelligence and AI/system performance.
+- `app_modules/ui/formatting.py` contains shared display formatting helpers.
+- `app_modules/` contains persistence, authorization, retrieval, monitoring,
+  scheduling, Kanban, milestones and export services.
+- `scripts/manage.py` contains operational CLI tasks.
+
+Feature-specific dependencies are imported at the point of use. This reduces
+cold-start overhead and keeps optional document, chart and semantic-search
+libraries from being loaded for every request. The main runtime benefit comes
+from this lazy loading plus Streamlit caching; the module boundaries primarily
+improve maintainability, testing and safe future AI orchestration changes.
+
 ## Development roadmap
 
 The project will be developed over seven sprints. Version 4 / Sprint 4 is the
@@ -188,7 +212,7 @@ identified defects and receive a new entry in `CHANGELOG.md`.
 - Git, if cloning the repository
 - Tesseract OCR 5
 - An AgentAus API endpoint and API key
-- A database account created with `manage.py`
+- A database account created with `scripts/manage.py`
 
 ## 1. Get the project
 
@@ -357,8 +381,8 @@ does not import accounts or data from any other project.
 SQLite initializes automatically, but an initial account must be created locally:
 
 ```bash
-python manage.py init
-python manage.py create-user --name "Local Administrator" --username admin@example.org --role Administrator
+python scripts/manage.py init
+python scripts/manage.py create-user --name "Local Administrator" --username admin@example.org --role Administrator
 streamlit run app.py
 ```
 
@@ -539,8 +563,11 @@ progress, predecessor references and circular dependencies before saving.
 Excel imports are transactional and can add/update tasks by code or replace a
 schedule after confirmation. Imported and manually created tasks synchronise
 to one Kanban Backlog card using the Gantt task ID or code as the stable link.
-The schedule is displayed as a ProjectLibre/Microsoft Project-style task table
-with WBS, duration, dates, dependencies, resources and completion percentage.
+The schedule is displayed as an editable ProjectLibre/Microsoft Project-style
+task table with WBS, dates, dependencies, resources, status and completion
+percentage. Explicit Gantt milestones are the source records for the Milestones
+view; editing either view updates the other, and deleting one removes its linked
+Gantt and Kanban records.
 Moving a linked task through the Tasks workflow updates its schedule completion
 from 0% in Backlog to 100% in Done.
 

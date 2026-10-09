@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 
-import database
-import access_control as access
+from app_modules import database
+from app_modules import access_control as access
 
 
 DEFAULT_PROMPTS = {

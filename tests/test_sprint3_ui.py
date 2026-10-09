@@ -3,8 +3,8 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 import app
-import auth
-import database
+from app_modules import auth
+from app_modules import database
 
 
 @pytest.mark.parametrize("role", database.ROLES)

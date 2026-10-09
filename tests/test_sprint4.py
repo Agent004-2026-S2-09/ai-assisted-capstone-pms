@@ -2,10 +2,10 @@
 
 import pytest
 
-import auth
-import monitoring
-import prompts
-import access_control as access
+from app_modules import auth
+from app_modules import monitoring
+from app_modules import prompts
+from app_modules import access_control as access
 
 
 PASSWORD = "a-long-test-password"
@@ -63,9 +63,23 @@ def test_sprint4_reporting_and_prompt_writes_require_administrator():
 
 
 def test_existing_database_identity_counts_are_unchanged_after_sprint4_migration():
-    import database
+    from app_modules import database
 
     with database.connect() as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == database.SCHEMA_VERSION
         assert db.execute("SELECT COUNT(*) FROM users").fetchone()[0] >= 1
         assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0
+
+
+def test_prompt_topics_are_grouped_into_explainable_intents():
+    rows = [
+        {"question_text": "How do I update my Gantt schedule?"},
+        {"question_text": "What is the deadline for the proposal?"},
+        {"question_text": "How do I update my Gantt schedule?"},
+        {"question_text": "Where can I upload a project document?"},
+    ]
+    topics = monitoring.summarise_prompt_topics(rows)
+    assert topics[0]["Topic"] == "Project planning and scheduling"
+    assert topics[0]["Questions"] == 3
+    assert topics[0]["Share"] == "75.0%"
+    assert topics[0]["Example question"]

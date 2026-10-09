@@ -3,8 +3,8 @@
 import json
 from datetime import datetime, timezone
 
-import access_control as access
-import database
+from app_modules import access_control as access
+from app_modules import database
 
 
 FEATURES = {

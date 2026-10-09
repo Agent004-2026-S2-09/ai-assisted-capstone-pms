@@ -50,7 +50,7 @@ def is_export_only_request(text):
 
 
 def prepare_export(answer, format_name, *, question="", project_name=""):
-    from exporting import build_export, format_with_agentaus
+    from app_modules.exporting import build_export, format_with_agentaus
 
     structured = format_with_agentaus(answer, format_name=format_name, question=question, project_name=project_name)
     data, extension = build_export(structured, format_name)

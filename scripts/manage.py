@@ -9,8 +9,8 @@ import secrets
 
 from dotenv import load_dotenv
 
-import auth
-import database
+from app_modules import auth
+from app_modules import database
 
 
 def _assign(db, username, project_id, remove=False):

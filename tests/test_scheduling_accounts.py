@@ -3,13 +3,14 @@ import zipfile
 
 import pytest
 import app
-import auth
-import database
-import gantt
-import kanban
-import settings
-import templates
-import access_control as access
+from app_modules import auth
+from app_modules import database
+from app_modules import gantt
+from app_modules import kanban
+from app_modules import milestones
+from app_modules import settings
+from app_modules import templates
+from app_modules import access_control as access
 import openpyxl
 
 
@@ -128,7 +129,7 @@ def test_gantt_and_kanban_crud_stays_bidirectionally_synchronised():
     assert not gantt.get_plan(state, "bidirectional")["tasks"]
 
 
-def test_completed_gantt_milestones_are_linked_without_replacing_manual_records():
+def test_gantt_milestones_are_linked_without_replacing_manual_records():
     state = {}
     password = "milestone-link-admin-password"
     auth.create_user("Milestone Link Admin", "milestone-link-admin", password, "Administrator")
@@ -149,7 +150,9 @@ def test_completed_gantt_milestones_are_linked_without_replacing_manual_records(
     })
     card_id = next(iter(kanban.get_board(state, "milestone-link")["cards"]))
     records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
-    assert [item["id"] for item in records] == ["manual-1"]
+    assert [item["id"] for item in records if item["id"] == "manual-1"] == ["manual-1"]
+    linked = next(item for item in records if item.get("source") == "gantt")
+    assert linked["status"] == "Planned"
 
     kanban.move_card(state, "milestone-link", card_id, "done")
     records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
@@ -162,6 +165,51 @@ def test_completed_gantt_milestones_are_linked_without_replacing_manual_records(
     kanban.move_card(state, "milestone-link", card_id, "progress")
     records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
     assert next(item for item in records if item.get("source") == "gantt")["status"] == "In Progress"
+
+
+def test_milestone_edits_and_deletes_propagate_to_gantt_and_kanban():
+    state = {}
+    password = "milestone-crud-admin-password"
+    auth.create_user("Milestone CRUD Admin", "milestone-crud-admin", password, "Administrator")
+    assert auth.login(state, "milestone-crud-admin", password)
+    database.write_projects([{"id": "milestone-crud", "name": "Milestone CRUD", "profile": {"id": "milestone-crud", "name": "Milestone CRUD", "milestones": []}}])
+
+    gantt.add_task(state, "milestone-crud", {
+        "code": "1", "name": "Initial checkpoint", "type": "Milestone",
+        "start": "2026-10-02", "finish": "2026-10-02", "progress": 0,
+        "status": "Planned", "resource": "", "predecessors": [],
+        "details": "Initial notes", "milestone": True,
+    })
+    record = next(item for item in database.read_projects()[0]["milestones"] if item.get("source") == "gantt")
+    milestones.update_milestone(
+        state, "milestone-crud", record["id"], name="Updated checkpoint",
+        target_date="2026-10-12", status="Completed", notes="Approved by sponsor",
+    )
+    task = gantt.get_plan(state, "milestone-crud")["tasks"][0]
+    card = next(iter(kanban.get_board(state, "milestone-crud")["cards"].values()))
+    assert task["name"] == "Updated checkpoint"
+    assert task["finish"] == "2026-10-12"
+    assert task["progress"] == 100
+    assert card["title"] == "Updated checkpoint"
+    assert card["details"] == "Approved by sponsor"
+
+    milestones.delete_milestone(state, "milestone-crud", record["id"])
+    assert not gantt.get_plan(state, "milestone-crud")["tasks"]
+    assert not kanban.get_board(state, "milestone-crud")["cards"]
+
+
+def test_only_explicit_gantt_milestones_sync_to_milestones_tab():
+    state = {}
+    password = "explicit-milestone-admin-password"
+    auth.create_user("Explicit Milestone Admin", "explicit-milestone-admin", password, "Administrator")
+    assert auth.login(state, "explicit-milestone-admin", password)
+    database.write_projects([{"id": "explicit-milestone", "name": "Explicit Milestone", "milestones": []}])
+    gantt.add_task(state, "explicit-milestone", {
+        "code": "1", "name": "Normal task", "type": "Task", "start": "2026-10-02",
+        "finish": "2026-10-05", "progress": 0, "resource": "", "predecessors": [],
+        "details": "", "milestone": False,
+    })
+    assert not database.read_projects()[0]["milestones"]
 
 
 def test_feature_flags_are_admin_only():
