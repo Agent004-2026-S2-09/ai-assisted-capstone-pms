@@ -342,6 +342,34 @@ def test_exact_project_id_bypasses_ambiguous_page_number():
     assert results[0]["retrieval_reason"] == "exact project ID"
 
 
+def test_semantic_retrieval_path_handles_three_or_more_documents():
+    documents = [
+        {
+            "text": "Capstone project governance includes weekly sponsor meetings.",
+            "source": "governance.txt",
+            "location": "Paragraph 1",
+            "record_type": "document_chunk",
+        },
+        {
+            "text": "The project schedule tracks milestones and delivery dates.",
+            "source": "schedule.txt",
+            "location": "Paragraph 1",
+            "record_type": "document_chunk",
+        },
+        {
+            "text": "Students submit the final report for assessment.",
+            "source": "assessment.txt",
+            "location": "Paragraph 1",
+            "record_type": "document_chunk",
+        },
+    ]
+
+    results = app.retrieve_information("Who attends sponsor meetings?", documents)
+
+    assert results
+    assert results[0]["source"] == "governance.txt"
+
+
 def test_exhaustive_catalogue_request_is_not_limited_by_top_k():
     documents = [
         {

@@ -2760,6 +2760,7 @@ def _semantic_scores(question, documents):
     """
 
     from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.preprocessing import normalize
 
     sqlite_scores = vector_store.score_documents(question, documents)
     if len(documents) < 3:
