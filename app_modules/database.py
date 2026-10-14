@@ -13,7 +13,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 ROLES = ("Student", "Mentor", "Convenor", "Administrator")
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 11
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "project_data" / "capstone.sqlite3"
 
 
@@ -53,6 +53,7 @@ def initialize(path=None, legacy_file=None):
                 username TEXT NOT NULL UNIQUE COLLATE NOCASE,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL CHECK(role IN ('Student','Mentor','Convenor','Administrator')),
+                permissions TEXT NOT NULL DEFAULT '["Student"]',
                 active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)))""")
             db.execute("""CREATE TABLE projects (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, profile TEXT NOT NULL)""")
@@ -297,6 +298,56 @@ def initialize(path=None, legacy_file=None):
             if "response_text" not in interaction_columns:
                 db.execute("ALTER TABLE ai_interactions ADD COLUMN response_text TEXT NOT NULL DEFAULT ''")
             db.execute("PRAGMA user_version = 8")
+
+        # Additive v8 -> v9 migration for composable non-student permissions.
+        # Keep role as the legacy primary/display role while storing the full
+        # permission set as JSON so existing integrations remain compatible.
+        if version < 9:
+            user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+            if "permissions" not in user_columns:
+                db.execute("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '[\"Student\"]'")
+            for row in db.execute("SELECT id, role FROM users").fetchall():
+                db.execute("UPDATE users SET permissions = ? WHERE id = ?",
+                           (json.dumps([row["role"]]), row["id"]))
+            db.execute("PRAGMA user_version = 9")
+
+        # Additive v9 -> v10 migration for persistent project discussion.
+        if version < 10:
+            db.execute("""CREATE TABLE IF NOT EXISTS project_comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                author_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                parent_comment_id INTEGER REFERENCES project_comments(id) ON DELETE CASCADE,
+                body TEXT NOT NULL CHECK(length(trim(body)) BETWEEN 1 AND 10000),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT
+            )""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_project_comments_project_time ON project_comments(project_id, created_at, id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_project_comments_parent ON project_comments(parent_comment_id)")
+            db.execute("PRAGMA user_version = 10")
+            version = 10
+
+        # Additive v10 -> v11 migration for explainable RAG diagnostics.
+        # These signals contain no question or answer text; the existing
+        # interaction and prompt archive tables remain the source of that data.
+        if version < 11:
+            db.execute("""CREATE TABLE IF NOT EXISTS rag_diagnostics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                interaction_id INTEGER NOT NULL UNIQUE REFERENCES ai_interactions(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                failure_class TEXT NOT NULL,
+                retrieval_relevant INTEGER NOT NULL DEFAULT 0 CHECK(retrieval_relevant IN (0,1)),
+                evidence_sufficient INTEGER NOT NULL DEFAULT 0 CHECK(evidence_sufficient IN (0,1)),
+                validation_status TEXT NOT NULL DEFAULT 'unknown',
+                result_count INTEGER NOT NULL DEFAULT 0,
+                source_count INTEGER NOT NULL DEFAULT 0,
+                structured_count INTEGER NOT NULL DEFAULT 0,
+                context_truncated INTEGER NOT NULL DEFAULT 0 CHECK(context_truncated IN (0,1)),
+                notes TEXT NOT NULL DEFAULT ''
+            )""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_rag_diagnostics_class_time ON rag_diagnostics(failure_class, created_at)")
+            db.execute("PRAGMA user_version = 11")
     # Local database includes private profiles and password hashes.
     if os.name != "nt":
         path.chmod(0o600)

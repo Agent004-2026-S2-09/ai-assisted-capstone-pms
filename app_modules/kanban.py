@@ -13,6 +13,18 @@ DEFAULT_COLUMNS = (("backlog", "Backlog"), ("todo", "To do"), ("progress", "In p
 COLUMN_PROGRESS = {"backlog": 0, "todo": 25, "progress": 50, "review": 75, "done": 100}
 
 
+def _task_column(task):
+    explicit = str(task.get("kanban_column") or "").strip().casefold()
+    if explicit in COLUMN_PROGRESS:
+        return explicit
+    status = str(task.get("status") or "").strip().casefold()
+    return {
+        "done": "done", "complete": "done", "completed": "done",
+        "review": "review", "for review": "review",
+        "in progress": "progress", "progress": "progress",
+    }.get(status, "backlog")
+
+
 def empty_board():
     return {"columns": [{"id": key, "title": title, "cardIds": []} for key, title in DEFAULT_COLUMNS], "cards": {}}
 
@@ -33,6 +45,7 @@ def _normalise(board):
                 "id": str(card_id), "title": str(card["title"]).strip()[:160],
                 "details": str(card.get("details", "")).strip()[:3000],
                 "gantt_task_id": card.get("gantt_task_id"), "gantt_code": card.get("gantt_code"),
+                "milestone_id": card.get("milestone_id"),
                 "source": str(card.get("source", "manual"))[:40],
             }
     return {"columns": columns, "cards": cards}
@@ -109,16 +122,34 @@ def _sync_linked_gantt_progress(state, project_id, card, column_id):
     gantt.save_plan(state, project_id, plan)
 
 
-def _next_gantt_code(plan):
-    top_level_codes = []
-    for task in plan.get("tasks", []):
-        code = str(task.get("code", "")).strip()
-        if code.isdigit():
-            top_level_codes.append(int(code))
+def _next_gantt_code(plan, milestone_id=None):
+    """Return a collision-free WBS code, nested under a linked milestone when possible."""
+    tasks = plan.get("tasks", [])
+    milestone = next(
+        (task for task in tasks
+         if str(task.get("id")) == str(milestone_id)
+         and str(task.get("type", "")).casefold() == "milestone"),
+        None,
+    )
+    if milestone and str(milestone.get("code", "")).strip():
+        prefix = str(milestone["code"]).strip()
+        children = []
+        for task in tasks:
+            code = str(task.get("code", "")).strip()
+            if code.startswith(prefix + "."):
+                suffix = code[len(prefix) + 1:]
+                if suffix.isdigit():
+                    children.append(int(suffix))
+        return f"{prefix}.{max(children, default=0) + 1}"
+    top_level_codes = [
+        int(str(task.get("code", "")).strip())
+        for task in tasks
+        if str(task.get("code", "")).strip().isdigit()
+    ]
     return str(max(top_level_codes, default=0) + 1)
 
 
-def add_card(state, project_id, title, details="", column_id="backlog", *, gantt_task_id=None, gantt_code=None, source="manual"):
+def add_card(state, project_id, title, details="", column_id="backlog", *, gantt_task_id=None, gantt_code=None, milestone_id=None, source="manual"):
     board = get_board(state, project_id)
     if column_id not in {column["id"] for column in board["columns"]}:
         raise ValueError("Choose a valid Kanban column.")
@@ -126,7 +157,7 @@ def add_card(state, project_id, title, details="", column_id="backlog", *, gantt
     if not title:
         raise ValueError("Card title is required.")
     card_id = uuid.uuid4().hex
-    card = {"id": card_id, "title": title[:160], "details": str(details or "").strip()[:3000], "gantt_task_id": gantt_task_id, "gantt_code": gantt_code, "source": source}
+    card = {"id": card_id, "title": title[:160], "details": str(details or "").strip()[:3000], "gantt_task_id": gantt_task_id, "gantt_code": gantt_code, "milestone_id": milestone_id, "source": source}
     board["cards"][card_id] = card
     next(column for column in board["columns"] if column["id"] == column_id)["cardIds"].append(card_id)
     if (
@@ -137,7 +168,7 @@ def add_card(state, project_id, title, details="", column_id="backlog", *, gantt
     ):
         from app_modules import gantt
         plan = gantt.get_plan(state, project_id)
-        code = _next_gantt_code(plan)
+        code = _next_gantt_code(plan, milestone_id)
         task_plan = gantt.add_task(
             state,
             project_id,
@@ -152,6 +183,7 @@ def add_card(state, project_id, title, details="", column_id="backlog", *, gantt
                 "predecessors": [],
                 "details": card["details"],
                 "milestone": False,
+                "milestone_id": milestone_id,
             },
             sync_kanban=False,
         )
@@ -165,23 +197,29 @@ def add_card(state, project_id, title, details="", column_id="backlog", *, gantt
 
 def sync_gantt_task(state, project_id, task):
     """Create or update exactly one Backlog card for a Gantt task."""
+    if str(task.get("type", "")).casefold() == "milestone":
+        return None
     if not settings.is_enabled("feature_backlog_sync") or not settings.is_enabled("feature_kanban"):
         return None
     board = get_board(state, project_id)
     matching = next((card for card in board["cards"].values() if card.get("gantt_task_id") == task.get("id") or (task.get("code") and card.get("gantt_code") == task.get("code"))), None)
     details = str(task.get("details") or "").strip()[:3000]
+    target_column = _task_column(task)
     if matching:
-        matching.update({"title": task["name"][:160], "details": details, "gantt_task_id": task.get("id"), "gantt_code": task.get("code"), "source": "gantt"})
+        matching.update({"title": task["name"][:160], "details": details, "gantt_task_id": task.get("id"), "gantt_code": task.get("code"), "milestone_id": task.get("milestone_id"), "source": "gantt"})
+        for column in board["columns"]:
+            column["cardIds"] = [card_id for card_id in column["cardIds"] if card_id != matching["id"]]
+        next(column for column in board["columns"] if column["id"] == target_column)["cardIds"].append(matching["id"])
         save_board(state, project_id, board)
         return matching["id"]
     card_id = uuid.uuid4().hex
-    board["cards"][card_id] = {"id": card_id, "title": task["name"][:160], "details": details, "gantt_task_id": task.get("id"), "gantt_code": task.get("code"), "source": "gantt"}
-    next(column for column in board["columns"] if column["id"] == "backlog")["cardIds"].append(card_id)
+    board["cards"][card_id] = {"id": card_id, "title": task["name"][:160], "details": details, "gantt_task_id": task.get("id"), "gantt_code": task.get("code"), "milestone_id": task.get("milestone_id"), "source": "gantt"}
+    next(column for column in board["columns"] if column["id"] == target_column)["cardIds"].append(card_id)
     save_board(state, project_id, board)
     return card_id
 
 
-def update_card(state, project_id, card_id, title, details):
+def update_card(state, project_id, card_id, title, details, milestone_id=None):
     board = get_board(state, project_id)
     card = board["cards"].get(card_id)
     if not card or not str(title or "").strip():
@@ -202,9 +240,13 @@ def update_card(state, project_id, card_id, title, details):
         if linked_task:
             linked_task["name"] = updated_title
             linked_task["details"] = updated_details
+            if str(linked_task.get("type", "")).casefold() != "milestone":
+                linked_task["milestone_id"] = milestone_id
             gantt.update_task(state, project_id, linked_task["id"], linked_task, sync_kanban=False)
     card["title"] = updated_title
     card["details"] = updated_details
+    if card.get("gantt_task_id") or card.get("gantt_code"):
+        card["milestone_id"] = milestone_id
     save_board(state, project_id, board)
 
 
@@ -277,7 +319,15 @@ def apply_ai_action(state, project_id, action):
     kind = str(action.get("action", "")).lower()
     board = get_board(state, project_id)
     if kind == "create":
-        return add_card(state, project_id, action.get("title"), action.get("details", ""), action.get("column_id", "backlog"), source="ai")
+        return add_card(
+            state,
+            project_id,
+            action.get("title"),
+            action.get("details", ""),
+            action.get("column_id", "backlog"),
+            milestone_id=action.get("milestone_id"),
+            source="ai",
+        )
     title = str(action.get("title", "")).strip().casefold()
     matches = [card for card in board["cards"].values() if card.get("title", "").casefold() == title]
     if len(matches) != 1:

@@ -1,6 +1,7 @@
 """Password hashing and revocable database sessions, without extra dependencies."""
 import hashlib
 import hmac
+import json
 import secrets
 from datetime import datetime, timezone
 import time
@@ -9,7 +10,40 @@ from app_modules import database
 
 SESSION_SECONDS = 8 * 60 * 60
 RESET_SECONDS = 30 * 60
-PUBLIC_USER_COLUMNS = "id, name, username, first_name, last_name, email, role, active, status, registered_at, must_change_password, updated_at"
+PUBLIC_USER_COLUMNS = "id, name, username, first_name, last_name, email, role, permissions, active, status, registered_at, must_change_password, updated_at"
+
+
+def normalise_permissions(role=None, permissions=None):
+    """Return a canonical permission tuple and enforce student exclusivity."""
+    if permissions is None:
+        values = [role] if role else []
+    elif isinstance(permissions, str):
+        try:
+            decoded = json.loads(permissions)
+            values = decoded if isinstance(decoded, list) else [permissions]
+        except (TypeError, ValueError):
+            values = [part.strip() for part in permissions.split(",")]
+    else:
+        values = list(permissions) if isinstance(permissions, (list, tuple, set)) else [permissions]
+    values = {str(value).strip() for value in values if str(value).strip()}
+    if role:
+        values.add(str(role).strip())
+    if not values or not values.issubset(set(database.ROLES)):
+        raise ValueError("Select at least one supported permission.")
+    if "Student" in values and len(values) != 1:
+        raise ValueError("Students can only have the Student permission.")
+    return tuple(permission for permission in database.ROLES if permission in values)
+
+
+def permission_list(value):
+    """Decode stored permissions, tolerating pre-migration/legacy records."""
+    role = value.get("role") if isinstance(value, dict) else None
+    permissions = value.get("permissions") if isinstance(value, dict) else value
+    return list(normalise_permissions(role, permissions))
+
+
+def has_permission(user, permission):
+    return str(permission) in permission_list(user)
 
 
 def hash_password(password):
@@ -37,7 +71,7 @@ def verify_password(password, encoded):
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
 
 
-def create_user(name, username, password, role, active=True, *, first_name="", last_name="", email="", must_change_password=False):
+def create_user(name, username, password, role, active=True, *, first_name="", last_name="", email="", must_change_password=False, permissions=None):
     name, username = str(name or "").strip(), str(username or "").strip().casefold()
     first_name = str(first_name or "").strip()
     last_name = str(last_name or "").strip()
@@ -50,15 +84,16 @@ def create_user(name, username, password, role, active=True, *, first_name="", l
         name = " ".join(part for part in (first_name, last_name) if part).strip()
     if not name or not username or role not in database.ROLES:
         raise ValueError("Name, username/email and a supported role are required.")
+    permissions = normalise_permissions(role, permissions)
     encoded = hash_password(password)
     if email and ("@" not in email or len(email) > 320):
         raise ValueError("Enter a valid email address.")
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with database.connect() as db:
         cursor = db.execute("""INSERT INTO users(name, username, first_name, last_name, email,
-            password_hash, role, active, status, registered_at, must_change_password, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (name, username, first_name, last_name, email,
-                encoded, role, int(active), "active" if active else "disabled", now,
+            password_hash, role, permissions, active, status, registered_at, must_change_password, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (name, username, first_name, last_name, email,
+                encoded, role, json.dumps(permissions), int(active), "active" if active else "disabled", now,
                 int(bool(must_change_password)), now))
         return cursor.lastrowid
 
@@ -73,6 +108,7 @@ def create_users_batch(rows):
         username = str(row.get("username") or "").strip().casefold()
         email = str(row.get("email") or "").strip().casefold()
         role = str(row.get("role") or "").strip()
+        permissions = normalise_permissions(role, row.get("permissions"))
         status = str(row.get("status") or "").strip().casefold()
         password = str(row.get("password") or "")
         if not first_name or not last_name or not username:
@@ -97,6 +133,7 @@ def create_users_batch(rows):
             "email": email,
             "password_hash": hash_password(password),
             "role": role,
+            "permissions": json.dumps(permissions),
             "active": int(status == "active"),
             "status": status,
         })
@@ -110,10 +147,10 @@ def create_users_batch(rows):
             if db.execute("SELECT 1 FROM users WHERE username = ? OR email = ?", (item["username"], item["email"])).fetchone():
                 raise ValueError(f"Username or email already exists: {item['username']}.")
             cursor = db.execute("""INSERT INTO users(name, username, first_name, last_name, email,
-                password_hash, role, active, status, registered_at, must_change_password, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+                password_hash, role, permissions, active, status, registered_at, must_change_password, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
                 (item["name"], item["username"], item["first_name"], item["last_name"], item["email"],
-                 item["password_hash"], item["role"], item["active"], item["status"], now, now))
+                 item["password_hash"], item["role"], item["permissions"], item["active"], item["status"], now, now))
             created_ids.append(cursor.lastrowid)
     return created_ids
 
@@ -123,7 +160,9 @@ def _authenticate(db, username, password):
     valid = verify_password(password, row["password_hash"] if row else _DUMMY_HASH)
     if not row or not valid or not row["active"]:
         return None
-    return {key: row[key] for key in ("id", "name", "username", "first_name", "last_name", "email", "role", "active", "status", "must_change_password", "updated_at")}
+    result = {key: row[key] for key in ("id", "name", "username", "first_name", "last_name", "email", "role", "active", "status", "must_change_password", "updated_at")}
+    result["permissions"] = permission_list({"role": row["role"], "permissions": row["permissions"]})
+    return result
 
 
 def authenticate(username, password):
@@ -168,11 +207,15 @@ def current_user(state):
         return None
     with database.connect() as db:
         row = db.execute("""SELECT u.id, u.name, u.username, u.first_name, u.last_name, u.email,
-            u.role, u.active, u.status, u.must_change_password, u.updated_at
+            u.role, u.permissions, u.active, u.status, u.must_change_password, u.updated_at
             FROM users u JOIN sessions s ON s.user_id = u.id
             WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1""",
                          (_token_hash(token), time.time())).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    result = dict(row)
+    result["permissions"] = permission_list(result)
+    return result
 
 
 def logout(state):

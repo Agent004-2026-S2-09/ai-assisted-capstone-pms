@@ -1,9 +1,11 @@
-"""SQLite-backed document embeddings and vector similarity search.
+"""SQLite-backed semantic embeddings and vector similarity search.
 
-The default model is a deterministic local hashing embedding.  It needs no
-model download, works on Streamlit Cloud, and keeps the actual vectors in
-SQLite.  Deployments may select another compatible backend later through
-``EMBEDDING_MODEL_NAME`` without changing the retrieval contract.
+When ``sentence-transformers`` is installed, the default backend uses a
+compact neural retrieval model (BGE small).  A deterministic hashing backend
+remains available as a dependency-light fallback and can be selected with
+``EMBEDDING_BACKEND=hashing``.  The retrieval contract and SQLite storage are
+unchanged between backends; model and dimension metadata invalidate stale
+vectors automatically.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import hashlib
 import os
 import struct
 import time
+from functools import lru_cache
 from datetime import datetime, timezone
 
 import numpy as np
@@ -21,15 +24,48 @@ from sklearn.preprocessing import normalize
 from app_modules import database
 
 
-DEFAULT_MODEL = "hashing-v1"
+DEFAULT_NEURAL_MODEL = "BAAI/bge-small-en-v1.5"
+DEFAULT_HASHING_MODEL = "hashing-v1"
 DEFAULT_DIMENSIONS = 384
 
 
+def _sentence_transformers_available() -> bool:
+    try:
+        import sentence_transformers  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def backend_name() -> str:
+    configured = os.getenv("EMBEDDING_BACKEND", "auto").strip().casefold()
+    if configured in {"hashing", "hashing-v1", "lexical"}:
+        return "hashing"
+    if configured in {"sentence-transformers", "sentence_transformers", "neural", "bge"}:
+        if not _sentence_transformers_available():
+            raise RuntimeError(
+                "EMBEDDING_BACKEND requests sentence-transformers, but the package is not installed."
+            )
+        return "sentence-transformers"
+    return "sentence-transformers" if _sentence_transformers_available() else "hashing"
+
+
 def model_name() -> str:
-    return os.getenv("EMBEDDING_MODEL_NAME", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    if backend_name() == "hashing":
+        return DEFAULT_HASHING_MODEL
+    return os.getenv("EMBEDDING_MODEL_NAME", DEFAULT_NEURAL_MODEL).strip() or DEFAULT_NEURAL_MODEL
+
+
+@lru_cache(maxsize=1)
+def _sentence_model():
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer(model_name())
 
 
 def dimensions() -> int:
+    if backend_name() == "sentence-transformers":
+        return int(_sentence_model().get_sentence_embedding_dimension())
     try:
         return max(64, min(4096, int(os.getenv("EMBEDDING_DIMENSIONS", DEFAULT_DIMENSIONS))))
     except (TypeError, ValueError):
@@ -59,7 +95,20 @@ def _vectorizer() -> HashingVectorizer:
     )
 
 
-def embed_texts(texts) -> np.ndarray:
+def embed_texts(texts, *, is_query=False) -> np.ndarray:
+    values = [str(text or "") for text in texts]
+    if backend_name() == "sentence-transformers":
+        model = _sentence_model()
+        if is_query and hasattr(model, "encode_query"):
+            vectors = model.encode_query(values, normalize_embeddings=True, show_progress_bar=False)
+        else:
+            if is_query:
+                values = [
+                    "Represent this sentence for searching relevant passages: " + value
+                    for value in values
+                ]
+            vectors = model.encode(values, normalize_embeddings=True, show_progress_bar=False)
+        return np.asarray(vectors, dtype=np.float32)
     matrix = _vectorizer().transform([str(text or "") for text in texts])
     return normalize(matrix, norm="l2", axis=1).toarray().astype(np.float32)
 
@@ -158,7 +207,7 @@ def score_documents(question: str, documents) -> list[float]:
     stored = {row["document_key"]: _unpack(row["embedding"], int(row["dimensions"])) for row in rows}
     if not stored:
         return [0.0] * len(items)
-    query = embed_texts([question])[0]
+    query = embed_texts([question], is_query=True)[0]
     return [max(0.0, min(1.0, float(np.dot(query, stored[key])))) if key in stored else 0.0 for key in keys]
 
 

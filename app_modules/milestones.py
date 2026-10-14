@@ -2,9 +2,115 @@
 
 import json
 import uuid
+from datetime import date
 
 from app_modules import access_control as access
 from app_modules import database
+
+
+def _duration(task):
+    """Return a positive schedule weight for a task."""
+    def parse(value):
+        try:
+            return date.fromisoformat(str(value or ""))
+        except ValueError:
+            return None
+    start, finish = parse(task.get("start")), parse(task.get("finish"))
+    if not start or not finish or finish < start:
+        return 1
+    return max(1, (finish - start).days + 1)
+
+
+def recalculate_gantt_rollups(state, project_id, tasks):
+    """Calculate milestone progress/status from explicitly linked child tasks.
+
+    The Gantt rows remain authoritative. The project profile stores only a
+    synchronized projection for the Milestones tab and AI context.
+    """
+
+    access.require_project_content(state, project_id)
+    tasks = list(tasks or [])
+    milestone_rows = {
+        str(task.get("id")): task
+        for task in tasks
+        if str(task.get("type", "")).casefold() == "milestone"
+    }
+    code_to_id = {
+        str(task.get("code")): str(task.get("id"))
+        for task in milestone_rows.values()
+        if task.get("code")
+    }
+
+    children = {key: [] for key in milestone_rows}
+    for task in tasks:
+        if str(task.get("type", "")).casefold() == "milestone":
+            continue
+        linked = str(task.get("milestone_id") or "").strip()
+        if linked in code_to_id:
+            linked = code_to_id[linked]
+            task["milestone_id"] = linked
+        if linked in children:
+            children[linked].append(task)
+
+    for milestone_id, milestone in milestone_rows.items():
+        linked_tasks = children[milestone_id]
+        total_weight = sum(_duration(task) for task in linked_tasks)
+        completed_weight = sum(
+            _duration(task) * max(0, min(100, int(task.get("progress", 0) or 0))) / 100
+            for task in linked_tasks
+        )
+        progress = round((completed_weight / total_weight) * 100) if total_weight else 0
+        if linked_tasks and all(int(task.get("progress", 0) or 0) >= 100 for task in linked_tasks):
+            status = "Completed"
+        elif any(str(task.get("status", "")).casefold() in {"blocked", "at risk"} for task in linked_tasks):
+            status = "At Risk"
+        elif progress > 0:
+            status = "In Progress"
+        else:
+            status = "Planned"
+        milestone["progress"] = progress
+        milestone["status"] = status
+        milestone["milestone"] = True
+        milestone["type"] = "Milestone"
+        milestone["linked_task_count"] = len(linked_tasks)
+        milestone["completed_task_count"] = sum(
+            int(int(task.get("progress", 0) or 0) >= 100) for task in linked_tasks
+        )
+
+    with database.connect() as db:
+        row = db.execute("SELECT profile FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not row:
+            raise ValueError("Project does not exist.")
+        profile = json.loads(row["profile"])
+        records = profile.get("milestones", [])
+        by_gantt_id = {
+            str(item.get("gantt_task_id")): item
+            for item in records
+            if isinstance(item, dict) and item.get("gantt_task_id")
+        }
+        changed = False
+        for milestone_id, milestone in milestone_rows.items():
+            record = by_gantt_id.get(milestone_id)
+            if not record:
+                continue
+            updates = {
+                "name": milestone.get("name", ""),
+                "date": milestone.get("finish") or milestone.get("start", ""),
+                "status": milestone.get("status", "Planned"),
+                "progress": milestone.get("progress", 0),
+                "linked_task_count": milestone.get("linked_task_count", 0),
+                "completed_task_count": milestone.get("completed_task_count", 0),
+            }
+            if any(record.get(key) != value for key, value in updates.items()):
+                record.update(updates)
+                changed = True
+        if changed:
+            profile["revision"] = int(profile.get("revision", 0) or 0) + 1
+            db.execute(
+                "UPDATE projects SET profile = ? WHERE id = ?",
+                (json.dumps(profile, ensure_ascii=False), project_id),
+            )
+    return tasks
 
 
 def sync_gantt_milestone(state, project_id, task):
@@ -170,8 +276,9 @@ def update_milestone(state, project_id, milestone_id, *, name, target_date, stat
     task = next((item for item in plan["tasks"] if item.get("id") == record.get("gantt_task_id")), None)
     if not task:
         raise ValueError("The linked Gantt milestone could not be found.")
-    progress = {"Planned": 0, "In Progress": 50, "Completed": 100}.get(status, task.get("progress", 0))
-    task.update({"name": name[:160], "start": target_date, "finish": target_date, "details": notes[:3000], "status": status, "progress": progress, "milestone": True, "type": "Milestone"})
+    # Progress and status are calculated from linked child tasks. Editing a
+    # milestone changes only its metadata and target date.
+    task.update({"name": name[:160], "start": target_date, "finish": target_date, "details": notes[:3000], "milestone": True, "type": "Milestone"})
     gantt.update_task(state, project_id, task["id"], task)
     return task
 

@@ -5,6 +5,7 @@ import pytest
 from app_modules import auth
 from app_modules import monitoring
 from app_modules import prompts
+from app_modules import rag_quality
 from app_modules import access_control as access
 
 
@@ -40,6 +41,29 @@ def test_admin_monitoring_feedback_and_evaluation_round_trip():
     assert metrics["usability"] == 4
     assert monitoring.prompt_analytics(state)[0]["question_text"] == "How do I plan a milestone?"
     assert monitoring.recent_successful_interactions(state)[0]["response_text"] == "Use the approved project guidance."
+
+
+def test_rag_diagnostic_classifies_and_reports_retrieval_failures():
+    state = {}
+    auth.create_user("RAG Admin", "rag-admin", PASSWORD, "Administrator")
+    assert auth.login(state, "rag-admin", PASSWORD)
+    diagnostic = rag_quality.build_diagnostic("What is the milestone date?", [], answer="")
+    assert diagnostic["failure_class"] == "retrieval_failure"
+
+    interaction_id = monitoring.log_interaction(
+        user=state,
+        project_id=None,
+        assistant_mode="general",
+        prompt_name="general",
+        prompt_version=1,
+        question="What is the milestone date?",
+        response_text="I could not find that in the approved information.",
+    )
+    monitoring.log_rag_diagnostic(interaction_id, diagnostic)
+    metrics = monitoring.rag_quality_metrics(state)
+    assert metrics["diagnostics"] == 1
+    assert metrics["classes"][0]["failure_class"] == "retrieval_failure"
+    assert monitoring.recent_rag_diagnostics(state)[0]["result_count"] == 0
 
 
 def test_sprint4_reporting_and_prompt_writes_require_administrator():

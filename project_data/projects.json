@@ -30,36 +30,7 @@
         "id": "b27ecb45faf043da9e8923ba0ba53e81"
       }
     ],
-    "milestones": [
-      {
-        "name": "Project Initiation & Team Formation",
-        "status": "Completed",
-        "date": "12/08/2026",
-        "notes": "Form project team and nominate team leader\nReview and rank Capstone projects\nPrepare and submit EOI",
-        "id": "dbe4cc553e97457caadda0e4bfd44152"
-      },
-      {
-        "name": "Stakeholder Coordination & Project Preparation",
-        "status": "Completed",
-        "date": "23/08/2026",
-        "notes": "Coordinate Sponsor/Mentor meeting\nDevelop and review Team Charter\nPrepare for Sponsor/Mentor engagement",
-        "id": "388695b28b01412698ba8e263b5c9e93"
-      },
-      {
-        "name": "Sponsor Engagement & Scope Definition",
-        "status": "Completed",
-        "date": "28/08/2026",
-        "notes": "Conduct first Sponsor/Mentor meeting\nAttend Trellis Data workshop and configure Agentaus environment\nEvaluate Micro-SaaS use cases and Sponsor feedback\nConfirm AI-assisted Capstone project direction and scope",
-        "id": "e8a17a623c1f4a55a630cdcec8eac1b9"
-      },
-      {
-        "name": "Project Proposal & Plan",
-        "status": "In Progress",
-        "date": "4/09/2026",
-        "notes": "Problem, Scope, Objectives + Solution/Method + Governance\nLiterature Review + Quality Assurance\nRequirements Analysis + WBS/Gantt/Resources\nRisk + Stakeholders/Communication\nIntegrate, review and finalise proposal\nProject Proposal & Plan Due",
-        "id": "9b2957dbaf8f493e8135340b1340010c"
-      }
-    ],
+    "milestones": [],
     "meetings": [
       {
         "date": "24 August 2026 - 3:00pm to 4:00pm",

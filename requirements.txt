@@ -9,6 +9,11 @@ pytesseract
 pypdfium2
 Pillow
 scikit-learn
+# Streamlit Community Cloud runs this app on CPU. Pin a compatible neural
+# embedding stack so pip/uv does not pull the much larger CUDA distribution.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1+cpu
+sentence-transformers==3.4.1
 pandas
 numpy
 reportlab

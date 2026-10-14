@@ -5,7 +5,8 @@ import io
 import openpyxl
 
 
-USER_HEADERS = ["Username", "First name", "Last name", "Email", "Role", "Temporary password", "Status"]
+REQUIRED_USER_HEADERS = ["Username", "First name", "Last name", "Email", "Role", "Temporary password", "Status"]
+USER_HEADERS = REQUIRED_USER_HEADERS + ["Permissions"]
 
 
 def user_template_bytes():
@@ -13,14 +14,15 @@ def user_template_bytes():
     sheet = workbook.active
     sheet.title = "User accounts"
     sheet.append(USER_HEADERS)
-    sheet.append(["student@example.edu", "Alex", "Student", "student@example.edu", "Student", "ReplaceWithSecurePassword", "active"])
+    sheet.append(["student@example.edu", "Alex", "Student", "student@example.edu", "Student", "ReplaceWithSecurePassword", "active", "Student"])
     for cell in sheet[1]:
         cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
         cell.fill = openpyxl.styles.PatternFill("solid", fgColor="001B2F")
     sheet.freeze_panes = "A2"
     instructions = workbook.create_sheet("Instructions")
     instructions.append(["User account template instructions"])
-    instructions.append(["Roles: Student, Mentor, Convenor, Administrator"])
+    instructions.append(["Roles and permissions: Student, Mentor, Convenor, Administrator"])
+    instructions.append(["Students must have only Student. Other accounts may use comma-separated permissions, e.g. Mentor, Administrator."])
     instructions.append(["Statuses: pending, active, rejected, disabled"])
     instructions.append(["Temporary passwords must meet the application password requirements."])
     instructions.append(["Use secure transfer methods for temporary passwords; do not email this workbook unprotected."])
@@ -40,13 +42,14 @@ def parse_user_workbook(content, *, maximum_rows=500):
     if not rows:
         raise ValueError("The user workbook is empty.")
     headers = [str(value or "").strip().casefold() for value in rows[0]]
-    expected = [header.casefold() for header in USER_HEADERS]
-    if headers[: len(expected)] != expected:
+    required = [header.casefold() for header in REQUIRED_USER_HEADERS]
+    if headers[: len(required)] != required:
         raise ValueError("Use the official user-account template with the required columns in order.")
+    permissions_column = headers.index("permissions") if "permissions" in headers else None
     imported = []
     for row_number, values in enumerate(rows[1:], 2):
-        cells = list(values) + [None] * len(expected)
-        if not any(str(value or "").strip() for value in cells[: len(expected)]):
+        cells = list(values) + [None] * len(USER_HEADERS)
+        if not any(str(value or "").strip() for value in cells[: len(REQUIRED_USER_HEADERS)]):
             continue
         if len(imported) >= maximum_rows:
             raise ValueError(f"The import cannot contain more than {maximum_rows} users.")
@@ -58,6 +61,7 @@ def parse_user_workbook(content, *, maximum_rows=500):
             "role": str(cells[4] or "").strip(),
             "password": str(cells[5] or ""),
             "status": str(cells[6] or "").strip().casefold(),
+            "permissions": str(values[permissions_column] or "").strip() if permissions_column is not None and permissions_column < len(values) else "",
             "source_row": row_number,
         }
         if not item["username"] or not item["first_name"] or not item["last_name"]:

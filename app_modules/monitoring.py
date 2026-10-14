@@ -111,6 +111,93 @@ def log_interaction(
     return interaction_id
 
 
+def log_rag_diagnostic(interaction_id, diagnostic):
+    """Persist explainable retrieval/grounding signals for one answer."""
+
+    if not interaction_id or not isinstance(diagnostic, dict):
+        return
+    with database.connect() as db:
+        db.execute(
+            """INSERT INTO rag_diagnostics
+               (interaction_id, created_at, failure_class, retrieval_relevant,
+                evidence_sufficient, validation_status, result_count, source_count,
+                structured_count, context_truncated, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(interaction_id) DO UPDATE SET
+                 failure_class = excluded.failure_class,
+                 retrieval_relevant = excluded.retrieval_relevant,
+                 evidence_sufficient = excluded.evidence_sufficient,
+                 validation_status = excluded.validation_status,
+                 result_count = excluded.result_count,
+                 source_count = excluded.source_count,
+                 structured_count = excluded.structured_count,
+                 context_truncated = excluded.context_truncated,
+                 notes = excluded.notes""",
+            (
+                interaction_id,
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                str(diagnostic.get("failure_class", "unknown")),
+                int(bool(diagnostic.get("retrieval_relevant"))),
+                int(bool(diagnostic.get("evidence_sufficient"))),
+                str(diagnostic.get("validation_status", "unknown")),
+                max(0, int(diagnostic.get("result_count", 0))),
+                max(0, int(diagnostic.get("source_count", 0))),
+                max(0, int(diagnostic.get("structured_count", 0))),
+                int(bool(diagnostic.get("context_truncated"))),
+                str(diagnostic.get("notes", ""))[:1000],
+            ),
+        )
+
+
+def rag_quality_metrics(state, days=30):
+    """Return administrator-only RAG failure and evidence metrics."""
+
+    _admin(state)
+    since = time.time() - max(1, int(days)) * 86400
+    with database.connect() as db:
+        row = db.execute(
+            """SELECT COUNT(*) diagnostics,
+                      COALESCE(SUM(retrieval_relevant), 0) relevant,
+                      COALESCE(SUM(evidence_sufficient), 0) sufficient,
+                      COALESCE(SUM(context_truncated), 0) truncated,
+                      COALESCE(SUM(CASE WHEN failure_class = 'none' THEN 1 ELSE 0 END), 0) clean
+                 FROM rag_diagnostics rd JOIN ai_interactions ai
+                   ON ai.id = rd.interaction_id WHERE ai.created_epoch >= ?""",
+            (since,),
+        ).fetchone()
+        classes = db.execute(
+            """SELECT failure_class, COUNT(*) count
+               FROM rag_diagnostics rd JOIN ai_interactions ai
+                 ON ai.id = rd.interaction_id WHERE ai.created_epoch >= ?
+               GROUP BY failure_class ORDER BY count DESC""",
+            (since,),
+        ).fetchall()
+    result = dict(row)
+    result["relevance_rate"] = (result["relevant"] / result["diagnostics"] * 100) if result["diagnostics"] else 0
+    result["evidence_sufficiency_rate"] = (result["sufficient"] / result["diagnostics"] * 100) if result["diagnostics"] else 0
+    result["clean_rate"] = (result["clean"] / result["diagnostics"] * 100) if result["diagnostics"] else 0
+    result["classes"] = [dict(item) for item in classes]
+    return result
+
+
+def recent_rag_diagnostics(state, days=30, limit=100):
+    _admin(state)
+    since = time.time() - max(1, int(days)) * 86400
+    with database.connect() as db:
+        rows = db.execute(
+            """SELECT rd.interaction_id, rd.created_at, ai.assistant_mode,
+                      ai.project_id, rd.failure_class, rd.retrieval_relevant,
+                      rd.evidence_sufficient, rd.validation_status, rd.result_count,
+                      rd.source_count, rd.structured_count, rd.context_truncated, rd.notes
+               FROM rag_diagnostics rd JOIN ai_interactions ai
+                 ON ai.id = rd.interaction_id
+               WHERE rd.created_at >= datetime(?, 'unixepoch')
+               ORDER BY rd.id DESC LIMIT ?""",
+            (since, max(1, min(int(limit), 500))),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def _owned_successful_interaction(interaction_id, user):
     current = auth.current_user(user)
     if not current:

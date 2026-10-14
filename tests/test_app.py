@@ -194,6 +194,153 @@ def test_completed_project_task_questions_use_exact_schedule_records():
     assert "Unfinished review" not in context
 
 
+def test_backlog_questions_use_authoritative_kanban_records():
+    project = app.create_project("Structured Backlog Project")
+    kanban.add_card(
+        app.st.session_state, project.id, "Prepare UAT plan",
+        column_id="backlog", source="manual",
+    )
+    kanban.add_card(
+        app.st.session_state, project.id, "Already completed task",
+        column_id="done", source="manual",
+    )
+
+    context = app._structured_project_task_context(
+        "list all tasks that are still in my Backlog", project
+    )
+
+    assert "Authoritative Kanban column: Backlog" in context
+    assert "Authoritative card count: 1" in context
+    assert "Prepare UAT plan" in context
+    assert "Already completed task" not in context
+
+
+def test_assessment_questions_do_not_use_project_task_shortcut():
+    project = app.create_project("Assessment Retrieval Project")
+
+    context = app._structured_project_task_context(
+        "List all assessments including submission type, due date and points",
+        project,
+    )
+
+    assert context is None
+
+
+def test_percentage_questions_use_exact_gantt_task_records():
+    project = app.create_project("Structured Progress Project")
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "1", "name": "Zero progress task", "type": "Task",
+        "start": "2026-10-01", "finish": "2026-10-02",
+        "progress": 0, "milestone": False,
+    })
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "2", "name": "Zero progress milestone", "type": "Milestone",
+        "start": "2026-10-01", "finish": "2026-10-01",
+        "progress": 0, "milestone": True,
+    })
+
+    context = app._structured_project_task_context(
+        "list all tasks that are 0%", project
+    )
+
+    assert "Authoritative Gantt progress filter: 0%" in context
+    assert "Authoritative matching record count: 1" in context
+    assert "Zero progress task" in context
+    assert "Zero progress milestone" not in context
+
+
+def test_all_task_questions_use_complete_structured_schedule_collection():
+    project = app.create_project("Structured Task Collection Project")
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "1", "name": "First scheduled task", "type": "Task",
+        "start": "2026-10-01", "finish": "2026-10-02",
+        "progress": 25, "milestone": False,
+    })
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "2", "name": "Completed scheduled task", "type": "Task",
+        "start": "2026-10-03", "finish": "2026-10-04",
+        "progress": 100, "milestone": False,
+    })
+
+    context = app._structured_project_task_context("list all project tasks", project)
+
+    assert "Authoritative matching record count: 2" in context
+    assert "First scheduled task" in context
+    assert "Completed scheduled task" in context
+
+
+def test_structured_task_answer_restores_omitted_authoritative_rows():
+    results = [{
+        "record_type": "structured_project_context",
+        "text": (
+            "GANTT TASK RESULTS\n"
+            "Authoritative matching record count: 2\n"
+            "- 1 | First task | Type: Task | Progress: 0% | Status: Planned\n"
+            "- 2 | Second task | Type: Task | Progress: 0% | Status: Planned"
+        ),
+    }]
+
+    answer = app.ensure_structured_task_answer_complete(
+        "list all tasks that are 0%", "There are no matching tasks.", results
+    )
+
+    assert "2 matching record(s)" in answer
+    assert "First task" in answer
+    assert "Second task" in answer
+
+
+def test_structured_meeting_answer_restores_omitted_authoritative_rows():
+    results = [{
+        "record_type": "structured_project_context",
+        "text": (
+            "PROJECT MEETINGS\n"
+            "- Project -> meeting: Sponsor kickoff | Date: 2026-08-24\n"
+            "  Attendees: Team\n"
+            "- Project -> meeting: Design review | Date: 2026-09-07\n"
+            "  Attendees: Team"
+        ),
+    }]
+
+    answer = app.ensure_structured_meeting_answer_complete(
+        "List all meetings with their dates",
+        "The sponsor kickoff was held on 2026-08-24.",
+        results,
+    )
+
+    assert "sponsor kickoff" in answer.casefold()
+    assert "Design review | Date: 2026-09-07" in answer
+
+
+def test_project_relationship_questions_use_authoritative_project_records():
+    project = app.create_project(
+        "Relationship Project", sponsor="Sponsor Person", mentor="Mentor Person"
+    )
+    project.team = [
+        {"name": "Alex Student", "role": "Developer"},
+        {"name": "Sam Student", "role": "Researcher"},
+    ]
+    project.milestones = [{
+        "name": "Proposal review", "status": "Planned",
+        "date": "2026-10-20", "notes": "Review scope",
+    }]
+    project.meetings = [{
+        "date": "2026-10-10", "title": "Sponsor meeting",
+        "attendees": "Team and sponsor", "discussion": "Scope",
+        "decisions": "Proceed", "actions": "Prepare prototype",
+    }]
+    app.update_project(project)
+
+    context = app._structured_project_profile_context(
+        "who are the team members, mentor and sponsor for this project?", project
+    )
+
+    assert "AUTHORITATIVE PROJECT RECORDS" in context
+    assert "Project -> mentor: Mentor Person" in context
+    assert "Project -> sponsor: Sponsor Person" in context
+    assert "Alex Student" in context
+    assert "Sam Student" in context
+
+
 def test_completion_context_still_uses_ai_generation_and_grounding(monkeypatch):
     project = app.create_project("AI Completion Response Project")
     context = app._structured_project_completion_context("list all completed tasks", project)
@@ -342,6 +489,98 @@ def test_exact_project_id_bypasses_ambiguous_page_number():
     assert results[0]["retrieval_reason"] == "exact project ID"
 
 
+def test_general_guidance_questions_exclude_project_catalogue_records():
+    documents = [
+        {
+            "text": "University Capstone technology support includes cloud resources and hardware.",
+            "source": "support-guide.pdf",
+            "location": "Page 1",
+            "record_type": "document_chunk",
+        },
+        {
+            "text": "Project ID: 2026-S2-01 Project title: Unrelated project",
+            "source": "catalogue.pdf",
+            "location": "Page 1",
+            "record_type": "project",
+            "project_id": "2026-S2-01",
+            "title": "Unrelated project",
+        },
+    ]
+
+    results = app.retrieve_information("what support is available for capstone projects?", documents)
+
+    assert results
+    assert all(item.get("record_type") != "project" for item in results)
+    assert results[0]["source"] == "support-guide.pdf"
+
+
+def test_project_catalogue_questions_retain_project_records():
+    documents = [
+        {
+            "text": "Project ID: 2026-S2-01 Project title: Available project",
+            "source": "catalogue.pdf",
+            "location": "Page 1",
+            "record_type": "project",
+            "project_id": "2026-S2-01",
+            "title": "Available project",
+        },
+    ]
+
+    results = app.retrieve_information("list all available capstone projects", documents)
+
+    assert results
+    assert results[0].get("record_type") == "project"
+
+
+def test_document_context_expands_adjacent_pdf_pages():
+    documents = [
+        {
+            "text": "Support overview", "source": "support.pdf", "location": "Page 1",
+            "page_number": 1, "chunk": 1, "record_type": "document_chunk",
+        },
+        {
+            "text": "Support details", "source": "support.pdf", "location": "Page 2",
+            "page_number": 2, "chunk": 1, "record_type": "document_chunk",
+        },
+        {
+            "text": "Unrelated page", "source": "other.pdf", "location": "Page 2",
+            "page_number": 2, "chunk": 1, "record_type": "document_chunk",
+        },
+    ]
+
+    expanded = app.expand_retrieval_context([documents[0]], documents)
+
+    assert [item["text"] for item in expanded] == ["Support overview", "Support details"]
+
+
+def test_broad_overview_retrieval_covers_each_general_source():
+    documents = [
+        {
+            "text": "Capstone governance and sponsor guidance.",
+            "source": "governance.pdf", "location": "Page 1", "page_number": 1,
+            "chunk": 1, "record_type": "document_chunk",
+        },
+        {
+            "text": "Capstone assessment and proposal guidance.",
+            "source": "assessment.pdf", "location": "Page 1", "page_number": 1,
+            "chunk": 1, "record_type": "document_chunk",
+        },
+        {
+            "text": "Available project catalogue record.",
+            "source": "catalogue.pdf", "location": "Page 1", "page_number": 1,
+            "chunk": 1, "record_type": "project", "project_id": "2026-S2-01",
+            "title": "Available project",
+        },
+    ]
+
+    results = app.retrieve_broad_overview(
+        "tell me everything you know about UC Capstone projects", documents
+    )
+
+    assert {item["source"] for item in results} == {"governance.pdf", "assessment.pdf"}
+    assert all(item.get("record_type") != "project" for item in results)
+
+
 def test_semantic_retrieval_path_handles_three_or_more_documents():
     documents = [
         {
@@ -428,6 +667,41 @@ def test_csv_rows_and_headers_are_indexed_and_searchable(tmp_path):
     assert "Risk owner=Alice" in documents[0]["text"]
     assert results
     assert "Vendor delivery delay" in results[0]["text"]
+
+
+def test_csv_header_is_schema_and_blank_cells_are_explicit(tmp_path):
+    csv_file = tmp_path / "assessments.csv"
+    csv_file.write_text(
+        "Assessment,Due Date,Available Until,Points\n"
+        "Poster,30/10/2026,,10\n",
+        encoding="utf-8",
+    )
+
+    documents = app.process_document(csv_file)
+    combined = "\n".join(item["text"] for item in documents)
+
+    assert "Row 1:" not in combined
+    assert "Row 2: Assessment=Poster" in combined
+    assert "Available Until=[blank]" in combined
+    assert "Points=10" in combined
+
+
+def test_exhaustive_csv_query_returns_all_table_chunks(tmp_path):
+    csv_file = tmp_path / "assessments.csv"
+    rows = ["Assessment,Due Date,Available Until,Points"]
+    rows.extend(
+        f"Assessment {number},30/10/2026,,{number}"
+        for number in range(1, 90)
+    )
+    csv_file.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    documents = app.process_document(csv_file)
+    results = app.retrieve_information("List every assessment", documents)
+
+    assert len(documents) > 1
+    assert len(results) == len(documents)
+    assert "Assessment=Assessment 89" in "\n".join(item["text"] for item in results)
+    assert all(item["retrieval_reason"] == "complete table" for item in results)
 
 
 def test_powerpoint_table_cells_are_extracted(tmp_path):
@@ -575,6 +849,21 @@ def test_source_sections_are_removed_from_assistant_output():
     )
 
     assert app.remove_source_section(answer) == "Here are five suitable projects."
+
+
+def test_ai_response_markup_is_normalised_without_losing_line_breaks():
+    answer = (
+        "Project Plan Allocation:<br>"
+        " - Chernor Bah – Sections 3 &amp; 5<br>"
+        " - Ashly Shaji – Sections 2 &amp; 9"
+    )
+
+    cleaned = app.remove_source_section(answer)
+
+    assert "<" not in cleaned and ">" not in cleaned
+    assert "&amp;" not in cleaned
+    assert "Project Plan Allocation:\n" in cleaned
+    assert "Chernor Bah – Sections 3 & 5\n" in cleaned
 
 
 def test_no_retrieval_results_still_use_llm_api(monkeypatch):
@@ -898,6 +1187,24 @@ def test_project_document_upload_and_stale_index_reload(isolated_project_storage
     reloaded = app.load_project_index(project.id)
 
     assert any("audit logging" in document["text"] for document in reloaded)
+
+
+def test_project_csv_index_uses_current_schema_and_rows(isolated_project_storage):
+    project = app.create_project("Assessment CSV Project")
+    app.save_project_documents(
+        project.id,
+        [UploadedFile(
+            "assessments.csv",
+            b"Assessment,Submission Type,Due Date,Points\n"
+            b"Poster,Group,30/10/2026,10\n",
+        )],
+    )
+
+    documents = app.load_project_index(project.id)
+    combined = "\n".join(item["text"] for item in documents)
+
+    assert "Row 1:" not in combined
+    assert "Row 2: Assessment=Poster" in combined
 
 
 def test_project_text_document_can_be_edited_in_app_and_reindexed(isolated_project_storage):

@@ -14,7 +14,7 @@ from app_modules import access_control as access
 import openpyxl
 
 
-def test_gantt_import_creates_idempotent_kanban_backlog_cards(monkeypatch):
+def test_gantt_import_creates_idempotent_task_cards_but_not_milestone_cards(monkeypatch):
     state = {}
     admin_id = auth.create_user("Schedule Admin", "schedule-admin", "schedule-admin-password", "Administrator")
     assert auth.login(state, "schedule-admin", "schedule-admin-password")
@@ -23,10 +23,45 @@ def test_gantt_import_creates_idempotent_kanban_backlog_cards(monkeypatch):
     plan = gantt.import_workbook(state, "schedule", workbook)
     assert len(plan["tasks"]) == 2
     board = kanban.get_board(state, "schedule")
-    assert len(board["cards"]) == 2
+    assert len(board["cards"]) == 1
+    assert next(iter(board["cards"].values()))["milestone_id"] == plan["tasks"][0]["id"]
     gantt.import_workbook(state, "schedule", workbook)
-    assert len(kanban.get_board(state, "schedule")["cards"]) == 2
+    assert len(kanban.get_board(state, "schedule")["cards"]) == 1
     assert admin_id
+
+
+def test_simple_gantt_sheet_maps_statuses_to_kanban_columns():
+    state = {}
+    password = "simple-import-admin-password"
+    auth.create_user("Simple Import Admin", "simple-import-admin", password, "Administrator")
+    assert auth.login(state, "simple-import-admin", password)
+    database.write_projects([{"id": "simple-import", "name": "Simple Import", "milestones": []}])
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["WBS", "Task / Sub-task", "Start", "Finish", "days", "Status"])
+    sheet.append(["1", "Initiation", "2026-08-10", "2026-08-16", 7, "Done"])
+    sheet.append(["1.1", "Form team", "2026-08-10", "2026-08-10", 1, "Done"])
+    sheet.append(["1.2", "Review options", "2026-08-10", "2026-08-12", 3, "Review"])
+    sheet.append(["1.3", "Prepare EOI", "2026-08-10", "2026-08-12", 3, "To Do"])
+    stream = io.BytesIO()
+    workbook.save(stream)
+
+    plan = gantt.import_workbook(state, "simple-import", stream.getvalue(), replace=True)
+    assert len(plan["tasks"]) == 4
+    milestone = next(task for task in plan["tasks"] if task["code"] == "1")
+    assert milestone["type"] == "Milestone"
+    board = kanban.get_board(state, "simple-import")
+    cards_by_title = {card["title"]: card for card in board["cards"].values()}
+    assert set(cards_by_title) == {"Form team", "Review options", "Prepare EOI"}
+    locations = {
+        card["title"]: column["id"]
+        for column in board["columns"]
+        for card_id in column["cardIds"]
+        for card in [board["cards"].get(card_id)]
+        if card
+    }
+    assert locations == {"Form team": "done", "Review options": "review", "Prepare EOI": "todo"}
+    assert all(card["milestone_id"] == milestone["id"] for card in cards_by_title.values())
 
 
 def test_kanban_stage_moves_update_linked_gantt_progress():
@@ -47,14 +82,8 @@ def test_kanban_stage_moves_update_linked_gantt_progress():
         "milestone": True,
     })
     board = kanban.get_board(state, "progress")
-    card_id = next(iter(board["cards"]))
-    expected = {"backlog": 0, "todo": 25, "progress": 50, "review": 75, "done": 100}
-    for column_id, progress in expected.items():
-        kanban.move_card(state, "progress", card_id, column_id)
-        current = gantt.get_plan(state, "progress")
-        assert current["tasks"][0]["progress"] == progress
-    updated_board = kanban.get_board(state, "progress")
-    assert "Progress:" not in updated_board["cards"][card_id]["details"]
+    assert not board["cards"]
+    assert gantt.get_plan(state, "progress")["tasks"][0]["progress"] == 0
     assert plan["tasks"]
 
 
@@ -148,26 +177,21 @@ def test_gantt_milestones_are_linked_without_replacing_manual_records():
         "details": "Acceptance recorded by the project team.",
         "milestone": True,
     })
-    card_id = next(iter(kanban.get_board(state, "milestone-link")["cards"]))
+    assert not kanban.get_board(state, "milestone-link")["cards"]
     records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
     assert [item["id"] for item in records if item["id"] == "manual-1"] == ["manual-1"]
     linked = next(item for item in records if item.get("source") == "gantt")
     assert linked["status"] == "Planned"
 
-    kanban.move_card(state, "milestone-link", card_id, "done")
     records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
     assert [item["id"] for item in records if item.get("source") != "gantt"] == ["manual-1"]
     linked = next(item for item in records if item.get("source") == "gantt")
     assert linked["name"] == "Prototype accepted"
-    assert linked["status"] == "Completed"
+    assert linked["status"] == "Planned"
     assert linked["gantt_code"] == "1"
 
-    kanban.move_card(state, "milestone-link", card_id, "progress")
-    records = next(item for item in database.read_projects() if item["id"] == "milestone-link")["milestones"]
-    assert next(item for item in records if item.get("source") == "gantt")["status"] == "In Progress"
 
-
-def test_milestone_edits_and_deletes_propagate_to_gantt_and_kanban():
+def test_milestone_edits_and_deletes_propagate_to_gantt_without_task_card():
     state = {}
     password = "milestone-crud-admin-password"
     auth.create_user("Milestone CRUD Admin", "milestone-crud-admin", password, "Administrator")
@@ -186,12 +210,11 @@ def test_milestone_edits_and_deletes_propagate_to_gantt_and_kanban():
         target_date="2026-10-12", status="Completed", notes="Approved by sponsor",
     )
     task = gantt.get_plan(state, "milestone-crud")["tasks"][0]
-    card = next(iter(kanban.get_board(state, "milestone-crud")["cards"].values()))
     assert task["name"] == "Updated checkpoint"
     assert task["finish"] == "2026-10-12"
-    assert task["progress"] == 100
-    assert card["title"] == "Updated checkpoint"
-    assert card["details"] == "Approved by sponsor"
+    assert task["progress"] == 0
+    assert task["status"] == "Planned"
+    assert not kanban.get_board(state, "milestone-crud")["cards"]
 
     milestones.delete_milestone(state, "milestone-crud", record["id"])
     assert not gantt.get_plan(state, "milestone-crud")["tasks"]
@@ -210,6 +233,81 @@ def test_only_explicit_gantt_milestones_sync_to_milestones_tab():
         "details": "", "milestone": False,
     })
     assert not database.read_projects()[0]["milestones"]
+
+
+def test_milestone_progress_is_weighted_from_explicit_child_tasks():
+    state = {}
+    password = "rollup-admin-password"
+    auth.create_user("Rollup Admin", "rollup-admin", password, "Administrator")
+    assert auth.login(state, "rollup-admin", password)
+    database.write_projects([{"id": "rollup", "name": "Rollup", "milestones": []}])
+
+    milestone_plan = gantt.add_task(state, "rollup", {
+        "code": "1", "name": "Build", "type": "Milestone", "start": "2026-10-01",
+        "finish": "2026-10-01", "progress": 0, "status": "Planned", "resource": "",
+        "predecessors": [], "details": "", "milestone": True,
+    })
+    milestone_id = milestone_plan["tasks"][0]["id"]
+    gantt.add_task(state, "rollup", {
+        "code": "1.1", "name": "Long task", "type": "Task", "start": "2026-10-01",
+        "finish": "2026-10-05", "progress": 50, "status": "In Progress", "resource": "",
+        "predecessors": [], "details": "", "milestone": False, "milestone_id": milestone_id,
+    })
+    plan = gantt.add_task(state, "rollup", {
+        "code": "1.2", "name": "Short task", "type": "Task", "start": "2026-10-06",
+        "finish": "2026-10-06", "progress": 100, "status": "Completed", "resource": "",
+        "predecessors": [], "details": "", "milestone": False, "milestone_id": milestone_id,
+    })
+    milestone = next(task for task in plan["tasks"] if task["id"] == milestone_id)
+    assert milestone["milestone_id"] is None
+    assert milestone["progress"] == 58
+    assert milestone["status"] == "In Progress"
+    assert milestone["linked_task_count"] == 2
+    assert milestone["completed_task_count"] == 1
+
+    project = next(item for item in database.read_projects() if item["id"] == "rollup")
+    projection = next(item for item in project["milestones"] if item.get("gantt_task_id") == milestone_id)
+    assert projection["progress"] == 58
+    assert projection["linked_task_count"] == 2
+
+    # The UI loads profiles through Project.from_dict; calculated roll-up
+    # fields must survive that sanitisation boundary.
+    loaded_project = app.Project.from_dict(project)
+    loaded_projection = next(
+        item for item in loaded_project.milestones
+        if item.get("gantt_task_id") == milestone_id
+    )
+    assert loaded_projection["progress"] == 58
+    assert loaded_projection["linked_task_count"] == 2
+    assert loaded_projection["completed_task_count"] == 1
+
+    plan["tasks"][1]["progress"] = 100
+    plan["tasks"][1]["status"] = "Completed"
+    plan = gantt.save_plan(state, "rollup", plan)
+    milestone = next(task for task in plan["tasks"] if task["id"] == milestone_id)
+    assert milestone["progress"] == 100
+    assert milestone["status"] == "Completed"
+
+
+def test_linked_milestone_cannot_be_deleted_until_children_are_reassigned():
+    state = {}
+    password = "delete-rollup-admin-password"
+    auth.create_user("Delete Rollup Admin", "delete-rollup-admin", password, "Administrator")
+    assert auth.login(state, "delete-rollup-admin", password)
+    database.write_projects([{"id": "delete-rollup", "name": "Delete Rollup", "milestones": []}])
+    plan = gantt.add_task(state, "delete-rollup", {
+        "code": "1", "name": "Checkpoint", "type": "Milestone", "start": "2026-10-01",
+        "finish": "2026-10-01", "progress": 0, "resource": "", "predecessors": [],
+        "details": "", "milestone": True,
+    })
+    milestone_id = plan["tasks"][0]["id"]
+    plan = gantt.add_task(state, "delete-rollup", {
+        "code": "1.1", "name": "Child", "type": "Task", "start": "2026-10-01",
+        "finish": "2026-10-01", "progress": 0, "resource": "", "predecessors": [],
+        "details": "", "milestone": False, "milestone_id": milestone_id,
+    })
+    with pytest.raises(ValueError, match="linked task"):
+        gantt.delete_task(state, "delete-rollup", milestone_id)
 
 
 def test_feature_flags_are_admin_only():

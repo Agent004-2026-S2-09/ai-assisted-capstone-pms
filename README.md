@@ -94,6 +94,12 @@ Optional limits include `MAX_DOCUMENT_PAGES`, `OCR_PAGE_TIMEOUT_SECONDS`,
 `MAX_PROJECT_PROFILE_CHARS`, `ENABLE_ANSWER_VALIDATION`, and the context-budget
 settings documented in the application code.
 
+Document retrieval uses a hybrid lexical, latent-semantic and vector pipeline.
+When `sentence-transformers` is available, it uses `BAAI/bge-small-en-v1.5`
+for neural embeddings and automatically rebuilds stale SQLite vectors when the
+model changes. Set `EMBEDDING_BACKEND=hashing` for an offline dependency-light
+fallback; this is used by the automated unit tests.
+
 ### 2. Initialise an account and run
 
 ```bash
@@ -113,7 +119,16 @@ python -m pip install -r requirements-dev.txt
 pytest -q
 ```
 
-The Sprint 5 verification run passed 111 tests.
+Run the offline, system-wide retrieval benchmark against the current general
+knowledge index with:
+
+```bash
+python tools/qa_benchmark.py
+```
+
+It covers general guidance, catalogue requests, broad overviews, typos and
+retrieval contamination. It does not call the LLM, so it is repeatable in CI
+and makes regressions visible by question class.
 
 ## Docker setup
 

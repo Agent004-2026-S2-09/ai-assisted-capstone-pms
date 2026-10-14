@@ -181,6 +181,45 @@ def test_student_can_update_meetings_milestones_and_project_documents(projects):
     assert any(path.name == "student-note.txt" for path in app.list_project_documents(alpha.id))
 
 
+def test_student_has_full_meeting_crud_only_in_assigned_project(projects):
+    alpha, beta = projects
+    sign_in_role("Student", alpha)
+
+    created = app.create_project_meeting(
+        alpha.id,
+        {
+            "title": "Student planning meeting",
+            "date": "2026-10-13",
+            "attendees": "Project team",
+            "discussion": "Reviewed the delivery plan.",
+            "decisions": "Keep the current scope.",
+            "actions": "Update the task board.",
+        },
+    )
+    assert created["id"]
+    updated = app.update_project_meeting(
+        alpha.id,
+        created["id"],
+        {**created, "title": "Updated student planning meeting"},
+    )
+    assert updated["title"] == "Updated student planning meeting"
+    assert app.get_project(alpha.id).meetings[0]["title"] == "Updated student planning meeting"
+
+    app.delete_project_meeting(alpha.id, created["id"])
+    assert all(meeting["id"] != created["id"] for meeting in app.get_project(alpha.id).meetings)
+    with pytest.raises(access.AccessDenied):
+        app.create_project_meeting(beta.id, {"title": "Should be denied"})
+
+
+@pytest.mark.parametrize(
+    ("stored_value", "expected"),
+    [("2026-10-13", "2026-10-13"), ("13 October 2026", "2026-10-13"), ("", "2026-01-01")],
+)
+def test_meeting_date_picker_handles_existing_date_formats(stored_value, expected):
+    fallback = app._date_picker_value(stored_value, app.date(2026, 1, 1))
+    assert fallback.isoformat() == expected
+
+
 def test_student_can_only_be_assigned_to_one_project(projects):
     alpha, beta = projects
     admin_state = dict(app.st.session_state)

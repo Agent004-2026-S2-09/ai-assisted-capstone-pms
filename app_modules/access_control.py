@@ -20,7 +20,7 @@ def require_user(state):
 
 def require_admin(state):
     user = require_user(state)
-    if user["role"] != "Administrator":
+    if not auth.has_permission(user, "Administrator"):
         raise AccessDenied("Administrator access is required.")
     return user
 
@@ -29,9 +29,11 @@ def can_access_project(state, project_id):
     user = require_user(state)
     with database.connect() as db:
         row = db.execute("""SELECT id FROM projects WHERE id = ? AND
-            (? IN ('Administrator', 'Convenor') OR EXISTS (
+            (EXISTS (SELECT 1 FROM users u WHERE u.id = ? AND
+                (instr(u.permissions, 'Administrator') > 0 OR instr(u.permissions, 'Convenor') > 0))
+             OR EXISTS (
                 SELECT 1 FROM assignments WHERE project_id = projects.id AND user_id = ?))""",
-                         (project_id, user["role"], user["id"])).fetchone()
+                         (project_id, user["id"], user["id"])).fetchone()
     return row is not None
 
 
@@ -39,7 +41,7 @@ def require_project(state, project_id, write=False):
     user = require_user(state)
     if not can_access_project(state, project_id):
         raise AccessDenied("You are not authorised to access this project.")
-    if write and user["role"] == "Student":
+    if write and auth.has_permission(user, "Student"):
         raise AccessDenied("Students have read-only project access.")
     return user
 
@@ -47,12 +49,12 @@ def require_project(state, project_id, write=False):
 def can_manage_project_profile(state, project_id):
     """Return whether the current actor may change project identity/profile data."""
     user = require_user(state)
-    return can_access_project(state, project_id) and user["role"] != "Student"
+    return can_access_project(state, project_id) and not auth.has_permission(user, "Student")
 
 
 def require_project_profile(state, project_id):
     user = require_project(state, project_id)
-    if user["role"] == "Student":
+    if auth.has_permission(user, "Student"):
         raise AccessDenied("Students cannot change project profile or team assignments.")
     return user
 
@@ -95,9 +97,10 @@ def accessible_projects(state):
     user = require_user(state)
     with database.connect() as db:
         return [json.loads(row[0]) for row in db.execute("""SELECT profile FROM projects WHERE
-            ? IN ('Administrator', 'Convenor') OR EXISTS (SELECT 1 FROM assignments
-                WHERE project_id = projects.id AND user_id = ?) ORDER BY name, id""",
-            (user["role"], user["id"]))]
+            (EXISTS (SELECT 1 FROM users u WHERE u.id = ? AND
+                (instr(u.permissions, 'Administrator') > 0 OR instr(u.permissions, 'Convenor') > 0))
+             OR EXISTS (SELECT 1 FROM assignments WHERE project_id = projects.id AND user_id = ?))
+            ORDER BY name, id""", (user["id"], user["id"]))]
 
 
 def assign_project(state, user_id, project_id, assigned=True):
@@ -105,12 +108,12 @@ def assign_project(state, user_id, project_id, assigned=True):
     with database.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         require_admin(state)
-        target = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        target = db.execute("SELECT role, permissions FROM users WHERE id = ?", (user_id,)).fetchone()
         if target is None:
             raise ValueError("Account does not exist.")
         if not db.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone():
             raise ValueError("Project does not exist.")
-        if assigned and target["role"] == "Student":
+        if assigned and auth.has_permission(dict(target), "Student"):
             existing = db.execute(
                 "SELECT 1 FROM assignments WHERE user_id = ? AND project_id <> ?",
                 (user_id, project_id),
@@ -134,7 +137,7 @@ def project_assignment_summary(state):
     require_admin(state)
     with database.connect() as db:
         rows = db.execute("""
-            SELECT u.id, u.name, u.username, u.role,
+            SELECT u.id, u.name, u.username, u.role, u.permissions,
                    p.id AS project_id, p.name AS project_name
             FROM users u
             LEFT JOIN assignments a ON a.user_id = u.id
@@ -148,6 +151,7 @@ def project_assignment_summary(state):
             "User": row["name"],
             "Username": row["username"],
             "Role": row["role"],
+            "Permissions": " · ".join(auth.permission_list(dict(row))),
             "Assigned projects": [],
             "Assignment count": 0,
         })
@@ -158,9 +162,7 @@ def project_assignment_summary(state):
     summary = []
     for item in grouped.values():
         item["Assigned projects"] = ", ".join(item["Assigned projects"]) or "None"
-        if item["Role"] == "Convenor":
-            item["Effective access"] = "All Capstone projects"
-        elif item["Role"] == "Administrator":
+        if any(permission in item["Permissions"] for permission in ("Convenor", "Administrator")):
             item["Effective access"] = "All Capstone projects"
         else:
             item["Effective access"] = item["Assigned projects"]
@@ -181,25 +183,27 @@ def user_project_assignments(state, user_id):
         """, (user_id,))]
 
 
-def update_user(state, user_id, role, active):
+def update_user(state, user_id, role, active, permissions=None):
     actor = require_admin(state)
     if role not in database.ROLES:
         raise ValueError("Unsupported role.")
-    if actor["id"] == user_id and (role != "Administrator" or not active):
+    permissions = auth.normalise_permissions(role, permissions)
+    if actor["id"] == user_id and ("Administrator" not in permissions or not active):
         raise ValueError("Use another administrator to change your own access.")
     with database.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         require_admin(state)
-        db.execute("UPDATE users SET role = ?, active = ?, status = ? WHERE id = ?",
-                   (role, int(active), "active" if active else "disabled", user_id))
+        db.execute("UPDATE users SET role = ?, permissions = ?, active = ?, status = ? WHERE id = ?",
+                   (role, json.dumps(permissions), int(active), "active" if active else "disabled", user_id))
         db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         db.execute("DELETE FROM password_resets WHERE user_id = ?", (user_id,))
 
 
-def update_user_profile(state, user_id, *, first_name, last_name, email, role, status, active=None):
+def update_user_profile(state, user_id, *, first_name, last_name, email, role, status, active=None, permissions=None):
     actor = require_admin(state)
     if role not in database.ROLES:
         raise ValueError("Unsupported role.")
+    permissions = auth.normalise_permissions(role, permissions)
     status = str(status or "").strip().lower()
     if status not in {"pending", "active", "rejected", "disabled"}:
         raise ValueError("Unsupported account status.")
@@ -210,14 +214,14 @@ def update_user_profile(state, user_id, *, first_name, last_name, email, role, s
     if email and "@" not in email:
         raise ValueError("Enter a valid email address.")
     active_value = int(status == "active") if active is None else int(bool(active))
-    if actor["id"] == user_id and (role != "Administrator" or not active_value):
+    if actor["id"] == user_id and ("Administrator" not in permissions or not active_value):
         raise ValueError("Use another administrator to change your own access.")
     with database.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         require_admin(state)
-        db.execute("""UPDATE users SET name=?, first_name=?, last_name=?, email=?, role=?,
+        db.execute("""UPDATE users SET name=?, first_name=?, last_name=?, email=?, role=?, permissions=?,
                      status=?, active=?, updated_at=? WHERE id=?""",
-                   (display_name, first_name, last_name, email, role, status, active_value,
+                   (display_name, first_name, last_name, email, role, json.dumps(permissions), status, active_value,
                     datetime.now(timezone.utc).isoformat(timespec="seconds"), user_id))
         db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         db.execute("DELETE FROM password_resets WHERE user_id = ?", (user_id,))

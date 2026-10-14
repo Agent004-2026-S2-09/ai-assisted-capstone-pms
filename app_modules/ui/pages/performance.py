@@ -9,6 +9,7 @@ from app_modules import access_control as access
 from app_modules import monitoring
 from app_modules import vector_store
 from app_modules.ui.formatting import latency_ms, percentile
+from app_modules.qa_benchmark import BENCHMARK_CASES, evaluate_case, summarise
 
 def render(state, render_recent_usage):
     access.require_admin(state)
@@ -18,6 +19,7 @@ def render(state, render_recent_usage):
     metrics = monitoring.dashboard_metrics(state, days)
     api_metrics = monitoring.api_service_metrics(state, days)
     retrieval_metrics = monitoring.retrieval_quality_metrics(state, days)
+    rag_metrics = monitoring.rag_quality_metrics(state, days)
     embedding_metrics = vector_store.health()
     requests_count = int(metrics["requests"])
     successful = int(metrics["successful"])
@@ -130,6 +132,25 @@ def render(state, render_recent_usage):
     else:
         st.info("No retrieval-quality telemetry is available for this period.")
 
+    st.subheader("RAG diagnostic quality")
+    rag_cards = st.columns(4)
+    rag_cards[0].metric("Diagnostic answers", int(rag_metrics["diagnostics"]))
+    rag_cards[1].metric("Relevant evidence", f"{float(rag_metrics['relevance_rate']):.1f}%")
+    rag_cards[2].metric("Sufficient context", f"{float(rag_metrics['evidence_sufficiency_rate']):.1f}%")
+    rag_cards[3].metric("Clean RAG answers", f"{float(rag_metrics['clean_rate']):.1f}%")
+    if rag_metrics["classes"]:
+        st.dataframe(
+            [{"Diagnostic": item["failure_class"], "Count": int(item["count"])} for item in rag_metrics["classes"]],
+            hide_index=True,
+            width="stretch",
+        )
+        diagnostic_rows = monitoring.recent_rag_diagnostics(state, days)
+        if diagnostic_rows:
+            with st.expander("Recent RAG diagnostic details"):
+                st.dataframe(diagnostic_rows, hide_index=True, width="stretch")
+    else:
+        st.info("No RAG diagnostics have been recorded for this period yet.")
+
     st.subheader("SQLite vector embedding index")
     embedding_cards = st.columns(4)
     embedding_cards[0].metric("Embedded documents", int(embedding_metrics["document_count"]))
@@ -141,4 +162,51 @@ def render(state, render_recent_usage):
         st.caption(
             f"Last {last_run['scope']} embedding run: {last_run['document_count']:,} documents · "
             f"{last_run['duration_ms']:,} ms · {last_run['created_at']}"
+        )
+
+    st.divider()
+    st.subheader("Offline retrieval benchmark")
+    st.caption(
+        "Run the deterministic benchmark against the current approved knowledge index. "
+        "This measures retrieval quality only; it does not call the AI provider."
+    )
+    if st.button("Run retrieval benchmark", type="secondary"):
+        import app
+
+        documents = app.ensure_index_is_current()
+        benchmark_results = []
+        for case in BENCHMARK_CASES:
+            retrieved = (
+                app.retrieve_broad_overview(case.question, documents)
+                if app.is_broad_overview_question(case.question)
+                else app.retrieve_information(case.question, documents, top_k=10)
+            )
+            benchmark_results.append(evaluate_case(case, retrieved))
+        st.session_state.retrieval_benchmark_report = {
+            "summary": summarise(benchmark_results),
+            "cases": benchmark_results,
+        }
+    report = st.session_state.get("retrieval_benchmark_report")
+    if report:
+        summary = report["summary"]
+        cards = st.columns(4)
+        cards[0].metric("Cases passed", f"{summary['passed']}/{summary['total']}")
+        cards[1].metric("MRR", f"{summary['mrr']:.3f}")
+        cards[2].metric("nDCG", f"{summary['ndcg']:.3f}")
+        cards[3].metric("Keyword coverage", f"{summary['keyword_coverage']:.1%}")
+        st.dataframe(
+            [
+                {
+                    "Case": item["name"],
+                    "Category": item["category"],
+                    "Passed": item["passed"],
+                    "MRR": item["mrr"],
+                    "nDCG": item["ndcg"],
+                    "Keyword coverage": item["keyword_coverage"],
+                    "Results": item["result_count"],
+                }
+                for item in report["cases"]
+            ],
+            hide_index=True,
+            width="stretch",
         )

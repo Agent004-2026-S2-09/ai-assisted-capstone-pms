@@ -430,5 +430,571 @@
       "resources",
       "capstone"
     ]
+  },
+  {
+    "timestamp": "2026-10-13T00:22:01Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all tasks that are still in my Backlog",
+    "keywords": [
+      "list",
+      "all",
+      "tasks",
+      "still",
+      "backlog"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T00:23:22Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all tasks that are 0%",
+    "keywords": [
+      "list",
+      "all",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T00:34:22Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "list 10 available capstone projects",
+    "keywords": [
+      "list",
+      "available",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T00:36:16Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "what funding are avaialbe?",
+    "keywords": [
+      "funding",
+      "avaialbe"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T00:36:37Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "what support are availalbe?",
+    "keywords": [
+      "support",
+      "availalbe"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T00:38:55Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "when was our last team meeting?",
+    "keywords": [
+      "was",
+      "our",
+      "last",
+      "team",
+      "meeting"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T00:39:35Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "who are our sponsor?",
+    "keywords": [
+      "our",
+      "sponsor"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:06:06Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "what funding is avaliable?",
+    "keywords": [
+      "funding",
+      "avaliable"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:06:42Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "list 3 capstone projects",
+    "keywords": [
+      "list",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:07:01Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "i want 3 not one",
+    "keywords": [
+      "want",
+      "not",
+      "one"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:07:27Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all tasks in our Backlog",
+    "keywords": [
+      "list",
+      "all",
+      "tasks",
+      "our",
+      "backlog"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:08:15Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all Done tasks?",
+    "keywords": [
+      "list",
+      "all",
+      "done",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:09:19Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "create a report explaining to our sponsor all our Done tasks",
+    "keywords": [
+      "create",
+      "report",
+      "explaining",
+      "our",
+      "sponsor",
+      "all",
+      "done",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T01:11:00Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "add what was discussed in our last meeting in this report",
+    "keywords": [
+      "add",
+      "was",
+      "discussed",
+      "our",
+      "last",
+      "meeting",
+      "report"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T07:35:03Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "may an eligible project receive per semester?",
+    "keywords": [
+      "may",
+      "eligible",
+      "receive",
+      "per",
+      "semester"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T07:35:54Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "What kinds of resources can the Technology Support Team help provide?",
+    "keywords": [
+      "kinds",
+      "resources",
+      "technology",
+      "support",
+      "team",
+      "help",
+      "provide"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T10:38:28Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "What is the completion status of the Project Initiation & Team Formation milestone?",
+    "keywords": [
+      "completion",
+      "status",
+      "initiation",
+      "team",
+      "formation",
+      "milestone"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T12:05:40Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you list all the meetings we have had and who the attendees where?",
+    "keywords": [
+      "list",
+      "all",
+      "meetings",
+      "had",
+      "attendees"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T12:06:15Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "all the meetings not just two",
+    "keywords": [
+      "all",
+      "meetings",
+      "not",
+      "just",
+      "two"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T19:06:13Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "give me a word style report of all our meetings",
+    "keywords": [
+      "give",
+      "word",
+      "style",
+      "report",
+      "all",
+      "our",
+      "meetings"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T19:11:21Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all fully completed milestones",
+    "keywords": [
+      "list",
+      "all",
+      "fully",
+      "completed",
+      "milestones"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T19:11:43Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all fully completed tasks",
+    "keywords": [
+      "list",
+      "all",
+      "fully",
+      "completed",
+      "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:25:28Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "list 10 avaialbe capstone projects",
+    "keywords": [
+      "list",
+      "avaialbe",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:26:00Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "list 10 available capstone projects",
+    "keywords": [
+      "list",
+      "available",
+      "capstone",
+      "projects"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:26:53Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "what support is provided to students",
+    "keywords": [
+      "support",
+      "provided",
+      "students"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:28:34Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "can you provide a guide on how to create a WBS",
+    "keywords": [
+      "provide",
+      "guide",
+      "create",
+      "wbs"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:29:14Z",
+    "role": "Student",
+    "project_id": "",
+    "question": "i want more details on it",
+    "keywords": [
+      "want",
+      "more",
+      "details"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:33:29Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "who is our mentor?",
+    "keywords": [
+      "our",
+      "mentor"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:33:42Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "sponsor?",
+    "keywords": [
+      "sponsor"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:38:01Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "how many meetings have we had?",
+    "keywords": [
+      "many",
+      "meetings",
+      "had"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:38:39Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "what was discussed in the 24 august meeting?",
+    "keywords": [
+      "was",
+      "discussed",
+      "august",
+      "meeting"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:39:22Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "what about 12 October?",
+    "keywords": [
+      "october"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:41:11Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all tasks that are still in our Backlog",
+    "keywords": [
+      "list",
+      "all",
+      "tasks",
+      "still",
+      "our",
+      "backlog"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:42:19Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "can you list all the assessments we are suppose to do and there dates",
+    "keywords": [
+      "list",
+      "all",
+      "assessments",
+      "suppose",
+      "there",
+      "dates"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:43:01Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "no not tasks, our assessments",
+    "keywords": [
+      "not",
+      "tasks",
+      "our",
+      "assessments"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T21:47:28Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "hi",
+    "keywords": []
+  },
+  {
+    "timestamp": "2026-10-13T22:00:59Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all the assessments in Assessments_S2_2026.csv",
+    "keywords": [
+      "list",
+      "all",
+      "assessments",
+      "2026",
+      "csv"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:03:06Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "you do it is in the project knowlaegde section as a word document",
+    "keywords": [
+      "knowlaegde",
+      "section",
+      "word",
+      "document"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:04:06Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "you do it is in the project knowlaegde section as a word document",
+    "keywords": [
+      "knowlaegde",
+      "section",
+      "word",
+      "document"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:13:23Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "write a summary report of our project proposal",
+    "keywords": [
+      "write",
+      "summary",
+      "report",
+      "our",
+      "proposal"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:27:39Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all our assessments in the project knowledge section",
+    "keywords": [
+      "list",
+      "all",
+      "our",
+      "assessments",
+      "knowledge",
+      "section"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:28:14Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "it is a csv file and I can see it in there.",
+    "keywords": [
+      "csv",
+      "file",
+      "see",
+      "there"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:29:32Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "i actually copied this text from that location 'Assessments_S2_2026.csv'",
+    "keywords": [
+      "actually",
+      "copied",
+      "text",
+      "location",
+      "assessments",
+      "2026",
+      "csv"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:38:43Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "list all my assessments",
+    "keywords": [
+      "list",
+      "all",
+      "assessments"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T22:41:14Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "List all assessments, including each assessment name, submission type, due date and time, availability end date, and points possible. Preserve blank values as blank.",
+    "keywords": [
+      "list",
+      "all",
+      "assessments",
+      "including",
+      "each",
+      "assessment",
+      "name",
+      "submission"
+    ]
+  },
+  {
+    "timestamp": "2026-10-13T23:12:53Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "List all assessments including assessment name, submission type, due date and time, available until date, and points possible. Preserve blank values as blank.",
+    "keywords": [
+      "list",
+      "all",
+      "assessments",
+      "including",
+      "assessment",
+      "name",
+      "submission",
+      "type"
+    ]
   }
 ]

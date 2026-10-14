@@ -15,6 +15,29 @@ from app_modules import settings
 
 CODE_RE = re.compile(r"^\d+(?:\.\d+)*$")
 HEADERS = ["Code", "Task / milestone name", "Type", "Start date", "Finish date", "Progress", "Resource / owner", "Predecessor codes", "Details"]
+SIMPLE_HEADERS = ["WBS", "Task / Sub-task", "Start", "Finish", "days", "Status"]
+
+
+def _kanban_column(value):
+    value = str(value or "").strip().casefold().replace("-", " ")
+    return {
+        "backlog": "backlog", "new": "backlog",
+        "to do": "todo", "todo": "todo",
+        "in progress": "progress", "progress": "progress", "doing": "progress",
+        "review": "review", "for review": "review",
+        "done": "done", "complete": "done", "completed": "done",
+    }.get(value)
+
+
+def _canonical_status(value, progress=0):
+    value = str(value or "").strip().casefold()
+    if value in {"done", "complete", "completed"} or int(progress or 0) >= 100:
+        return "Completed"
+    if value in {"at risk", "blocked"}:
+        return "At Risk"
+    if value in {"in progress", "progress", "doing", "review", "for review"} or int(progress or 0) > 0:
+        return "In Progress"
+    return "Planned"
 
 
 def empty_plan():
@@ -55,7 +78,16 @@ def _normalise(plan):
         code = str(raw.get("code", "")).strip()
         type_name = str(raw.get("type") or "").strip()
         milestone = type_name.casefold() == "milestone" or (not type_name and bool(raw.get("milestone")))
-        progress_status = "Completed" if progress >= 100 else "In Progress" if progress > 0 else "Planned"
+        kanban_column = _kanban_column(raw.get("kanban_column") or raw.get("status"))
+        if kanban_column == "done":
+            progress = 100
+        elif kanban_column == "review" and progress == 0:
+            progress = 75
+        elif kanban_column == "progress" and progress == 0:
+            progress = 50
+        elif kanban_column == "todo" and progress == 0:
+            progress = 25
+        progress_status = _canonical_status(raw.get("status"), progress)
         status = str(raw.get("status") or "").strip()
         if status not in {"Planned", "In Progress", "Completed", "At Risk"}:
             status = progress_status
@@ -67,8 +99,10 @@ def _normalise(plan):
             "predecessors": [str(value).strip() for value in raw.get("predecessors", []) if str(value).strip()],
             "details": str(raw.get("details") or "").strip()[:3000], "milestone": milestone,
             "status": status,
+            "kanban_column": None if milestone else kanban_column,
             "summary": bool(raw.get("summary")), "kanban_card_id": raw.get("kanban_card_id"),
             "project_milestone_id": raw.get("project_milestone_id") if milestone else None,
+            "milestone_id": None if milestone else str(raw.get("milestone_id") or raw.get("parent_milestone_id") or "").strip() or None,
         })
     return {"tasks": tasks}
 
@@ -148,6 +182,24 @@ def save_plan(state, project_id, plan):
         milestone_id = milestones.sync_gantt_milestone(state, project_id, task)
         if milestone_id:
             task["project_milestone_id"] = milestone_id
+    milestone_ids_by_code = {
+        str(task.get("code")): str(task.get("id"))
+        for task in plan["tasks"]
+        if str(task.get("type", "")).casefold() == "milestone" and task.get("code")
+    }
+    for task in plan["tasks"]:
+        if str(task.get("type", "")).casefold() == "milestone":
+            continue
+        linked = str(task.get("milestone_id") or "").strip()
+        if not linked and str(task.get("code", "")).count("."):
+            linked = str(task.get("code")).split(".", 1)[0]
+        if linked in milestone_ids_by_code:
+            task["milestone_id"] = milestone_ids_by_code[linked]
+        elif linked:
+            task["milestone_id"] = linked
+        else:
+            task["milestone_id"] = None
+    milestones.recalculate_gantt_rollups(state, project_id, plan["tasks"])
     with database.connect() as db:
         db.execute("""INSERT INTO gantt_plans(project_id, plan_json, updated_at) VALUES (?, ?, ?)
                      ON CONFLICT(project_id) DO UPDATE SET plan_json=excluded.plan_json, updated_at=excluded.updated_at""", (project_id, json.dumps(plan, ensure_ascii=False), _now()))
@@ -163,7 +215,7 @@ def add_task(state, project_id, task, *, sync_kanban=True):
     item["id"] = uuid.uuid4().hex
     plan["tasks"].append(item)
     plan = save_plan(state, project_id, plan)
-    if sync_kanban and settings.is_enabled("feature_backlog_sync"):
+    if sync_kanban and settings.is_enabled("feature_backlog_sync") and item.get("type", "").casefold() != "milestone":
         from app_modules import kanban
         for saved in plan["tasks"][-1:]:
             saved["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, saved)
@@ -179,7 +231,7 @@ def update_task(state, project_id, task_id, task, *, sync_kanban=True):
             item["id"] = task_id
             plan["tasks"][index] = item
             plan = save_plan(state, project_id, plan)
-            if sync_kanban and settings.is_enabled("feature_backlog_sync"):
+            if sync_kanban and settings.is_enabled("feature_backlog_sync") and item.get("type", "").casefold() != "milestone":
                 from app_modules import kanban
                 item["kanban_card_id"] = kanban.sync_gantt_task(state, project_id, item)
                 plan["tasks"][index] = item
@@ -193,13 +245,22 @@ def delete_task(state, project_id, task_id, *, sync_kanban=True):
     target = next((task for task in plan["tasks"] if task["id"] == task_id), None)
     if not target:
         raise ValueError("The schedule task could not be found.")
+    if target.get("type", "").casefold() == "milestone":
+        linked_tasks = [
+            task for task in plan["tasks"]
+            if str(task.get("milestone_id") or "") in {str(task_id), str(target.get("code"))}
+        ]
+        if linked_tasks:
+            raise ValueError(
+                f"This milestone has {len(linked_tasks)} linked task(s). Reassign or delete them before deleting the milestone."
+            )
     plan["tasks"] = [task for task in plan["tasks"] if task["id"] != task_id]
     for task in plan["tasks"]:
         task["predecessors"] = [value for value in task.get("predecessors", []) if value not in {task_id, target.get("code")}]
     save_plan(state, project_id, plan)
     access.record_audit(state, "gantt_task_deleted", project_id=project_id,
                         details={"task_id": task_id, "code": target.get("code", "")})
-    if sync_kanban and settings.is_enabled("feature_backlog_sync"):
+    if sync_kanban and settings.is_enabled("feature_backlog_sync") and target.get("type", "").casefold() != "milestone":
         from app_modules import kanban
         kanban.delete_linked_card(
             state,
@@ -224,14 +285,43 @@ def import_workbook(state, project_id, content, *, replace=False):
     if not rows:
         raise ValueError("The Excel template is empty.")
     headers = [str(value or "").strip() for value in rows[0]]
-    if headers[:len(HEADERS)] != HEADERS:
-        raise ValueError("Use the official Gantt template with the required columns in order.")
+    simple_format = headers[:len(SIMPLE_HEADERS)] == SIMPLE_HEADERS
+    if headers[:len(HEADERS)] != HEADERS and not simple_format:
+        raise ValueError("Use the official Gantt template or a WBS/Task / Sub-task/Start/Finish/days/Status schedule.")
     existing = {} if replace else {task.get("code"): task for task in get_plan(state, project_id)["tasks"] if task.get("code")}
     imported = []
     for number, row in enumerate(rows[1:], start=2):
         if not any(value not in (None, "") for value in row):
             continue
         values = list(row) + [None] * (len(HEADERS) - len(row))
+        if simple_format:
+            code, name, start, finish, _, source_status = values[:len(SIMPLE_HEADERS)]
+            code, name = str(code or "").strip(), str(name or "").strip()
+            if not code or not name:
+                raise ValueError(f"Row {number}: WBS and Task / Sub-task are required.")
+            start_date, finish_date = _date(start), _date(finish) or _date(start)
+            if not start_date or not finish_date:
+                raise ValueError(f"Row {number}: valid start and finish dates are required.")
+            milestone = "." not in code
+            kanban_column = _kanban_column(source_status)
+            progress_value = {"done": 100, "review": 75, "progress": 50, "todo": 25}.get(kanban_column, 0)
+            imported.append({
+                "id": existing.get(code, {}).get("id") or uuid.uuid4().hex,
+                "code": code,
+                "name": name,
+                "type": "Milestone" if milestone else "Task",
+                "start": start_date.isoformat(),
+                "finish": (start_date if milestone else finish_date).isoformat(),
+                "progress": progress_value,
+                "status": _canonical_status(source_status, progress_value),
+                "kanban_column": None if milestone else kanban_column,
+                "resource": "",
+                "predecessors": [],
+                "details": "",
+                "milestone": milestone,
+                "summary": False,
+            })
+            continue
         code, name, kind, start, finish, progress, resource, predecessors, details = values[:9]
         code, name = str(code or "").strip(), str(name or "").strip()
         if not code or not name:
@@ -275,8 +365,30 @@ def preview_workbook(content, limit=100):
     if not rows:
         raise ValueError("The Excel template is empty.")
     headers = [str(value or "").strip() for value in rows[0]]
-    if headers[:len(HEADERS)] != HEADERS:
-        raise ValueError("Use the official Gantt template with the required columns in order.")
+    simple_format = headers[:len(SIMPLE_HEADERS)] == SIMPLE_HEADERS
+    if headers[:len(HEADERS)] != HEADERS and not simple_format:
+        raise ValueError("Use the official Gantt template or a WBS/Task / Sub-task/Start/Finish/days/Status schedule.")
+    if simple_format:
+        preview = []
+        for row in rows[1:limit + 1]:
+            if not any(value not in (None, "") for value in row):
+                continue
+            values = list(row) + [None] * len(SIMPLE_HEADERS)
+            code, name, start, finish, days, source_status = values[:len(SIMPLE_HEADERS)]
+            column = _kanban_column(source_status)
+            progress = {"done": 100, "review": 75, "progress": 50, "todo": 25}.get(column, 0)
+            preview.append({
+                "Code": code,
+                "Task / milestone name": name,
+                "Type": "Milestone" if "." not in str(code or "") else "Task",
+                "Start date": start,
+                "Finish date": finish,
+                "Progress": progress,
+                "Resource / owner": "",
+                "Predecessor codes": "",
+                "Details": f"Imported status: {source_status or 'Backlog'}",
+            })
+        return preview
     return [dict(zip(HEADERS, list(row)[:len(HEADERS)] + [None] * max(0, len(HEADERS) - len(row)))) for row in rows[1:limit + 1] if any(value not in (None, "") for value in row)]
 
 
