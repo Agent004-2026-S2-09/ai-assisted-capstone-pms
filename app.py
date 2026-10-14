@@ -2594,11 +2594,10 @@ def calculate_kb_signature():
 
         items.append(f"{path.name}:{path.stat().st_size}")
 
-    raw = f"index-version:{INDEX_VERSION}|" + "|".join(items)
+    raw = f"kb-manifest-v2|index-version:{INDEX_VERSION}|" + "|".join(items)
 
-    return hashlib.sha256(
-        raw.encode("utf-8")
-    ).hexdigest()
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return f"kb-manifest-v2:{digest}"
 
 
 def ensure_index_is_current():
@@ -2631,7 +2630,7 @@ def ensure_index_is_current():
         for path in KB_DIR.iterdir()
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     }
-    if indexed_signature and indexed_sources == current_sources:
+    if indexed_signature and not indexed_signature.startswith("kb-manifest-v2:") and indexed_sources == current_sources:
         # Keep this first-request compatibility path read-only. The next
         # explicit rebuild or upload will persist the new signature.
         st.session_state.kb_signature = current_signature
