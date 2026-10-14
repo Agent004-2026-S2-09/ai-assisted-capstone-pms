@@ -5,7 +5,6 @@
 # Deployment sync marker: 2026-10-05
 
 import os
-import importlib
 import re
 import csv
 import random
@@ -39,7 +38,6 @@ from app_modules import rag_quality
 from app_modules import prompts
 from app_modules import vector_store
 from app_modules import settings
-settings = importlib.reload(settings)
 from app_modules import gantt
 from app_modules import kanban
 from app_modules import milestones
@@ -2574,7 +2572,16 @@ def rebuild_index():
 # ============================================================
 
 def calculate_kb_signature():
+    """Return a deployment-stable signature for the indexed knowledge files.
 
+    Git checkouts on Streamlit Cloud assign fresh filesystem mtimes to every
+    tracked file. Including mtimes here makes a valid committed index look
+    stale on every deployment and forces a full extraction/embedding rebuild
+    during the first authenticated request. File names and sizes are stable
+    across checkout while still invalidating the index for normal additions,
+    removals and replacements. Explicit uploads already rebuild and persist
+    the index immediately.
+    """
     items = []
 
     for path in sorted(KB_DIR.iterdir()):
@@ -2585,11 +2592,7 @@ def calculate_kb_signature():
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             continue
 
-        stat = path.stat()
-
-        items.append(
-            f"{path.name}:{stat.st_size}:{stat.st_mtime_ns}"
-        )
+        items.append(f"{path.name}:{path.stat().st_size}")
 
     raw = f"index-version:{INDEX_VERSION}|" + "|".join(items)
 
@@ -2610,6 +2613,27 @@ def ensure_index_is_current():
 
     documents, indexed_signature = _load_index_payload()
     if indexed_signature == current_signature:
+        st.session_state.kb_signature = current_signature
+        vector_store.ensure_embeddings(documents, scope="general")
+        return documents
+
+    # Index files created before the deployment-stable signature change carry
+    # the old mtime-based signature. If their source coverage still exactly
+    # matches the checked-out knowledge base, migrate the metadata in place
+    # instead of re-extracting every document on the first Cloud login.
+    indexed_sources = {
+        str(document.get("source", ""))
+        for document in documents
+        if isinstance(document, dict) and document.get("source")
+    }
+    current_sources = {
+        path.name
+        for path in KB_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+    }
+    if indexed_signature and indexed_sources == current_sources:
+        # Keep this first-request compatibility path read-only. The next
+        # explicit rebuild or upload will persist the new signature.
         st.session_state.kb_signature = current_signature
         vector_store.ensure_embeddings(documents, scope="general")
         return documents

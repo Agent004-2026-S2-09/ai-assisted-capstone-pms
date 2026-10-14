@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 import io
+import json
 import random
 
 import pytest
@@ -384,6 +385,29 @@ def test_deleted_document_invalidates_index(isolated_knowledge_base, monkeypatch
     documents, signature = app._load_index_payload()
     assert documents == []
     assert signature == app.calculate_kb_signature()
+
+
+def test_legacy_mtime_index_migrates_without_rebuilding(
+    isolated_knowledge_base, monkeypatch
+):
+    document = isolated_knowledge_base / "guide.txt"
+    document.write_text("Capstone milestone guidance", encoding="utf-8")
+    indexed, errors = app.rebuild_index()
+    assert indexed and not errors
+
+    payload = json.loads(app.INDEX_FILE.read_text(encoding="utf-8"))
+    payload["kb_signature"] = "legacy-mtime-signature"
+    app.INDEX_FILE.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(app, "st", SimpleNamespace(session_state=SessionState()))
+    monkeypatch.setattr(app.vector_store, "ensure_embeddings", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(
+        app,
+        "rebuild_index",
+        lambda: (_ for _ in ()).throw(AssertionError("unexpected full rebuild")),
+    )
+
+    assert app.ensure_index_is_current() == indexed
+    assert app.st.session_state.kb_signature == app.calculate_kb_signature()
 
 
 def test_unreadable_upload_does_not_replace_existing_document(
