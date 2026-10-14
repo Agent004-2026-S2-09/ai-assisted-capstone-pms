@@ -2578,9 +2578,9 @@ def calculate_kb_signature():
     tracked file. Including mtimes here makes a valid committed index look
     stale on every deployment and forces a full extraction/embedding rebuild
     during the first authenticated request. File names and sizes are stable
-    across checkout while still invalidating the index for normal additions,
-    removals and replacements. Explicit uploads already rebuild and persist
-    the index immediately.
+    across checkout while still invalidating the index for additions,
+    removals and replacements, including same-size replacements. Explicit
+    uploads already rebuild and persist the index immediately.
     """
     items = []
 
@@ -2592,7 +2592,11 @@ def calculate_kb_signature():
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             continue
 
-        items.append(f"{path.name}:{path.stat().st_size}")
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
+            for block in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(block)
+        items.append(f"{path.name}:{path.stat().st_size}:{digest.hexdigest()}")
 
     raw = f"kb-manifest-v2|index-version:{INDEX_VERSION}|" + "|".join(items)
 
