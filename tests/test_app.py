@@ -2,6 +2,7 @@ from types import SimpleNamespace
 import io
 import json
 import random
+import zipfile
 
 import pytest
 from openpyxl import Workbook
@@ -78,6 +79,145 @@ def test_llm_search_planner_receives_history_for_follow_up(monkeypatch):
         *history,
         {"role": "user", "content": "When is the second one due?"},
     ]
+
+
+@pytest.mark.parametrize(
+    "question, expected",
+    [
+        ("What about that one?", True),
+        ("When is it due?", True),
+        ("What are the assessment requirements?", False),
+    ],
+)
+def test_context_dependent_question_detection(question, expected):
+    assert app.is_context_dependent_question(question) is expected
+
+
+def test_planner_keeps_vague_contextual_questions_in_scope(monkeypatch):
+    monkeypatch.setattr(
+        app,
+        "call_agentaus",
+        lambda messages: {"choices": [{"message": {"content": '{"action":"out_of_scope","queries":[]}'}}]},
+    )
+
+    plan = app.plan_information_search("What about that one?", [], history=[])
+
+    assert plan == {"action": "search", "queries": ["What about that one?"]}
+
+
+def test_follow_up_retrieval_query_preserves_prior_user_context():
+    history = [
+        {"role": "user", "content": "List all items in the schedule"},
+        {"role": "assistant", "content": "Here are the schedule items."},
+    ]
+
+    queries = app._conversation_retrieval_queries("Which ones are due in November?", history)
+
+    assert queries == ["List all items in the schedule Which ones are due in November?"]
+
+
+def test_project_search_uses_contextual_follow_up_fallback(monkeypatch):
+    calls = []
+
+    def fake_retrieve(question, documents, project_id):
+        calls.append(question)
+        return [{
+            "scope": "project",
+            "project_id": project_id,
+            "source": "schedule.csv",
+            "location": question,
+            "chunk": 0,
+            "record_type": "table_block",
+            "text": "schedule evidence",
+        }]
+
+    monkeypatch.setattr(app, "require_project_access", lambda project_id: None)
+    monkeypatch.setattr(app, "retrieve_project_information", fake_retrieve)
+    monkeypatch.setattr(app, "expand_retrieval_context", lambda results, documents: results)
+
+    results = app.execute_project_search_plan(
+        {"action": "search", "queries": ["which ones due November"]},
+        [],
+        "project-1",
+        original_question="Which ones are due in November?",
+        history=[{"role": "user", "content": "List all assessments"}],
+    )
+
+    assert calls == [
+        "which ones due November",
+        "List all assessments Which ones are due in November?",
+    ]
+    assert len(results) == 2
+
+
+def test_low_signal_retrieval_requests_clarification():
+    assert app.retrieval_needs_clarification([])
+    assert app.retrieval_needs_clarification([{"score": 0.05}])
+    assert not app.retrieval_needs_clarification([{"score": 0.72}])
+    assert not app.retrieval_needs_clarification([{"record_type": "structured_project_context"}])
+
+
+def test_authorised_general_document_download_requires_signed_in_user(tmp_path, monkeypatch):
+    knowledge_base = tmp_path / "knowledge_base"
+    knowledge_base.mkdir()
+    document = knowledge_base / "approved-guidance.txt"
+    document.write_text("approved content", encoding="utf-8")
+
+    monkeypatch.setattr(app, "KB_DIR", knowledge_base)
+    monkeypatch.setattr(app.access, "require_user", lambda state: {"id": 1})
+
+    content, mime = app.authorised_document_download(document)
+
+    assert content == b"approved content"
+    assert mime == "text/plain"
+
+
+def test_project_document_download_rechecks_project_access(tmp_path, monkeypatch):
+    project_root = tmp_path / "project_knowledge"
+    project_dir = project_root / "project-a"
+    project_dir.mkdir(parents=True)
+    document = project_dir / "private-notes.txt"
+    document.write_text("private content", encoding="utf-8")
+    checked = []
+
+    monkeypatch.setattr(app, "PROJECT_KNOWLEDGE_DIR", project_root)
+    monkeypatch.setattr(app.access, "require_user", lambda state: {"id": 1})
+    monkeypatch.setattr(app, "require_project_access", lambda project_id: checked.append(project_id))
+
+    content, mime = app.authorised_document_download(document)
+
+    assert content == b"private content"
+    assert mime == "text/plain"
+    assert checked == ["project-a"]
+
+
+def test_document_download_rejects_paths_outside_managed_knowledge(tmp_path, monkeypatch):
+    monkeypatch.setattr(app.access, "require_user", lambda state: {"id": 1})
+    outside = tmp_path / "not-a-knowledge-document.txt"
+    outside.write_text("secret", encoding="utf-8")
+
+    with pytest.raises(access.AccessDenied):
+        app.authorised_document_download(outside)
+
+
+def test_clarification_response_uses_prompt_derived_options_without_filenames(monkeypatch):
+    calls = []
+
+    def fake_agentaus(messages):
+        calls.append(messages)
+        return {"choices": [{"message": {"content": "Could you clarify which area you mean?"}}]}
+
+    monkeypatch.setattr(app, "call_agentaus", fake_agentaus)
+    answer = app.generate_clarification_response(
+        "What about the assessment?",
+        {"queries": ["assessment schedule Assessments_S2_2026.csv", "assessment requirements"]},
+    )
+
+    assert answer == "Could you clarify which area you mean?"
+    prompt = calls[0][0]["content"]
+    assert "the relevant document" in prompt
+    assert "Assessments_S2_2026.csv" not in prompt
+    assert "Possible interpretations" in prompt
 
 
 def test_api_messages_include_current_question_once():
@@ -726,6 +866,9 @@ def test_exhaustive_csv_query_returns_all_table_chunks(tmp_path):
     assert len(results) == len(documents)
     assert "Assessment=Assessment 89" in "\n".join(item["text"] for item in results)
     assert all(item["retrieval_reason"] == "complete table" for item in results)
+    expanded = app.expand_retrieval_context(results, documents)
+    assert len(expanded) == len(results)
+    assert "Assessment=Assessment 89" in "\n".join(item["text"] for item in expanded)
 
 
 def test_powerpoint_table_cells_are_extracted(tmp_path):
@@ -888,6 +1031,65 @@ def test_ai_response_markup_is_normalised_without_losing_line_breaks():
     assert "&amp;" not in cleaned
     assert "Project Plan Allocation:\n" in cleaned
     assert "Chernor Bah – Sections 3 & 5\n" in cleaned
+
+
+def test_clean_ai_response_removes_internal_evidence_labels():
+    response = "The project requires a report (Evidence 9). Evidence item 2 confirms the deadline."
+
+    assert app.clean_ai_response(response) == "The project requires a report. confirms the deadline."
+
+
+def test_clean_ai_response_removes_unicode_reference_markers():
+    response = "Work Breakdown Structure (WBS) details the work required【】. See the source【12†source】."
+
+    assert app.clean_ai_response(response) == "Work Breakdown Structure (WBS) details the work required. See the source."
+
+
+def test_embedded_package_image_ocr_is_added_as_searchable_evidence(tmp_path, monkeypatch):
+    package = tmp_path / "document.docx"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("word/media/image1.png", b"image-bytes")
+        archive.writestr("word/document.xml", b"content")
+
+    monkeypatch.setattr(app, "ocr_available", lambda: True)
+    monkeypatch.setattr(app, "_ocr_image_bytes", lambda content: "OCR extracted heading")
+
+    results = app._ocr_embedded_zip_images(package, "word/media/")
+
+    assert results[0]["extraction_method"] == "ocr"
+    assert "OCR extracted heading" in results[0]["text"]
+
+
+def test_text_extraction_preserves_common_legacy_encoding(tmp_path):
+    path = tmp_path / "legacy.txt"
+    path.write_bytes("Café résumé".encode("cp1252"))
+
+    results = app.extract_text(path)
+
+    assert "Café résumé" in results[0]["text"]
+
+
+def test_ingestion_report_exposes_extraction_quality(tmp_path):
+    path = tmp_path / "notes.txt"
+    path.write_text("Approved guidance", encoding="utf-8")
+
+    report = app.build_ingestion_report(
+        [{
+            "source": path.name,
+            "text": "Approved guidance",
+            "extraction_method": "native",
+            "record_type": "document_chunk",
+        }],
+        [path],
+    )
+
+    row = report[0]
+    assert row["Native items"] == 1
+    assert row["OCR items"] == 0
+    assert row["Units indexed"] == "—"
+    assert row["Blank/unreadable pages"] == "—"
+    assert isinstance(row["Visual assets"], str)
+    assert row["Status"] == "Complete"
 
 
 def test_no_retrieval_results_still_use_llm_api(monkeypatch):

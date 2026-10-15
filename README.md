@@ -1,314 +1,421 @@
 # Capstone Assistant
 
-**Current release:** Version 5 — Sprint 5 complete
+AI-assisted project management and knowledge retrieval for UC Canberra Capstone projects.
 
+**Current release:** Version 7 — Sprint 7 complete
 **Application:** Streamlit
+**Sponsor:** Trellis Data — Agentaus AI
 
-**Purpose:** AI-assisted management of UC Canberra Capstone information and
-project workspaces.
+Capstone Assistant gives authorised students, mentors, convenors and administrators one place to manage Capstone project information, ask evidence-based questions, and monitor project activity. It combines local document retrieval, AgentAus AI, SQLite persistence, role-based access control and project-management workflows.
 
-Capstone Assistant answers questions from approved Capstone documents and,
-when authorised, project-specific records. It combines local document
-retrieval, Trellis Data Agentaus AI, SQLite persistence, role-based access and
-project-management workflows.
+## Handover status
 
-## What is included
+The prototype has completed the seven-sprint delivery plan. Sprint 6 covered system testing and User Acceptance Testing. Sprint 7 covered priority defect resolution, refinement, deployment preparation and post-deployment verification.
 
-- General and authorised project-specific question answering.
-- Retrieval for PDF, DOCX, XLSX, CSV, PPTX, Markdown and text files.
-- Local OCR for scanned PDFs through Tesseract.
-- Project profiles, team members, meetings, milestones and document uploads.
-- Database-backed login, sessions, password reset and role-based access.
-- Administrator monitoring for API health, retrieval quality, feedback, prompts,
-  evaluations and vector-index health.
-- Word, Excel, PDF and PowerPoint response exports.
-- Optional WBS-style Gantt scheduling, Excel import and Kanban task tracking.
-- Docker packaging with Python 3.11, Streamlit and Tesseract OCR.
+The current sponsor-review deployment is the Streamlit Community Cloud instance. The repository is also ready for local setup and handover using Docker.
+
+## Current deployment
+
+| Environment | Status | Entry point | Purpose |
+| --- | --- | --- | --- |
+| Streamlit Community Cloud | Current deployed instance | `app.py` | Sponsor demonstration, review and UAT |
+| Docker | Supported local deployment | `app.py` | Reproducible handover and persistent local operation |
+
+The Streamlit Community Cloud instance uses the repository's `app.py` entry point and configured Streamlit secrets. Its access URL and deployment credentials should be shared with authorised reviewers separately; they are not stored in this repository.
+
+Docker remains the recommended setup when a reproducible local environment or persistent local data is required.
+
+## Full system functionality
+
+### AI assistant and knowledge retrieval
+
+- Answers general Capstone questions from the approved general knowledge base.
+- Answers project-specific questions from authorised project documents and structured project records.
+- Supports questions about project identity, sponsors, mentors, teams, meetings, decisions, actions, milestones, schedules, Gantt tasks, Kanban tasks, requirements, dates and project knowledge.
+- Supports follow-up questions using the current conversation context.
+- Supports summaries, comparisons, report-style answers, table-style answers and broad information requests.
+- Uses hybrid retrieval combining lexical, fuzzy, semantic and local vector signals.
+- Uses `BAAI/bge-small-en-v1.5` neural embeddings when available, with a deterministic hashing fallback for offline or dependency-light operation.
+- Builds bounded evidence context instead of sending the entire knowledge base with every request.
+- Streams responses to the interface and records provider, latency, usage and failure metadata for administration.
+- Performs grounded-response checks and provides safe fallback responses when information is missing, unsupported or unavailable.
+- Detects export requests and prepares downloadable reports without adding unsupported facts.
+
+### Document ingestion and knowledge management
+
+- Supports PDF, DOCX, XLSX, CSV, PPTX, Markdown and plain-text files.
+- Uses Tesseract OCR for scanned PDFs.
+- Validates filenames, file types, duplicate uploads and extraction results before applying changes.
+- Supports administrator-managed general knowledge uploads, deletion and reindexing.
+- Supports project-scoped document uploads, replacement, deletion and isolated indexing.
+- Uses atomic upload and index-rebuild behaviour so failed ingestion does not leave partial changes.
+- Handles projects with structured records but no project documents safely.
+- Detects knowledge changes and keeps generated indexes aligned with their source files.
+
+### Project workspaces
+
+- Provides project selection and project overview pages.
+- Stores project identity, code, description, sponsor, mentor, team members and project metadata.
+- Provides project-specific Knowledge, Meetings, Milestones, Gantt/Tasks and Team Discussion areas.
+- Allows authorised users to create, edit and delete meetings, including dates, attendees, discussion, decisions and actions.
+- Allows authorised users to manage milestones, target dates, status and notes.
+- Derives milestone progress from authoritative linked Gantt task relationships.
+- Provides persistent Team Discussion messages and replies with safe editing, deletion, access checks and audit logging.
+- Provides date pickers and bounded fields for structured project records.
+
+### Scheduling and task management
+
+- Provides WBS-style Gantt scheduling with milestones, tasks, codes, dates, owners, status, progress and relationships.
+- Supports task and milestone creation, editing and deletion.
+- Supports Excel workbook import for schedule data, including controlled replacement workflows.
+- Provides Kanban task boards with cards, details, columns and milestone links.
+- Synchronises linked Gantt tasks and Kanban cards using authoritative task IDs and WBS codes.
+- Keeps milestone progress, Gantt schedules and Kanban task status aligned where the relevant administrator feature flags are enabled.
+- Provides guarded AI-assisted task actions where enabled by an Administrator.
+
+### Authentication, authorisation and administration
+
+- Provides database-backed login, logout and session restoration after browser refresh.
+- Supports session expiry, password hashing, password reset and first-login password changes.
+- Supports Student, Mentor, Convenor and Administrator permissions.
+- Enforces assignment-based project access and prevents unauthorised cross-project retrieval.
+- Allows non-student users to hold multiple permissions while keeping Student access exclusive.
+- Allows administrators to create, edit, activate, disable and import user accounts.
+- Supports account status, role, permission, profile and project-assignment administration.
+- Provides operator password reset and safe account-management CLI commands.
+- Provides administrator controls for approved knowledge, prompt versions, feature flags and support contact settings.
+
+### Monitoring, evaluation and exports
+
+- Provides API health, provider latency, request status, usage and failure monitoring.
+- Provides retrieval-quality and vector-index health views.
+- Provides response feedback capture and review.
+- Provides RAG diagnostic quality and groundedness evaluation views.
+- Provides prompt and topic intelligence, including question themes, trends, role breakdowns, general-versus-project usage and prompt exploration.
+- Provides administrator prompt version management.
+- Exports assistant responses to Word, Excel, PDF and PowerPoint.
+- Preserves structured tables and readable report formatting in supported exports.
+
+### Security, persistence and operations
+
+- Stores application data in SQLite with additive migrations.
+- Persists users, projects, assignments, sessions, meetings, milestones, tasks, comments, monitoring records and audit metadata.
+- Uses project-scoped storage for uploaded documents and indexes.
+- Records bounded operational metadata rather than unnecessary document content.
+- Keeps provider credentials in environment variables or Streamlit secrets.
+- Supports Docker deployment with Python 3.11, Streamlit and Tesseract OCR.
+- Provides a Streamlit Community Cloud deployment for hosted review and a Docker workflow for reproducible local operation.
+
+## AI models and retrieval architecture
+
+The system separates document retrieval from answer generation. This means the local application selects relevant evidence first, and the external AgentAus service then generates the user-facing response from that bounded evidence.
+
+### In plain English
+
+- **BGE** is the system's search assistant. It converts documents and questions into a form that helps the application find information with similar meaning, even when different words are used.
+- **AgentAus** is the system's writing assistant. It uses the question and the information found by BGE to write the final answer, summary or report.
+- **Hashing** is a lightweight backup search method used when the BGE search model is unavailable or when the system is running in offline test mode.
+
+### 1. Local embedding model: `BAAI/bge-small-en-v1.5`
+
+**Function:** Converts document chunks and user questions into numerical vectors so semantically related content can be found even when the wording does not exactly match. These vectors support the local vector-similarity component of the hybrid retrieval pipeline.
+
+**Runtime behaviour:**
+
+- This is the default neural embedding model when `sentence-transformers` is installed.
+- It is used for both indexed document embeddings and query embeddings; the application does not run separate document and query models.
+- Query embeddings use the model's query encoding method when available, with a search-instruction prefix for compatible versions.
+- Embeddings are normalised and stored in the SQLite `document_embeddings` table.
+- The application records the model name and vector dimensions with each embedding run.
+- If the model name, vector dimensions or source content changes, stale vectors are automatically rebuilt.
+
+**Code locations:**
+
+- Model default and backend selection: [`app_modules/vector_store.py`](app_modules/vector_store.py), `DEFAULT_NEURAL_MODEL`, `backend_name()` and `model_name()`.
+- Model loading and caching: [`app_modules/vector_store.py`](app_modules/vector_store.py), `_sentence_model()`.
+- Document and query encoding: [`app_modules/vector_store.py`](app_modules/vector_store.py), `embed_texts()`.
+- Embedding creation and refresh: [`app_modules/vector_store.py`](app_modules/vector_store.py), `rebuild_embeddings()` and `ensure_embeddings()`.
+- Vector similarity scoring: [`app_modules/vector_store.py`](app_modules/vector_store.py), `score_documents()`.
+- Embedding persistence schema: [`app_modules/database.py`](app_modules/database.py), the `document_embeddings` and `embedding_runs` tables.
+- Neural embedding dependencies: [`requirements.txt`](requirements.txt), `torch` and `sentence-transformers`.
+
+### 2. External answer-generation model: AgentAus
+
+**Function:** Receives the system instructions, the user's question, conversation context and retrieved evidence, then generates the final answer. It is responsible for natural-language responses, summaries, comparisons, tables and report-style output.
+
+**Runtime behaviour:**
+
+- The application communicates with AgentAus through an OpenAI-compatible chat-completions endpoint.
+- AgentAus is used for search planning, response generation, response validation and export formatting where those workflows require AI assistance.
+- Responses can be streamed to the user interface.
+- API latency, status, token usage and failures are recorded for administrator monitoring.
+- The exact underlying generation model is selected by the AgentAus service and is not hard-coded in this repository.
+- The application does not send the entire knowledge base to the provider. It sends bounded, retrieved evidence together with the relevant project context and conversation history.
+
+**Code locations:**
+
+- Provider endpoint and credential configuration: [`app.py`](app.py), `HOST_NAME`, `AGENTAUS_API_KEY` and `API_ENDPOINT`.
+- Provider requests, streaming and error handling: [`app_modules/services/ai_client.py`](app_modules/services/ai_client.py), `call()` and `stream()`.
+- Prompt and message construction: [`app.py`](app.py), `build_api_messages()` and the response-generation workflow.
+- Evidence and context budgeting: [`app.py`](app.py), `build_bounded_model_context()` and the `MODEL_*_TOKENS` settings.
+- Provider telemetry: [`app_modules/monitoring.py`](app_modules/monitoring.py) and the AI performance page in [`app_modules/ui/pages/performance.py`](app_modules/ui/pages/performance.py).
+
+### 3. Offline embedding fallback: `hashing-v1`
+
+**Function:** Provides a deterministic, dependency-light vector representation when the neural embedding stack is unavailable or when offline operation is required.
+
+**Runtime behaviour:**
+
+- It is not a second model running alongside BGE.
+- It is selected automatically when `sentence-transformers` is unavailable, or explicitly with:
+
+```dotenv
+EMBEDDING_BACKEND=hashing
+```
+
+- It uses scikit-learn's `HashingVectorizer` with word and word-pair features.
+- Automated tests use this backend so tests remain repeatable and do not download a neural model.
+- The retrieval contract and SQLite storage remain the same when switching between BGE and `hashing-v1`; model metadata causes stale vectors to be rebuilt.
+
+**Code locations:**
+
+- Fallback selection: [`app_modules/vector_store.py`](app_modules/vector_store.py), `DEFAULT_HASHING_MODEL` and `backend_name()`.
+- Hashing vectoriser: [`app_modules/vector_store.py`](app_modules/vector_store.py), `_vectorizer()`.
+- Test configuration: [`tests/conftest.py`](tests/conftest.py), which sets `EMBEDDING_BACKEND=hashing`.
+
+### Model count at runtime
+
+In the normal deployed configuration, the system has two model responsibilities:
+
+1. One local embedding model: `BAAI/bge-small-en-v1.5`.
+2. One external AgentAus answer-generation model, whose exact provider-side name is not exposed by this repository.
+
+`hashing-v1` is an alternative embedding backend, not an additional concurrently running model. The system does not contain a second local language model or a separate reranking model.
 
 ## Roles and access
 
-Access is checked against the authenticated database session and project
-assignments:
+Access is enforced using the authenticated database session, role and project assignments.
 
-- Students can access assigned projects and maintain project content, but
-  cannot change project identity, mentor or team membership.
-- Mentors can access assigned teams.
-- Convenors can oversee Capstone projects.
-- Administrators manage users, approved knowledge, monitoring, prompts,
-  evaluations and feature settings.
-
-Project data is isolated during retrieval. Audit and monitoring records store
-bounded metadata and operational status rather than unnecessary document
-content. Provider credentials are supplied through environment variables or
-Streamlit secrets and are never committed to the repository.
-
-## Project structure
-
-| Path | Responsibility |
+| Role | Access summary |
 | --- | --- |
-| `app.py` | Streamlit entry point and compatibility facade |
-| `app_modules/database.py` | SQLite persistence and additive migrations |
-| `app_modules/auth.py` and `access_control.py` | Sessions, authentication and authorisation |
-| `app_modules/services/ai_client.py` | Agentaus requests, streaming and provider telemetry |
-| `app_modules/vector_store.py` | Local embeddings and hybrid retrieval |
-| `app_modules/monitoring.py` | AI, API and retrieval monitoring |
-| `app_modules/gantt.py`, `kanban.py`, `milestones.py` | Project scheduling and task workflows |
-| `app_modules/exporting.py` and `export_ui.py` | Response export generation and controls |
-| `app_modules/ui/` | Shared UI and administrator pages |
-| `scripts/manage.py` | Account and operational CLI tasks |
-| `knowledge_base/` | Approved general Capstone documents |
-| `knowledge_index/` | Generated general knowledge index |
-| `project_data/` | SQLite database and project records |
-| `project_knowledge/` | Project-specific uploads and indexes |
-| `docs/` | Sprint and operational documentation |
+| Student | Accesses assigned projects and maintains permitted project content. |
+| Mentor | Accesses assigned project teams. |
+| Convenor | Oversees Capstone projects. |
+| Administrator | Manages users, approved knowledge, monitoring, prompts, evaluations and settings. |
 
-## Requirements
+Project-specific retrieval is isolated to the authorised project selected by the user. Provider credentials are supplied through environment variables or Streamlit secrets and must never be committed to the repository.
 
-- Python 3.11 or newer
-- Tesseract OCR 5 for scanned PDFs
-- Docker, if using the container workflow
-- An Agentaus-compatible endpoint and API key
+## Quick start with Docker
 
-## Local setup
+### Prerequisites
 
-### 1. Install and configure
+Install:
+
+- Docker Desktop or Docker Engine with the Docker CLI.
+- Git.
+- An AgentAus-compatible API endpoint and API key.
+
+### 1. Clone the repository
 
 ```bash
 git clone <repository-url>
 cd ai-assisted-capstone-pms
-python -m venv .venv
-source .venv/bin/activate                 # Windows: .venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
 ```
 
-Install Tesseract separately if it is not already available, then create a
-local `.env` file in the project root:
+### 2. Create the local environment file
+
+Create a file named `.env` in the repository root. Replace the placeholder values with the credentials supplied for the deployment environment.
 
 ```dotenv
 AGENTAUS_API_KEY=replace-with-your-api-key
 API_ENDPOINT=https://your-agentaus-host/api/v1/chat/completions
 ```
 
-Optional limits include `MAX_DOCUMENT_PAGES`, `OCR_PAGE_TIMEOUT_SECONDS`,
-`MAX_PROJECT_PROFILE_CHARS`, `ENABLE_ANSWER_VALIDATION`, and the context-budget
-settings documented in the application code.
+Do not commit `.env`, API keys, passwords or Streamlit secrets. The repository `.gitignore` already excludes these files.
 
-Document retrieval uses a hybrid lexical, latent-semantic and vector pipeline.
-When `sentence-transformers` is available, it uses `BAAI/bge-small-en-v1.5`
-for neural embeddings and automatically rebuilds stale SQLite vectors when the
-model changes. Set `EMBEDDING_BACKEND=hashing` for an offline dependency-light
-fallback; this is used by the automated unit tests.
-
-### 2. Initialise an account and run
-
-```bash
-python scripts/manage.py init
-python scripts/manage.py create-user --name "Local Administrator" \
-  --username admin@example.org --role Administrator
-streamlit run app.py
-```
-
-Open <http://localhost:8501>. Start Streamlit from the repository root so the
-project configuration is loaded.
-
-### 3. Run tests
-
-```bash
-python -m pip install -r requirements-dev.txt
-pytest -q
-```
-
-Run the offline, system-wide retrieval benchmark against the current general
-knowledge index with:
-
-```bash
-python tools/qa_benchmark.py
-```
-
-It covers general guidance, catalogue requests, broad overviews, typos and
-retrieval contamination. It does not call the LLM, so it is repeatable in CI
-and makes regressions visible by question class.
-
-## Docker setup
-
-The Dockerfile builds a Python 3.11 slim image, installs Tesseract and the
-runtime dependencies, then starts Streamlit on port `8501`.
+### 3. Build the Docker image
 
 ```bash
 docker build -t capstone-assistant .
-docker run --rm -p 8501:8501 --env-file .env capstone-assistant
 ```
 
-For data to survive container replacement, mount the runtime data directories:
+The image installs Python dependencies and Tesseract OCR. The application listens on port `8501` inside the container.
+
+### 4. Initialise the database
+
+Run the database initialisation once. The mounted directories ensure the database and uploaded project data remain on the host.
 
 ```bash
-docker run --rm -p 8501:8501 --env-file .env \
+docker run --rm \
+  --env-file .env \
+  -v "$(pwd)/project_data:/app/project_data" \
+  -v "$(pwd)/project_knowledge:/app/project_knowledge" \
+  capstone-assistant \
+  python scripts/manage.py init
+```
+
+### 5. Create the first administrator account
+
+The command prompts for the administrator password and does not display or store it in the terminal history.
+
+```bash
+docker run --rm -it \
+  --env-file .env \
+  -v "$(pwd)/project_data:/app/project_data" \
+  -v "$(pwd)/project_knowledge:/app/project_knowledge" \
+  capstone-assistant \
+  python scripts/manage.py create-user \
+  --name "Local Administrator" \
+  --username admin@example.org \
+  --role Administrator
+```
+
+Use a password of at least 12 characters when prompted.
+
+### 6. Start the application
+
+```bash
+docker run --rm \
+  --name capstone-assistant \
+  -p 8501:8501 \
+  --env-file .env \
   -v "$(pwd)/project_data:/app/project_data" \
   -v "$(pwd)/project_knowledge:/app/project_knowledge" \
   capstone-assistant
 ```
 
-The container health endpoint is `/_stcore/health`. The image contains the
-application runtime, not production secrets or an external orchestration
-configuration.
+Open [http://localhost:8501](http://localhost:8501) in a browser and sign in with the administrator account created above.
 
-## Data and knowledge management
+The container health endpoint is [http://localhost:8501/_stcore/health](http://localhost:8501/_stcore/health). A healthy container returns HTTP 200.
 
-- `knowledge_base/` contains approved general source documents.
-- `knowledge_index/index.json` is generated by the application; do not edit it
-  manually.
-- Administration uploads and deletes rebuild the general index.
-- Project uploads are stored under `project_knowledge/<project-id>/` and use
-  isolated indexes.
-- SQLite is stored at `project_data/capstone.sqlite3`.
-- Existing database migrations are additive and preserve users, assignments,
-  projects and password hashes.
-- Keep `.env` and `.streamlit/secrets.toml` private.
+To stop the application, press `Ctrl+C` in the terminal running the container.
 
-## AI and retrieval behaviour
+## Data persistence
 
-Each request is planned, retrieved locally and sent to Agentaus with bounded
-context. Hybrid retrieval combines lexical, fuzzy, latent-semantic and local
-vector signals. Responses can undergo groundedness validation before they are
-streamed to the UI. Retrieval selects context; Agentaus composes the
-user-facing answer.
+The Docker commands above mount the runtime directories on the host:
 
-Administrators can review provider latency and failures, retrieval quality,
-feedback, prompt versions and manual evaluations. Monitoring is designed to
-retain only the information needed for operational review and evaluation.
+| Directory | Contents | Keep backed up? |
+| --- | --- | --- |
+| `project_data/` | SQLite database, project records, accounts, sessions and logs | Yes |
+| `project_knowledge/` | Project-specific uploaded documents and indexes | Yes |
+| `knowledge_base/` | Approved general Capstone source documents | Yes |
+| `knowledge_index/` | Generated general-knowledge retrieval index | Rebuildable |
+
+Do not edit `knowledge_index/index.json` manually. Uploading or removing approved knowledge through the application rebuilds the relevant index. SQLite migrations are additive and preserve existing users, assignments and project records.
+
+## Local Python setup without Docker
+
+Docker is the recommended handover path. For development without Docker, use Python 3.11 or newer and install Tesseract OCR separately.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate                 # Windows: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python scripts/manage.py init
+python scripts/manage.py create-user --name "Local Administrator" \
+  --username admin@example.org --role Administrator
+python -m streamlit run app.py
+```
+
+Open [http://localhost:8501](http://localhost:8501). Start Streamlit from the repository root so the project paths and configuration are loaded correctly.
+
+## Verification and testing
+
+Run the full automated suite from the repository root:
+
+```bash
+pytest -q
+python -m compileall -q app.py app_modules tools
+python -m pip check
+```
+
+The final verification record includes:
+
+- 171 automated tests passed in the latest completed full-suite run.
+- 250/250 mixed AI evaluation questions passed; the merged question index is available in `docs/test-docs/all_test_questions.docx`.
+- 340/340 general knowledge certification questions passed.
+- 100/100 cross-document questions passed.
+- 100/100 project-specific questions passed for the Trellis Data project.
+- 100/100 project-specific questions passed for Smart Gate, including empty project-knowledge handling.
+- 100/100 project-specific questions passed for Team Plus Motorsport, including empty project-knowledge handling.
+- Authenticated project-access isolation checks passed.
+- Streamlit startup, compilation, dependency and deployment checks passed.
+
+For the offline retrieval benchmark:
+
+```bash
+python tools/qa_benchmark.py
+```
+
+The merged test-question index is stored in `docs/test-docs/`. It contains questions and classification metadata only; do not add secrets, passwords, session tokens or private document contents to future test artefacts.
+
+## Configuration
+
+Required environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `AGENTAUS_API_KEY` | API credential for AgentAus requests. |
+| `API_ENDPOINT` | AgentAus-compatible chat-completions endpoint. |
+
+Optional configuration includes document-page limits, OCR timeouts, project-profile limits, answer validation and context-budget settings. The application can use `BAAI/bge-small-en-v1.5` for neural embeddings. Set `EMBEDDING_BACKEND=hashing` for an offline, dependency-light fallback.
+
+## Repository structure
+
+| Path | Responsibility |
+| --- | --- |
+| `app.py` | Streamlit entry point and application facade |
+| `app_modules/database.py` | SQLite persistence and additive migrations |
+| `app_modules/auth.py` and `access_control.py` | Authentication, sessions and authorisation |
+| `app_modules/services/ai_client.py` | AgentAus requests and provider telemetry |
+| `app_modules/vector_store.py` | Local embeddings and hybrid retrieval |
+| `app_modules/monitoring.py` | AI, API and retrieval monitoring |
+| `app_modules/gantt.py`, `kanban.py`, `milestones.py` | Scheduling and task workflows |
+| `app_modules/exporting.py` and `export_ui.py` | Response export generation |
+| `app_modules/ui/` | Shared UI and administrator pages |
+| `scripts/manage.py` | Account and database administration CLI |
+| `knowledge_base/` | Approved general Capstone documents |
+| `knowledge_index/` | Generated general retrieval index |
+| `project_data/` | SQLite database and project records |
+| `project_knowledge/` | Project-specific uploads and indexes |
+| `docs/test-docs/` | Generated test reports, checkpoints and verification results |
+| `docs/technical-docs/` | Technical guides and operational documentation |
+| `docs/sprints/` | Sprint delivery records |
 
 ## Sprint delivery history
 
-The project is planned across seven sprints. Completed work is summarised below;
-the detailed delivery records are in `docs/`.
+| Sprint | Delivery focus | Completed outcomes | Status |
+| --- | --- | --- | --- |
+| 1 | General Capstone Assistant | Developed general Capstone knowledge processing and retrieval, the administrator knowledge-base feature, and the Agentaus AI general assistant interface. | Complete |
+| 2 | Project-Specific Assistant | Developed project workspaces and project knowledge bases; implemented project-specific and combined retrieval; added teams, meetings and milestones. | Complete |
+| 3 | Database, Login & User Access | Implemented SQLite persistence, authentication, Student/Mentor/Convenor/Administrator privileges, project assignments and access-boundary testing. | Complete |
+| 4 | AI & System Performance Dashboard | Defined AI monitoring and evaluation metrics; developed the administrator AI/system performance dashboard; integrated feedback and prompt monitoring. | Complete |
+| 5 | Integration & Dockerisation | Integrated modules and resolved integration defects; Dockerised and configured the application; tested and documented the containerised prototype. | Complete |
+| 6 | System Testing & UAT | Conducted functional, AI, access-control and performance testing; completed User Acceptance Testing; recorded and resolved priority defects identified during verification. | Complete |
+| 7 | Refinement & Prototype Deployment | Refined the prototype, prepared the deployment environment, deployed the current Streamlit Community Cloud instance and completed post-deployment verification. | Complete |
 
-| Sprint | Focus | Outcome |
-| --- | --- | --- |
-| 1 | General Capstone Assistant | General retrieval, Agentaus integration and knowledge-base administration |
-| 2 | Project Workspace | Project records, uploads, isolated retrieval, meetings and milestones |
-| 3 | Database, Login & User Access | SQLite persistence, authentication, roles and assignment-based access |
-| 4 | AI & System Performance Dashboard | Monitoring, evaluation, vector retrieval, exports, scheduling and Tasks |
-| 5 | Integration & Dockerisation | Integrated containerised prototype complete on 2026-10-09 |
+The sprint plan is complete. The current handover baseline is the Sprint 7 application: Streamlit Community Cloud for hosted sponsor review, with Docker available for reproducible local operation.
 
-### Version 5 — Sprint 5 — 2026-10-09
-
-**Focus:** Integration & Dockerisation
-
-**Status:** Complete
-
-- Integrated the assistant, workspace, authentication, monitoring, retrieval,
-  scheduling, Tasks and export modules behind the existing Streamlit entry point.
-- Built a Python 3.11 slim Docker image with Tesseract OCR and all runtime
-  dependencies.
-- Configured Streamlit for container access on `0.0.0.0:8501`.
-- Documented environment configuration, data mounts, image build and startup.
-- Preserved SQLite and project-upload data as external runtime data.
-- Added [`docs/sprint_5_integration_dockerisation.docx`](docs/sprint_5_integration_dockerisation.docx).
-
-**Verification:** Docker image build succeeded, the container health endpoint
-returned HTTP 200, and all 111 automated tests passed.
-
-Sprint 5 ran from 2026-10-05 to 2026-10-09:
-
-- Integrate modules and resolve integration defects: 2026-10-05 to 2026-10-07.
-- Dockerise and configure the application: 2026-10-06 to 2026-10-08.
-- Test, review and document the containerised prototype: 2026-10-08 to
-  2026-10-09.
-- Complete the integrated containerised prototype: 2026-10-09.
-
-### Version 4 — Sprint 4 — 2026-10-04
-
-**Focus:** AI & System Performance Dashboard
-
-**Status:** Complete
-
-- Added Administrator monitoring for Agentaus API health, retrieval quality,
-  vector-index health, feedback, prompt intelligence and AI evaluation.
-- Added prompt version management, grounded-response status and bounded
-  response monitoring.
-- Added SQLite vector embeddings and hybrid retrieval.
-- Added Word, Excel, PDF and PowerPoint response exports.
-- Added WBS Gantt scheduling, Excel import, Kanban synchronisation and guarded
-  Kanban AI actions.
-- Added feature toggles, account import, temporary-password workflows, team
-  validation, date pickers and metadata-only audit logging.
-- Preserved existing users, projects, assignments and deployment settings.
-
-**Verification:** 98 tests passed at the Sprint 4 release point; Python
-compilation, Streamlit navigation, database migration and deployment checks
-completed successfully.
-
-### Version 3 — Sprint 3 - 21-09-2026
-
-**Focus:** Database, Login & User Access
-
-**Status:** Complete
-
-- Added SQLite persistence for users, projects, assignments, sessions and
-  application records.
-- Added database-backed authentication, session expiry, password hashing,
-  reset codes and first-login password changes.
-- Added Student, Mentor, Convenor and Administrator access rules.
-- Added assignment-based project isolation and Administrator-only controls.
-- Added additive migrations that preserve existing identity and project data.
-
-### Version 2 — Sprint 2 — 2026-09-14
-
-**Focus:** Project Workspace
-
-**Status:** Complete
-
-- Added project creation, selection and profile management.
-- Added team members, meetings, milestones and project documents.
-- Added project-scoped storage, indexing and retrieval isolation.
-- Added context budgeting, streamed responses and project question trends.
-- Added upload validation, rollback behaviour and project-access checks.
-
-### Version 1 — Sprint 1 — 2026-09-07
-
-**Focus:** General Capstone Assistant
-
-**Status:** Complete
-
-- Added the Streamlit assistant and Agentaus integration.
-- Added local ingestion and retrieval for PDF, DOCX, XLSX, CSV, PPTX,
-  Markdown and text files.
-- Added Tesseract OCR support for scanned PDFs.
-- Added Administrator knowledge-base upload, delete and reindex workflows.
-- Added initial regression coverage for ingestion, retrieval, provider errors
-  and response handling.
+See the [Sprint delivery records](docs/sprints/) and [technical documentation](docs/technical-docs/) for the detailed release and handover material.
 
 ## Troubleshooting
 
-**`streamlit` is not recognised**
+**The browser cannot connect**
+Confirm the container is running and that port `8501` is available. Check the health endpoint and run `docker logs capstone-assistant` if the container was started with `--name capstone-assistant`.
 
-Activate `.venv` and use `python -m streamlit run app.py`.
+**AgentAus requests fail**
+Check `AGENTAUS_API_KEY` and `API_ENDPOINT` in `.env`. Do not put credentials directly in source files.
 
 **OCR is unavailable**
+The Docker image installs Tesseract. For a non-Docker setup, install Tesseract separately and verify it with `tesseract --version`.
 
-Install Tesseract, verify `tesseract --version`, and restart the terminal.
-
-**Agentaus requests fail**
-
-Check `AGENTAUS_API_KEY` and `API_ENDPOINT`. Streamlit Cloud requires a
-publicly reachable HTTPS endpoint configured in App settings → Secrets.
-
-**The browser cannot connect**
-
-Confirm the Streamlit process is running and use the port shown in the command.
-The default is <http://localhost:8501>.
+**The database or uploaded documents disappear after restart**
+Start the container with the `project_data` and `project_knowledge` volume mounts shown above. Without these mounts, data inside a removed container is not retained.
 
 **An upload is rejected**
+Use a supported, non-password-protected PDF, DOCX, XLSX, CSV, PPTX, TXT or MD file within the configured upload limit.
 
-Use a supported, non-password-protected PDF, DOCX, XLSX, CSV, PPTX, TXT or MD
-file within the configured size limit.
+## Scope and limitations
 
-## Boundaries
-
-The prototype does not include LMS integration, enterprise orchestration or
-production hosting configuration. Local accounts, assignments and project
-records remain the current source of truth. AI output supports users but does
-not replace formal academic, mentor or stakeholder decisions.
-
-For sprint-specific implementation details, see the Word records in `docs/`.
+This is a prototype and does not include LMS integration, enterprise orchestration or production hosting configuration. Local accounts, assignments and project records remain the current source of truth. AI output supports formal academic, mentor and stakeholder decisions; it does not replace them.
