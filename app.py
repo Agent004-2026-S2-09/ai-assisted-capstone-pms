@@ -6450,7 +6450,8 @@ def render_project_meetings(project):
     )
 
     if project.meetings:
-        for index, meeting in enumerate(project.meetings):
+        sorted_meetings = sorted(project.meetings, key = lambda meeting: meeting.get("date") or "", reverse = True)
+        for index, meeting in enumerate(sorted_meetings):
             meeting_id = meeting.get("id") or f"legacy-meeting-{project.id}-{index}"
             label = f"{meeting.get('date', '')} — {meeting.get('title', 'Meeting')}"
             with st.expander(label):
