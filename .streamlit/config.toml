@@ -3,6 +3,10 @@ maxUploadSize = 25
 address = "0.0.0.0"
 port = 8501
 headless = true
+# Cloud runs are restarted when the deployed revision changes. Disabling the
+# development watcher avoids evicting app_modules from sys.modules while a
+# rerun is importing the application.
+fileWatcherType = "none"
 
 [theme]
 base = "light"
