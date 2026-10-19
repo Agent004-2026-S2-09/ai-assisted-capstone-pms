@@ -5896,6 +5896,21 @@ def generate_response_stream(question, results, status=None, project=None):
         st.session_state.last_validation_status = "disabled"
         if status is not None:
             status.update(label=":shimmer[Writing your answer]")
+        if not ai_client.streaming_supported(st.session_state):
+            result = call_agentaus(messages)
+            record_api_usage(result, "answer")
+            answer = extract_agentaus_text(result)
+            if not answer:
+                raise RuntimeError("Agentaus returned an empty response.")
+            completed = _finalize_generated_answer(
+                question,
+                remove_source_section(answer),
+                results,
+                project=project,
+            )
+            _set_rag_diagnostic(question, results, context_metadata, completed)
+            yield completed
+            return
         emitted = False
         streamed = []
         try:
