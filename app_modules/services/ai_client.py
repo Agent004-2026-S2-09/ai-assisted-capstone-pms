@@ -212,6 +212,10 @@ def stream(messages, *, stage="answer", state=None, endpoint=None, api_key=None)
         )
         response.raise_for_status()
     except Exception as error:
+        if getattr(getattr(error, "response", None), "status_code", None) == 406 and state is not None:
+            # Cache the provider capability for this Streamlit session so a
+            # known-incompatible stream path is not retried on every question.
+            state["agentaus_streaming_supported"] = False
         monitoring.log_api_service_event(
             state=state, stage=stage, latency_ms=(time.perf_counter() - started) * 1000,
             success=False, http_status=getattr(response, "status_code", None),
@@ -220,7 +224,6 @@ def stream(messages, *, stage="answer", state=None, endpoint=None, api_key=None)
         if response is not None:
             response.close()
         raise
-
     yielded_text = False
     stream_error = None
     try:
@@ -265,6 +268,13 @@ def stream(messages, *, stage="answer", state=None, endpoint=None, api_key=None)
         )
         if response is not None:
             response.close()
+
+
+def streaming_supported(state=None):
+    """Return the cached provider streaming capability, if known."""
+    if isinstance(state, dict) and state.get("agentaus_streaming_supported") is False:
+        return False
+    return True
 
 
 def extract_text(result):

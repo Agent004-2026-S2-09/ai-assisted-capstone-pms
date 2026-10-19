@@ -1403,6 +1403,42 @@ def test_private_context_reports_items_omitted_by_token_budget():
     assert metadata["truncated"] is True
 
 
+def test_private_context_compresses_broad_retrieval_without_dropping_complete_table():
+    results = [
+        {
+            "text": "Headers: Assessment | Due Date\nRow 2: Assessment=Poster | Due Date=30/10/2026",
+            "source": "assessments.csv",
+            "record_type": "table_block",
+            "retrieval_complete": True,
+        },
+        *[
+            {
+                "text": f"Supporting guidance item {number} " * 20,
+                "source": f"guide-{number}.pdf",
+                "record_type": "document_chunk",
+                "score": 0.4 - number / 1000,
+            }
+            for number in range(1, 12)
+        ],
+    ]
+
+    context, metadata = app.build_private_context(
+        results,
+        "What are the assessment dates?",
+        token_budget=8000,
+        return_metadata=True,
+    )
+
+    assert "Row 2: Assessment=Poster" in context
+    assert metadata["compressed_items"] > 0
+    assert metadata["truncated"] is False
+
+
+def test_adaptive_validation_skips_second_pass_for_high_signal_evidence():
+    results = [{"score": 0.9, "retrieval_complete": True, "record_type": "table_block"}]
+    assert app.should_validate_answer(results, {"truncated": False}) is False
+
+
 def test_conversation_history_is_limited_by_token_budget(monkeypatch):
     monkeypatch.setattr(app, "MAX_CONVERSATION_HISTORY_TOKENS", 12)
     history = [
@@ -1504,6 +1540,36 @@ def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
 
     assert answer == "Checked answer"
     assert "Unvalidated draft" not in answer
+    assert len(calls) == 1
+
+
+def test_validation_stream_failure_does_not_trigger_a_second_full_completion(monkeypatch):
+    calls = []
+
+    def fake_agentaus(messages):
+        calls.append(messages)
+        return {"choices": [{"message": {"content": "Grounded draft"}}]}
+
+    def failed_stream(messages, stage="answer"):
+        assert stage == "answer_validation"
+        raise app.requests.exceptions.HTTPError(
+            response=type("Response", (), {"status_code": 406})()
+        )
+        yield "unreachable"
+
+    monkeypatch.setattr(app, "call_agentaus", fake_agentaus)
+    monkeypatch.setattr(app, "call_agentaus_stream", failed_stream)
+    monkeypatch.setenv("ENABLE_ANSWER_VALIDATION", "true")
+    monkeypatch.setenv("RAG_VALIDATION_MODE", "always")
+
+    evidence = [{
+        "text": "Approved evidence for the question.",
+        "record_type": "document_chunk",
+        "score": 0.2,
+    }]
+    answer = "".join(app.generate_response_stream("Question", evidence))
+
+    assert answer == "Grounded draft"
     assert len(calls) == 1
 
 

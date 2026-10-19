@@ -69,6 +69,27 @@ def test_malformed_stream_events_end_in_a_safe_empty_stream_error(monkeypatch):
         ))
 
 
+def test_stream_406_is_cached_as_provider_capability_failure(monkeypatch):
+    class FakeResponse:
+        status_code = 406
+        headers = {}
+
+        def raise_for_status(self):
+            raise app.requests.exceptions.HTTPError(response=self)
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(ai_client.requests, "post", lambda *args, **kwargs: FakeResponse())
+    state = {}
+
+    with pytest.raises(app.requests.exceptions.HTTPError):
+        list(ai_client.stream([], endpoint="https://example.test/chat", api_key="test-key", state=state))
+
+    assert state["agentaus_streaming_supported"] is False
+    assert ai_client.streaming_supported(state) is False
+
+
 def test_completion_retries_transient_provider_failure(monkeypatch):
     calls = []
 

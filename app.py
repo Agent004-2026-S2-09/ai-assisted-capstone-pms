@@ -174,10 +174,11 @@ MAX_CONVERSATION_HISTORY_TOKENS = int(
 MAX_CONVERSATION_MESSAGES = int(get_config("MAX_CONVERSATION_MESSAGES", "20"))
 MAX_SOURCE_INVENTORY_TOKENS = int(get_config("MAX_SOURCE_INVENTORY_TOKENS", "2000"))
 MAX_PROJECT_PROFILE_CHARS = int(get_config("MAX_PROJECT_PROFILE_CHARS", "8000"))
+MAX_CONTEXT_EVIDENCE_ITEMS = max(1, int(get_config("MAX_CONTEXT_EVIDENCE_ITEMS", "8")))
 MAX_PRIVATE_CONTEXT_TOKENS = max(
     0,
     min(
-        max(0, int(get_config("MAX_PRIVATE_CONTEXT_TOKENS", "26000"))),
+        max(0, int(get_config("MAX_PRIVATE_CONTEXT_TOKENS", "8000"))),
         max(
             0,
             MODEL_CONTEXT_WINDOW_TOKENS
@@ -4301,14 +4302,33 @@ def build_private_context(
         }
         return ("", metadata) if return_metadata else ""
 
+    # Search can intentionally return a broad candidate set. The model should
+    # receive a compact, high-signal working set; complete tables and
+    # authoritative structured records remain intact and are never shortened.
+    preserve_all = bool(
+        any(result.get("requested_list") for result in results)
+        or any(result.get("record_type") == "structured_project_context" for result in results)
+    )
+    if preserve_all or len(results) <= MAX_CONTEXT_EVIDENCE_ITEMS:
+        context_results = list(results)
+    else:
+        complete = [
+            result for result in results
+            if result.get("retrieval_complete")
+            or result.get("record_type") == "structured_project_context"
+        ]
+        remaining = [result for result in results if result not in complete]
+        context_results = [*complete, *remaining][:MAX_CONTEXT_EVIDENCE_ITEMS]
+
     context_parts = []
 
-    compact = len(results) > 12 or any(result.get("exhaustive") for result in results)
+    compact = len(context_results) > 12 or any(result.get("exhaustive") for result in context_results)
     used_tokens = 0
     omitted_items = 0
+    compressed_items = max(0, len(results) - len(context_results))
 
     for number, result in enumerate(
-        results,
+        context_results,
         start=1,
     ):
         item_text = (
@@ -4337,7 +4357,7 @@ def build_private_context(
     if omitted_items:
         notice = (
             "CONTEXT LIMIT NOTICE\n\n"
-            f"{omitted_items} of {len(results)} retrieved information items were omitted "
+            f"{omitted_items + compressed_items} of {len(results)} retrieved information items were omitted "
             "to remain within the model input budget. Do not describe the supplied set "
             "as complete; ask the student to narrow it by topic, document or project range."
         )
@@ -4348,8 +4368,9 @@ def build_private_context(
 
     metadata = {
         "total_items": len(results),
-        "included_items": len(results) - omitted_items,
-        "omitted_items": omitted_items,
+        "included_items": len(context_parts),
+        "omitted_items": omitted_items + compressed_items,
+        "compressed_items": compressed_items,
         "estimated_tokens": used_tokens,
         "token_budget": token_budget,
         "truncated": bool(omitted_items),
@@ -5466,6 +5487,24 @@ def answer_validation_enabled():
     return os.getenv("ENABLE_ANSWER_VALIDATION", "true").lower() in {"1", "true", "yes"}
 
 
+def should_validate_answer(results, context_metadata):
+    """Use the second model pass only where it adds meaningful protection."""
+    mode = os.getenv("RAG_VALIDATION_MODE", "adaptive").strip().casefold()
+    if mode in {"never", "disabled", "off"}:
+        return False
+    if mode in {"always", "all", "strict"}:
+        return answer_validation_enabled()
+    if not answer_validation_enabled():
+        return False
+    if context_metadata.get("truncated"):
+        return True
+    if any(item.get("conflict") or item.get("retrieval_conflict") for item in results or []):
+        return True
+    complete = any(item.get("retrieval_complete") for item in results or [])
+    top_score = max((float(item.get("score", 0) or 0) for item in results or []), default=0.0)
+    return not complete and top_score < 0.62
+
+
 def _build_validation_messages(question, draft_answer, private_context, project_profile=""):
     profile_completeness_instruction = ""
     if project_profile and re.search(
@@ -5844,6 +5883,7 @@ def generate_response_stream(question, results, status=None, project=None):
     )
     st.session_state.last_context_usage = context_metadata
     st.session_state.last_validation_status = "pending"
+    validation_required = should_validate_answer(results, context_metadata)
     if results and requests_complete_document(question):
         if status is not None:
             status.update(label=":shimmer[Preparing the complete document report]")
@@ -5852,7 +5892,7 @@ def generate_response_stream(question, results, status=None, project=None):
         _set_rag_diagnostic(question, results, context_metadata, completed)
         yield completed
         return
-    if not answer_validation_enabled():
+    if not validation_required:
         st.session_state.last_validation_status = "disabled"
         if status is not None:
             status.update(label=":shimmer[Writing your answer]")
@@ -5908,6 +5948,18 @@ def generate_response_stream(question, results, status=None, project=None):
     if not draft_answer:
         raise RuntimeError("Agentaus returned an empty response.")
 
+    if not ai_client.streaming_supported(st.session_state):
+        st.session_state.last_validation_status = "unavailable"
+        completed = _finalize_generated_answer(
+            question,
+            remove_source_section(draft_answer),
+            results,
+            project=project,
+        )
+        _set_rag_diagnostic(question, results, context_metadata, completed)
+        yield completed
+        return
+
     validation_messages = _build_validation_messages(
         question,
         draft_answer,
@@ -5942,16 +5994,13 @@ def generate_response_stream(question, results, status=None, project=None):
             if completed != base:
                 yield completed[len(base):] if completed.startswith(base) else completed
             return
-        # Preserve the existing reliable path when the endpoint rejects SSE.
-        checked = validate_grounded_answer(
-            question,
-            draft_answer,
-            private_context,
-            project_profile=project_profile,
-        )
+        # Do not make another full provider request after a rejected stream.
+        # The draft was generated under the strict evidence contract; keep it
+        # and expose that the optional validation pass was unavailable.
+        st.session_state.last_validation_status = "unavailable"
         completed = _finalize_generated_answer(
             question,
-            remove_source_section(checked),
+            remove_source_section(draft_answer),
             results,
             project=project,
         )
