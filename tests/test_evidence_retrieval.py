@@ -94,3 +94,63 @@ def test_week_question_prefers_exact_week_evidence():
     results = retrieve(documents, "What were the Week 7 lectures?")
 
     assert results[0]["source"] == "Teaching Weeks.docx"
+
+
+def test_hybrid_retrieval_can_promote_semantic_paraphrase():
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "team-guide.pdf",
+            "location": "Page 1",
+            "text": "The team should meet with the sponsor before each major milestone.",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "unrelated.pdf",
+            "location": "Page 1",
+            "text": "The final report uses the required submission template.",
+        },
+    ]
+
+    def semantic_scores(question, items):
+        assert question == "How often should we meet the client?"
+        return [0.94, 0.05]
+
+    results = retrieve(
+        documents,
+        "How often should we meet the client?",
+        semantic_scorer=semantic_scores,
+        semantic_backend="test-model",
+    )
+
+    assert results[0]["source"] == "team-guide.pdf"
+    assert results[0]["retrieval_mode"] in {"semantic", "hybrid"}
+    assert results[0]["semantic_score"] == 0.94
+    assert results[0]["semantic_backend"] == "test-model"
+
+
+def test_hybrid_retrieval_keeps_exact_lexical_match_ahead_of_weak_semantics():
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "assessment-schedule.csv",
+            "location": "Rows 2-3",
+            "text": "Headers: Assessment | Due Date\nRow 2: Assessment=Poster | Due Date=30/10/2026",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "general-guide.pdf",
+            "location": "Page 1",
+            "text": "General guidance about project planning and meetings.",
+        },
+    ]
+
+    results = retrieve(
+        documents,
+        "When is the poster assessment due?",
+        semantic_scores=[0.99, 0.99],
+        semantic_backend="test-model",
+    )
+
+    assert results[0]["source"] == "assessment-schedule.csv"
+    assert results[0]["lexical_score"] > 0

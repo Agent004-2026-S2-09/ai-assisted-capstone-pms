@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable, Sequence
 
 
 STOP_WORDS = {
@@ -249,7 +249,31 @@ def _prose_score(spec: QuerySpec, document: dict, term_weights: dict[str, float]
     return min(1.0, score), matched
 
 
-def retrieve(documents: Iterable[dict], question: str, *, top_k: int = 12, minimum_score: float = 0.18) -> list[dict]:
+def _hybrid_score(lexical_score: float, semantic_score: float) -> float:
+    """Fuse calibrated lexical and semantic scores.
+
+    Lexical evidence gets the larger weight because exact dates, identifiers,
+    table fields and names must remain precise. Semantic evidence still allows
+    paraphrases to enter the candidate set and improves ordering when wording
+    differs from the indexed text.
+    """
+    if lexical_score and semantic_score:
+        return min(1.0, 0.68 * lexical_score + 0.32 * semantic_score)
+    if lexical_score:
+        return lexical_score
+    return min(1.0, 0.32 * semantic_score)
+
+
+def retrieve(
+    documents: Iterable[dict],
+    question: str,
+    *,
+    top_k: int = 12,
+    minimum_score: float = 0.18,
+    semantic_scorer: Callable[[str, Sequence[dict]], Sequence[float]] | None = None,
+    semantic_scores: Sequence[float] | None = None,
+    semantic_backend: str = "unavailable",
+) -> list[dict]:
     """Retrieve an explainable, type-aware evidence set.
 
     Table blocks are never removed merely because the question omitted the
@@ -292,13 +316,36 @@ def retrieve(documents: Iterable[dict], question: str, *, top_k: int = 12, minim
                 week_anchor = (int(source_week.group(1)), source_date)
                 break
 
-    scored: list[tuple[float, dict, str, set[str]]] = []
-    for item in candidates:
+    semantic_values: list[float]
+    if semantic_scorer is not None:
+        try:
+            semantic_values = [
+                max(0.0, min(1.0, float(value or 0.0)))
+                for value in semantic_scorer(spec.text, candidates)
+            ]
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            semantic_values = [0.0] * len(candidates)
+            semantic_backend = "unavailable"
+    elif semantic_scores is not None and len(semantic_scores) == len(candidates):
+        semantic_values = [max(0.0, min(1.0, float(value or 0.0))) for value in semantic_scores]
+    else:
+        semantic_values = [0.0] * len(candidates)
+        semantic_backend = "unavailable"
+
+    scored: list[tuple[float, dict, str, set[str], float, float]] = []
+    for item_index, item in enumerate(candidates):
+        semantic_score = semantic_values[item_index]
         record_type = item.get("record_type", "document_chunk")
         if record_type == "table_block":
             score, matched_rows, matched = _table_score(spec, item)
             if score:
-                scored.append((score, item, "complete table", set(spec.meaningful_terms)))
+                fused = _hybrid_score(score, semantic_score)
+                scored.append((fused, item, "complete table", set(spec.meaningful_terms), score, semantic_score))
+            elif semantic_score >= 0.62 and not spec.table_likely:
+                scored.append((
+                    _hybrid_score(0.0, semantic_score), item,
+                    "semantic evidence match", set(), 0.0, semantic_score,
+                ))
             continue
         score, matched = _prose_score(spec, item, term_weights)
         if spec.requested_week:
@@ -314,10 +361,14 @@ def retrieve(documents: Iterable[dict], question: str, *, top_k: int = 12, minim
                     derived_week = anchor_week + ((source_date - anchor_date).days // 7)
                     if derived_week == spec.requested_week:
                         score = min(1.0, score + 0.30)
-        if score >= minimum_score:
-            scored.append((score, item, "lexical evidence match", matched))
+        fused = _hybrid_score(score, semantic_score)
+        if score >= minimum_score or (semantic_score >= 0.62 and fused >= minimum_score):
+            reason = "hybrid lexical + semantic match" if score and semantic_score else (
+                "semantic evidence match" if semantic_score else "lexical evidence match"
+            )
+            scored.append((fused, item, reason, matched, score, semantic_score))
 
-    scored.sort(key=lambda part: (part[0], len(part[3])), reverse=True)
+    scored.sort(key=lambda part: (part[0], part[4], part[5], len(part[3])), reverse=True)
     table_scores = [part for part in scored if part[1].get("record_type") == "table_block"]
     if table_scores and (spec.exhaustive or not any(part[1].get("record_type") == "document_chunk" and part[0] >= table_scores[0][0] for part in scored)):
         best_table_source = table_scores[0][1].get("source")
@@ -325,7 +376,7 @@ def retrieve(documents: Iterable[dict], question: str, *, top_k: int = 12, minim
         scored = complete_table + [part for part in scored if part[1].get("record_type") != "table_block"]
     results = []
     seen = set()
-    for score, item, reason, matched in scored:
+    for score, item, reason, matched, lexical_score, semantic_score in scored:
         key = (item.get("scope", "general"), item.get("project_id"), item.get("source"), item.get("location"), item.get("chunk"))
         if key in seen:
             continue
@@ -333,6 +384,12 @@ def retrieve(documents: Iterable[dict], question: str, *, top_k: int = 12, minim
         result["score"] = round(float(score), 6)
         result["retrieval_reason"] = reason
         result["matched_terms"] = sorted(matched)
+        result["lexical_score"] = round(float(lexical_score), 6)
+        result["semantic_score"] = round(float(semantic_score), 6)
+        result["semantic_backend"] = semantic_backend if semantic_score else "not used"
+        result["retrieval_mode"] = "hybrid" if lexical_score and semantic_score else (
+            "semantic" if semantic_score else "lexical"
+        )
         result["retrieval_complete"] = item.get("record_type") == "table_block" and reason == "complete table"
         result["retrieval_query_terms"] = list(spec.terms)
         results.append(result)

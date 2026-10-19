@@ -54,6 +54,9 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
     items = [item for item in (results or []) if isinstance(item, dict)]
     metadata = context_metadata or {}
     structured = [item for item in items if item.get("record_type") == "structured_project_context"]
+    complete = [item for item in items if item.get("retrieval_complete")]
+    hybrid = [item for item in items if item.get("retrieval_mode") == "hybrid"]
+    semantic = [item for item in items if item.get("retrieval_mode") == "semantic"]
     evidence_terms = _terms(" ".join(str(item.get("text", "")) for item in items))
     question_terms = _terms(question)
     overlap = question_terms & evidence_terms
@@ -101,6 +104,10 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
         "result_count": len(items),
         "source_count": len({str(item.get("source", "")) for item in items if item.get("source")}),
         "structured_count": len(structured),
+        "complete_evidence_count": len(complete),
+        "hybrid_count": len(hybrid),
+        "semantic_count": len(semantic),
+        "semantic_backend": next((str(item.get("semantic_backend")) for item in items if item.get("semantic_backend") not in {None, "not used"}), "unavailable"),
         "context_truncated": int(truncated),
         "question_term_coverage": round(question_coverage, 3),
         "answer_evidence_overlap": len(answer_evidence_overlap),

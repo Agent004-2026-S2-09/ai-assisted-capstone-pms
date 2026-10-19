@@ -3615,6 +3615,8 @@ def retrieve_information(
         question,
         top_k=top_k,
         minimum_score=0.10,
+        semantic_scorer=lambda query, items: vector_store.score_documents(query, items),
+        semantic_backend=f"{vector_store.backend_name()}:{vector_store.model_name()}",
     )
     return results
 
@@ -3729,6 +3731,10 @@ def expand_retrieval_context(results, documents, maximum_items=16):
                     **item,
                     "score": original.get("score"),
                     "retrieval_reason": original.get("retrieval_reason", ""),
+                    "lexical_score": original.get("lexical_score", 0),
+                    "semantic_score": original.get("semantic_score", 0),
+                    "semantic_backend": original.get("semantic_backend", "not used"),
+                    "retrieval_mode": original.get("retrieval_mode", "lexical"),
                     "exhaustive": original.get("exhaustive", False),
                     "requested_list": original.get("requested_list", False),
                 }
