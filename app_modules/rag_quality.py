@@ -28,13 +28,24 @@ def _terms(value):
 
 
 def _is_abstention(answer):
-    return bool(re.search(
-        r"\b(?:not enough information|cannot answer|can't answer|unable to answer|"
-        r"do not have enough|not available|not specified|no information|"
-        r"confirm with|contact .* team)\b",
-        str(answer or ""),
+    """Detect a response that is primarily an answer refusal.
+
+    "Not specified" and "confirm with the team" are valid caveats in a
+    grounded answer. They must not classify an otherwise useful response as a
+    generation failure.
+    """
+    text = re.sub(r"\s+", " ", str(answer or "")).strip()
+    if not text:
+        return True
+    if re.search(
+        r"^(?:I\s+)?(?:cannot|can't|can’t|am unable to|do not have enough|"
+        r"don't have enough|not enough information|no information|"
+        r"I\s+don’t have the information)\b",
+        text,
         re.IGNORECASE,
-    ))
+    ):
+        return True
+    return False
 
 
 def build_diagnostic(question, results, context_metadata=None, answer="", validation_status="unknown"):
@@ -46,6 +57,9 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
     evidence_terms = _terms(" ".join(str(item.get("text", "")) for item in items))
     question_terms = _terms(question)
     overlap = question_terms & evidence_terms
+    answer_terms = _terms(answer)
+    answer_evidence_overlap = answer_terms & evidence_terms
+    question_coverage = (len(overlap) / len(question_terms)) if question_terms else 0.0
     top_score = max((float(item.get("score", 0) or 0) for item in items), default=0.0)
     retrieval_relevant = bool(structured or (items and overlap and top_score >= 0.10))
     truncated = bool(metadata.get("truncated"))
@@ -70,6 +84,15 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
         failure_class = "none"
         notes = "Relevant evidence was retrieved and a response was produced."
 
+    if not items or not answer_text:
+        confidence_band = "low"
+    elif validation_status == "validated" and retrieval_relevant and len(answer_evidence_overlap) >= 3:
+        confidence_band = "high"
+    elif retrieval_relevant and answer_evidence_overlap:
+        confidence_band = "medium"
+    else:
+        confidence_band = "low"
+
     return {
         "failure_class": failure_class,
         "retrieval_relevant": int(bool(retrieval_relevant)),
@@ -79,6 +102,9 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
         "source_count": len({str(item.get("source", "")) for item in items if item.get("source")}),
         "structured_count": len(structured),
         "context_truncated": int(truncated),
+        "question_term_coverage": round(question_coverage, 3),
+        "answer_evidence_overlap": len(answer_evidence_overlap),
+        "confidence_band": confidence_band,
         "notes": notes,
     }
 

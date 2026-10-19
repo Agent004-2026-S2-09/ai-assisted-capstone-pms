@@ -32,15 +32,16 @@ def test_ai_http_failure_message_does_not_expose_provider_body():
     assert "private provider diagnostics" not in message
 
 
-def test_empty_ai_answer_is_rejected_instead_of_saved(monkeypatch):
+def test_empty_evidence_fails_closed_before_calling_ai(monkeypatch):
     monkeypatch.setattr(
         app,
         "call_agentaus",
         lambda messages: {"choices": [{"message": {"content": ""}}]},
     )
 
-    with pytest.raises(RuntimeError, match="empty response"):
-        app.generate_response("What is documented?", [])
+    answer = app.generate_response("What is documented?", [])
+
+    assert "enough approved evidence" in answer
 
 
 def test_malformed_stream_events_end_in_a_safe_empty_stream_error(monkeypatch):
@@ -66,6 +67,42 @@ def test_malformed_stream_events_end_in_a_safe_empty_stream_error(monkeypatch):
             api_key="test-key",
             state={},
         ))
+
+
+def test_completion_retries_transient_provider_failure(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        status_code = 503
+
+        def __init__(self, ok):
+            self.ok = ok
+
+        def raise_for_status(self):
+            if not self.ok:
+                error = app.requests.exceptions.HTTPError(response=self)
+                raise error
+
+        def json(self):
+            return {"choices": [{"message": {"content": "grounded"}}]}
+
+    def fake_post(*args, **kwargs):
+        calls.append(kwargs)
+        return FakeResponse(len(calls) > 1)
+
+    monkeypatch.setattr(ai_client.requests, "post", fake_post)
+    monkeypatch.setenv("AI_PROVIDER_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("AI_PROVIDER_RETRY_BACKOFF_SECONDS", "0")
+
+    result = ai_client.call(
+        [{"role": "user", "content": "test"}],
+        endpoint="https://example.test/chat",
+        api_key="test-key",
+        state={},
+    )
+
+    assert result["choices"][0]["message"]["content"] == "grounded"
+    assert len(calls) == 2
 
 
 def test_internal_labels_are_removed_from_provider_output():

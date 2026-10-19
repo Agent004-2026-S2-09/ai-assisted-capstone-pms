@@ -234,6 +234,134 @@ def test_api_messages_include_current_question_once():
     assert messages[-1] == {"role": "user", "content": question}
 
 
+def test_model_context_does_not_expose_document_metadata():
+    result = {
+        "scope": "general",
+        "source": "confidential-internal-name.pdf",
+        "location": "Page 42",
+        "record_type": "document_chunk",
+        "text": "Assessment guidance is available to students.",
+    }
+
+    context = app.build_private_context([result], "What is the assessment guidance?")
+
+    assert "confidential-internal-name.pdf" not in context
+    assert "Page 42" not in context
+    assert "Assessment guidance" in context
+
+
+def test_academic_calendar_context_is_timezone_aware_and_deterministic():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    context = app.academic_calendar_context(
+        datetime(2026, 10, 19, 9, 0, tzinfo=ZoneInfo("Australia/Sydney"))
+    )
+
+    assert "Monday, 19 October 2026" in context
+    assert "Teaching week 10" in context
+
+
+def test_assessment_due_date_questions_return_complete_table():
+    documents = [
+        {
+            "record_type": "table_block",
+            "source": "private-assessment-schedule.csv",
+            "row_start": 1,
+            "chunk": 1,
+            "text": "Headers: Assessment | Due Date\nRow 2: Poster | 30/10/2026",
+        },
+        {
+            "record_type": "table_block",
+            "source": "private-assessment-schedule.csv",
+            "row_start": 2,
+            "chunk": 2,
+            "text": "Headers: Assessment | Due Date\nRow 3: Report | 1/11/2026",
+        },
+    ]
+
+    results = app.retrieve_information("When are the assessment due dates?", documents)
+
+    assert len(results) == 2
+    assert {item["row_start"] for item in results} == {1, 2}
+
+
+def test_assessment_due_date_is_joined_to_teaching_week():
+    documents = [{
+        "record_type": "table_block",
+        "text": (
+            "Headers: Assessment | Due Date and Time\n"
+            "Row 2: Assessment=Project Proposal and Plan Report | "
+            "Due Date and Time=4/09/2026 23:59"
+        ),
+    }]
+
+    context = app._structured_assessment_calendar_context(
+        "In which week do we submit our project proposal assessment?",
+        documents,
+    )
+
+    assert context
+    assert "Project Proposal and Plan Report" in context
+
+
+def test_search_pipeline_prepends_authoritative_assessment_week_join():
+    documents = [{
+        "record_type": "table_block",
+        "source": "assessment.csv",
+        "text": (
+            "Headers: Assessment | Due Date and Time\n"
+            "Row 2: Assessment=Project Proposal and Plan Report | "
+            "Due Date and Time=4/09/2026 23:59"
+        ),
+    }]
+
+    results = app.execute_search_plan(
+        {"action": "search", "queries": ["project proposal assessment"]},
+        documents,
+        original_question="In which week do we submit our project proposal assessment?",
+    )
+
+    assert results[0]["record_type"] == "structured_project_context"
+    assert "Teaching Week 4" in results[0]["text"]
+
+
+def test_assessment_calendar_answers_first_and_next_queries_from_all_rows():
+    documents = [{
+        "record_type": "table_block",
+        "text": (
+            "Headers: Assessment | Due Date and Time\n"
+            "Row 2: Assessment=Early task | Due Date and Time=12/08/2026 23:59\n"
+            "Row 3: Assessment=Later task | Due Date and Time=30/10/2026 23:59"
+        ),
+    }]
+
+    first = app._structured_assessment_calendar_context(
+        "Which assessment is due first?", documents
+    )
+    assert "Early task" in first
+    assert "Later task" not in first
+
+
+def test_expanded_context_preserves_original_retrieval_score():
+    result = {
+        "source": "guide.pdf",
+        "location": "Page 2",
+        "chunk": 2,
+        "record_type": "document_chunk",
+        "text": "Relevant guidance",
+        "score": 0.87,
+        "retrieval_reason": "direct match",
+    }
+    adjacent = {
+        **result,
+        "location": "Page 2",
+        "text": "Relevant guidance",
+    }
+    expanded = app.expand_retrieval_context([result], [adjacent])
+    assert expanded[0]["score"] == 0.87
+
+
 def test_answer_prompt_requires_real_visual_source_for_visual_requests(monkeypatch):
     monkeypatch.setattr(app.prompts, "get_active_prompt", lambda name: {"prompt_text": ""})
     messages, _, _ = app._build_answer_request("Can you generate visuals for the PowerPoint?", [])
@@ -482,6 +610,26 @@ def test_project_relationship_questions_use_authoritative_project_records():
     assert "Sam Student" in context
 
 
+def test_refusal_does_not_append_project_profile_details():
+    project = SimpleNamespace(
+        id="selected-project",
+        mentor="Private Mentor",
+        team=[{"name": "Private Student", "role": "Student"}],
+        sponsor="Private Sponsor",
+        code="PRIVATE-CODE",
+        name="Private Project",
+    )
+
+    answer = app.ensure_project_profile_answer_complete(
+        "Who is in the team?",
+        "I'm sorry, but I can't provide that information.",
+        project=project,
+    )
+
+    assert answer == "I'm sorry, but I can't provide that information."
+    assert "Private Mentor" not in answer
+
+
 def test_completion_context_still_uses_ai_generation_and_grounding(monkeypatch):
     project = app.create_project("AI Completion Response Project")
     context = app._structured_project_completion_context("list all completed tasks", project)
@@ -626,6 +774,45 @@ def test_new_upload_is_found_through_llm_search_without_capstone_keyword(
     assert results
     assert results[0]["source"] == "new_guidance.txt"
     assert "Zelda Quokka" in results[0]["text"]
+
+
+def test_named_multi_document_question_keeps_retrieval_inside_named_sources(monkeypatch):
+    documents = [
+        {
+            "text": "Stakeholder guidance from the named document.",
+            "source": "stakeholders.pdf",
+            "location": "Page 1",
+            "record_type": "document_chunk",
+        },
+        {
+            "text": "Careers guidance from the named document.",
+            "source": "careers.pdf",
+            "location": "Page 1",
+            "record_type": "document_chunk",
+        },
+        {
+            "text": "Unrelated lecture guidance with overlapping topic words.",
+            "source": "unrelated-lecture.pdf",
+            "location": "Page 1",
+            "record_type": "document_chunk",
+        },
+    ]
+
+    def fake_retrieve(question, corpus, **kwargs):
+        return [corpus[-1], corpus[0]]
+
+    monkeypatch.setattr(app, "retrieve_information", fake_retrieve)
+    results = app.execute_search_plan(
+        {"action": "search", "queries": ["stakeholder careers"]},
+        documents,
+        original_question=(
+            "Compare the guidance in 'stakeholders.pdf' with the relevant "
+            "information in 'careers.pdf'."
+        ),
+    )
+
+    assert results
+    assert {item["source"] for item in results} == {"stakeholders.pdf"}
 
 
 def test_exact_project_id_bypasses_ambiguous_page_number():
@@ -828,6 +1015,8 @@ def test_csv_rows_and_headers_are_indexed_and_searchable(tmp_path):
 
     assert ".csv" in app.SUPPORTED_EXTENSIONS
     assert documents[0]["record_type"] == "table_block"
+    assert documents[0]["row_start"] == 2
+    assert documents[0]["row_end"] == 3
     assert "Risk owner=Alice" in documents[0]["text"]
     assert results
     assert "Vendor delivery delay" in results[0]["text"]
@@ -1092,7 +1281,7 @@ def test_ingestion_report_exposes_extraction_quality(tmp_path):
     assert row["Status"] == "Complete"
 
 
-def test_no_retrieval_results_still_use_llm_api(monkeypatch):
+def test_no_retrieval_results_fail_closed_without_calling_llm(monkeypatch):
     api_calls = []
 
     def fake_agentaus(messages):
@@ -1103,8 +1292,46 @@ def test_no_retrieval_results_still_use_llm_api(monkeypatch):
 
     answer = app.generate_response("Unknown Capstone question", [])
 
-    assert "LLM handled missing context" in answer
-    assert len(api_calls) == 2
+    assert "enough approved evidence" in answer
+    assert not api_calls
+
+
+def test_sensitive_inventory_questions_fail_closed_without_llm_or_metadata():
+    answer = app.generate_response(
+        "What documents and files do you have in your knowledge base?",
+        [{
+            "text": "Internal source: confidential.docx",
+            "source": "confidential.docx",
+            "record_type": "document_chunk",
+        }],
+    )
+
+    assert "internal document" in answer.lower()
+    assert "confidential.docx" not in answer
+
+
+def test_ordinary_policy_questions_do_not_rank_incidental_spreadsheet_rows():
+    documents = [
+        {
+            "text": "A1=Risk Log Guidelines | A2=Student risks and team controls",
+            "source": "risk.xlsx",
+            "record_type": "table_block",
+        },
+        {
+            "text": "The preferred group size is 3-4. In extreme circumstances, five may be allowed with unit convener agreement.",
+            "source": "faq.docx",
+            "record_type": "document_chunk",
+        },
+    ]
+
+    results = app.retrieve_information(
+        "How many students are allowed in a capstone group?",
+        documents,
+    )
+
+    assert results
+    assert results[0]["source"] == "faq.docx"
+    assert all(item.get("record_type") != "table_block" for item in results)
 
 
 def test_non_capstone_response_uses_llm_api(monkeypatch):
@@ -1241,7 +1468,8 @@ def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
     monkeypatch.setattr(app, "call_agentaus_stream", fake_stream)
     monkeypatch.setenv("ENABLE_ANSWER_VALIDATION", "true")
 
-    answer = "".join(app.generate_response_stream("Question", []))
+    evidence = [{"text": "Approved evidence for the question.", "record_type": "document_chunk"}]
+    answer = "".join(app.generate_response_stream("Question", evidence))
 
     assert answer == "Checked answer"
     assert "Unvalidated draft" not in answer
@@ -1640,5 +1868,11 @@ def test_answer_generation_reuses_project_profile_for_validation(monkeypatch):
         lambda messages: {"choices": [{"message": {"content": "Grounded answer"}}]},
     )
 
-    assert app.generate_response("What is this project about?", [], project=project) == "Grounded answer"
+    evidence = [{
+        "text": "Approved project evidence.",
+        "scope": "project",
+        "project_id": project.id,
+        "record_type": "document_chunk",
+    }]
+    assert app.generate_response("What is this project about?", evidence, project=project) == "Grounded answer"
     assert profile_calls == [project.id]

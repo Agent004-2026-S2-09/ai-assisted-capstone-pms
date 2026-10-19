@@ -15,6 +15,27 @@ import streamlit as st
 from app_modules import monitoring
 
 
+def _retry_settings():
+    try:
+        attempts = int(_config("AI_PROVIDER_MAX_ATTEMPTS", "2"))
+    except ValueError:
+        attempts = 2
+    try:
+        backoff = float(_config("AI_PROVIDER_RETRY_BACKOFF_SECONDS", "0.5"))
+    except ValueError:
+        backoff = 0.5
+    return max(1, min(attempts, 3)), max(0.0, min(backoff, 5.0))
+
+
+def _retryable(error):
+    if isinstance(error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return True
+    if isinstance(error, requests.exceptions.HTTPError):
+        status = getattr(error.response, "status_code", None)
+        return status == 408 or status == 429 or bool(status and status >= 500)
+    return False
+
+
 def _config(key, default=""):
     try:
         value = st.secrets.get(key)
@@ -47,19 +68,27 @@ def call(messages, *, state=None, endpoint=None, api_key=None):
     started = time.perf_counter()
     response = None
     try:
-        response = requests.post(
-            endpoint,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"messages": messages, "stream": False, "system_prompt_overwrite": True},
-            timeout=90,
-        )
-        response.raise_for_status()
-        try:
-            result = response.json()
-        except requests.exceptions.JSONDecodeError as error:
-            raise RuntimeError("Agentaus returned an invalid response.") from error
-        if not isinstance(result, dict):
-            raise RuntimeError("Agentaus returned an unexpected response format.")
+        attempts, backoff = _retry_settings()
+        for attempt in range(attempts):
+            try:
+                response = requests.post(
+                    endpoint,
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={"messages": messages, "stream": False, "system_prompt_overwrite": True},
+                    timeout=90,
+                )
+                response.raise_for_status()
+                try:
+                    result = response.json()
+                except requests.exceptions.JSONDecodeError as error:
+                    raise RuntimeError("Agentaus returned an invalid response.") from error
+                if not isinstance(result, dict):
+                    raise RuntimeError("Agentaus returned an unexpected response format.")
+                break
+            except Exception as error:
+                if attempt + 1 >= attempts or not _retryable(error):
+                    raise
+                time.sleep(backoff * (attempt + 1))
         usage = result.get("usage") or {}
         monitoring.log_api_service_event(
             state=state, stage="completion", latency_ms=(time.perf_counter() - started) * 1000,

@@ -66,6 +66,42 @@ def test_rag_diagnostic_classifies_and_reports_retrieval_failures():
     assert monitoring.recent_rag_diagnostics(state)[0]["result_count"] == 0
 
 
+def test_rag_diagnostic_does_not_classify_grounded_caveats_as_generation_failure():
+    diagnostic = rag_quality.build_diagnostic(
+        "What is the delivery risk?",
+        [{
+            "text": "The approved record specifies the delivery risk but not the "
+                    "owner. Confirm the owner with the project team.",
+            "source": "risk-register.txt",
+            "score": 0.8,
+        }],
+        answer=(
+            "The approved record identifies a delivery risk. The owner is not "
+            "specified, so confirm that detail with the project team."
+        ),
+        validation_status="validated",
+    )
+
+    assert diagnostic["failure_class"] == "none"
+
+
+def test_rag_diagnostic_reports_grounding_confidence_signals():
+    diagnostic = rag_quality.build_diagnostic(
+        "What is the delivery date and owner?",
+        [{
+            "text": "The delivery date is 2026-10-20. The owner is Alex.",
+            "source": "schedule.txt",
+            "score": 0.9,
+        }],
+        answer="The delivery date is 2026-10-20 and the owner is Alex.",
+        validation_status="validated",
+    )
+
+    assert diagnostic["confidence_band"] == "high"
+    assert diagnostic["question_term_coverage"] > 0
+    assert diagnostic["answer_evidence_overlap"] >= 3
+
+
 def test_sprint4_reporting_and_prompt_writes_require_administrator():
     state = {}
     user_id = auth.create_user("Sprint 4 Student", "s4-student", PASSWORD, "Student")
