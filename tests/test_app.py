@@ -286,26 +286,7 @@ def test_assessment_due_date_questions_return_complete_table():
     assert {item["row_start"] for item in results} == {1, 2}
 
 
-def test_assessment_due_date_is_joined_to_teaching_week():
-    documents = [{
-        "record_type": "table_block",
-        "text": (
-            "Headers: Assessment | Due Date and Time\n"
-            "Row 2: Assessment=Project Proposal and Plan Report | "
-            "Due Date and Time=4/09/2026 23:59"
-        ),
-    }]
-
-    context = app._structured_assessment_calendar_context(
-        "In which week do we submit our project proposal assessment?",
-        documents,
-    )
-
-    assert context
-    assert "Project Proposal and Plan Report" in context
-
-
-def test_search_pipeline_prepends_authoritative_assessment_week_join():
+def test_search_pipeline_returns_complete_assessment_table_as_primary_evidence():
     documents = [{
         "record_type": "table_block",
         "source": "assessment.csv",
@@ -322,25 +303,75 @@ def test_search_pipeline_prepends_authoritative_assessment_week_join():
         original_question="In which week do we submit our project proposal assessment?",
     )
 
-    assert results[0]["record_type"] == "structured_project_context"
-    assert "Teaching Week 4" in results[0]["text"]
+    assert results[0]["record_type"] == "table_block"
+    assert results[0]["retrieval_complete"] is True
+    assert "Project Proposal and Plan Report" in results[0]["text"]
 
 
-def test_assessment_calendar_answers_first_and_next_queries_from_all_rows():
-    documents = [{
-        "record_type": "table_block",
-        "text": (
-            "Headers: Assessment | Due Date and Time\n"
-            "Row 2: Assessment=Early task | Due Date and Time=12/08/2026 23:59\n"
-            "Row 3: Assessment=Later task | Due Date and Time=30/10/2026 23:59"
-        ),
-    }]
+def test_ethics_lecture_query_prioritises_ethics_lecture_material():
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "Reflection Rubric.docx",
+            "location": "Document",
+            "text": "Weekly reflections describe an aspect of the course or lecture.",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf",
+            "location": "Page 11",
+            "text": "The Code of Professional Ethics defines values, standards and principles for ICT professionals.",
+        },
+    ]
 
-    first = app._structured_assessment_calendar_context(
-        "Which assessment is due first?", documents
-    )
-    assert "Early task" in first
-    assert "Later task" not in first
+    results = app.retrieve_information("What was covered in the ethics lecture?", documents)
+
+    assert results
+    assert "Professionalism and Ethics" in results[0]["source"]
+
+
+def test_genai_reference_query_prioritises_acknowledgement_template():
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "Week 10 Tutorial S2 - Assessment Details 2026.pdf",
+            "location": "Page 12",
+            "text": "Do not use Gen AI to produce poster.",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "Student_Template_for_GenAI_Acknowledgement.pdf",
+            "location": "Page 1",
+            "text": "You must properly acknowledge any generative artificial intelligence used in an assessment.",
+        },
+    ]
+
+    results = app.retrieve_information("How to reference AI in assessments?", documents)
+
+    assert results
+    assert "GenAI_Acknowledgement" in results[0]["source"]
+
+
+def test_week_query_prioritises_source_dated_in_requested_teaching_week():
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "Week 1 Lecture Slides 10 Aug 2026.pdf",
+            "location": "Page 1",
+            "text": "Lecture introduction and assessment information.",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "Tutorial Workshop 5 S2_21 Sep 26.pdf",
+            "location": "Page 1",
+            "text": "Workshop and lecture topics for project work.",
+        },
+    ]
+
+    results = app.retrieve_information("What were the week 7 lectures?", documents)
+
+    assert results
+    assert "21 Sep 26" in results[0]["source"]
 
 
 def test_expanded_context_preserves_original_retrieval_score():

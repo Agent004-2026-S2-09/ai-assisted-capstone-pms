@@ -1,6 +1,6 @@
 {
   "index_version": 7,
-  "project_signature": "b60a0511ef7ea3213824ee1cef87bb6d8d25ff0167e33c48d2fb232c5de32463",
+  "project_signature": "8f02e8f593867741253429d3daf06b3b5bfc0d5943d2b86f41ddd0500a8bbbf0",
   "documents": [
     {
       "text": "Headers: Assessment | Submission Type | Assignment URL | Due Date and Time | Available Until | Points Possible\nRow 2: Assessment=Part 2 Weekly Reflection Journal (Individual) (10%) | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176860 | Due Date and Time=18/10/2026 23:59 | Available Until=21/10/2026 23:59 | Points Possible=30\nRow 3: Assessment=Poster | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176874 | Due Date and Time=30/10/2026 23:59 | Available Until=2/11/2026 23:59 | Points Possible=10\nRow 4: Assessment=Peer Evaluation | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176869 | Due Date and Time=30/10/2026 23:59 | Available Until=3/12/2026 23:59 | Points Possible=3\nRow 5: Assessment=Deliverable and Report | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176861 | Due Date and Time=1/11/2026 23:59 | Available Until=4/11/2026 23:59 | Points Possible=100\nRow 6: Assessment=Project Presentation | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176875 | Due Date and Time=6/11/2026 23:59 | Available Until=9/11/2026 23:59 | Points Possible=15\nRow 7: Assessment=Engagement and Participation | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176871 | Due Date and Time=12/11/2026 23:59 | Available Until=20/11/2026 23:59 | Points Possible=10\nRow 8: Assessment=Moderated Final Mark | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176872 | Due Date and Time=[blank] | Available Until=[blank] | Points Possible=55\nRow 9: Assessment=Project Proposal and Plan Report | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176862 | Due Date and Time=4/09/2026 23:59 | Available Until=6/11/2026 23:59 | Points Possible=100\nRow 10: Assessment=Academic Integrity Module | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176867 | Due Date and Time=30/08/2026 23:59 | Available Until=[blank] | Points Possible=0\nRow 11: Assessment=Part 1 Weekly Reflection Journal (Individual) | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176868 | Due Date and Time=30/08/2026 23:59 | Available Until=[blank] | Points Possible=15\nRow 12: Assessment=Team formation and EOI submission | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176866 | Due Date and Time=12/08/2026 23:59 | Available Until=[blank] | Points Possible=2",
@@ -1764,7 +1764,7 @@
       "scope": "project",
       "project_id": "ai-assisted-capstone-project-assistant",
       "source_size": 37733,
-      "source_mtime_ns": 1792370679142759202
+      "source_mtime_ns": 1792386624379811727
     },
     {
       "text": "| \nTable row 11: Week 10 | 19 Oct – 25 Oct 2026 | Current week | Current date reference: Monday 19 October 2026.\nTable row 12: Week 11 | 26 Oct – 1 Nov 2026 | Remaining | \nTable row 13: Week 12 | 2 Nov – 6 Nov 2026 | Remaining | \nClass-free period: Monday 5 October to Friday 9 October 2026. This period is not counted as a teaching week.\nAuthoritative source: University of Canberra, 2026 Key Dates — https://www.canberra.edu.au/content/dam/uc/documents/about-uc/key-dates/2026%20Key%20Dates.pdf\nMaintenance note: This calendar is specific to Semester 2 2026 and should be replaced or supplemented when the approved UC academic timetable for another teaching period is provided.",
@@ -1785,7 +1785,7 @@
       "scope": "project",
       "project_id": "ai-assisted-capstone-project-assistant",
       "source_size": 37733,
-      "source_mtime_ns": 1792370679142759202
+      "source_mtime_ns": 1792386624379811727
     }
   ]
 }

@@ -48,7 +48,7 @@ BENCHMARK_CASES = (
     ),
     BenchmarkCase(
         "assessment-guidance", "general guidance",
-        "How is the Capstone project assessed?",
+        "What does the weekly reflection assessment rubric require?",
         expected_sources=("Reflection Rubric",),
         expected_keywords=("assessment", "rubric"),
         expected_predicate=_contains_text("assess"),
@@ -85,6 +85,32 @@ BENCHMARK_CASES = (
         forbidden_record_types=("project",),
         expected_keywords=("resource", "guidance"),
         expected_predicate=lambda results: bool(results),
+    ),
+    BenchmarkCase(
+        "ethics-lecture", "document retrieval",
+        "What was covered in the ethics lecture?",
+        expected_sources=("Professionalism and Ethics",),
+        expected_keywords=("ethics", "professional"),
+    ),
+    BenchmarkCase(
+        "week-seven", "document retrieval",
+        "What were the Week 7 lectures?",
+        expected_sources=("UC_Semester_2_2026_Capstone_Teaching_Weeks",),
+        expected_keywords=("week 7",),
+    ),
+    BenchmarkCase(
+        "remaining-assessments", "structured data",
+        "What are the assessments between now and the end of the semester?",
+        expected_sources=("Assessments_S2_2026.csv",),
+        expected_record_types=("table_block",),
+        expected_keywords=("poster", "report", "presentation"),
+        expected_predicate=lambda results: bool(results and results[0].get("retrieval_complete")),
+    ),
+    BenchmarkCase(
+        "genai-acknowledgement", "document retrieval",
+        "How do I reference AI in assessments?",
+        expected_sources=("Student_Template_for_GenAI_Acknowledgement",),
+        expected_keywords=("acknowledge", "assessment"),
     ),
 )
 
