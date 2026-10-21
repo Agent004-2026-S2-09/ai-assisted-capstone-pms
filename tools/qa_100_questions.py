@@ -1,3 +1,11 @@
+## File: tools/qa_100_questions.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Run a 100-question grounded QA evaluation and write a Word report.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Run a 100-question grounded QA evaluation and write a Word report.
 
 This is an evaluation harness, not application runtime code. It deliberately
@@ -37,6 +45,12 @@ PROJECT_ID = "ai-assisted-capstone-project-assistant"
 
 @dataclass(frozen=True)
 class Case:
+    """
+    Class: Case
+    Purpose: Represent the Case abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     number: int
     mode: str
     question: str
@@ -48,6 +62,12 @@ class Case:
 
 @dataclass
 class Result:
+    """
+    Class: Result
+    Purpose: Represent the Result abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     number: int
     mode: str
     category: str
@@ -64,18 +84,65 @@ class Result:
 
 
 def groups(*items: str | tuple[str, ...]) -> tuple[tuple[str, ...], ...]:
+    """
+    Function: groups
+    Purpose: Execute the groups operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type tuple[tuple[str, ...], ...].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return tuple((item,) if isinstance(item, str) else tuple(item) for item in items)
 
 
 def _general(number: int, category: str, question: str, *expected: str | tuple[str, ...], source: str = "") -> Case:
+    """
+    Function: _general
+    Purpose: Execute the  general operation.
+    Inputs:
+            number (int): Caller-provided input.
+            category (str): Caller-provided input.
+            question (str): Caller-provided input.
+            source (str): Caller-provided input.
+    Returns:
+            A value of type Case.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return Case(number, "General Capstone", question, groups(*expected), category, source)
 
 
 def _project(number: int, category: str, question: str, *expected: str | tuple[str, ...], source: str = "", structured: bool = False) -> Case:
+    """
+    Function: _project
+    Purpose: Execute the  project operation.
+    Inputs:
+            number (int): Caller-provided input.
+            category (str): Caller-provided input.
+            question (str): Caller-provided input.
+            source (str): Caller-provided input.
+            structured (bool): Caller-provided input.
+    Returns:
+            A value of type Case.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return Case(number, "Project-specific", question, groups(*expected), category, source, structured)
 
 
 def build_cases() -> list[Case]:
+    """
+    Function: build_cases
+    Purpose: Execute the build cases operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type list[Case].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     cases = [
         _general(1, "technology support", "How much technology support may an eligible project receive per semester?", ("$300", "300 AUD", "300"), source="Technology Support"),
         _general(2, "technology support", "What kinds of resources can the Technology Support Team help provide?", "hardware", "cloud", "HPC", source="Technology Support"),
@@ -184,6 +251,16 @@ def build_cases() -> list[Case]:
 
 
 def _normalise(text: str) -> str:
+    """
+    Function: _normalise
+    Purpose: Execute the  normalise operation.
+    Inputs:
+            text (str): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     value = str(text or "").casefold()
     value = value.translate(str.maketrans({
         "‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-", "−": "-",
@@ -203,6 +280,16 @@ def _normalise(text: str) -> str:
 
 
 def _load_project():
+    """
+    Function: _load_project
+    Purpose: Execute the  load project operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with sqlite3.connect(ROOT / "project_data" / "capstone.sqlite3") as db:
         profile = json.loads(db.execute("SELECT profile FROM projects WHERE id = ?", (PROJECT_ID,)).fetchone()[0])
     return app.Project.from_dict(profile)
@@ -222,10 +309,30 @@ def _configure_evaluation_access(project):
 
 
 def _restore_evaluation_access(originals):
+    """
+    Function: _restore_evaluation_access
+    Purpose: Execute the  restore evaluation access operation.
+    Inputs:
+            originals (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     app.get_project, app.require_project_access, app.access.require_project = originals
 
 
 def _load_corpus(project):
+    """
+    Function: _load_corpus
+    Purpose: Execute the  load corpus operation.
+    Inputs:
+            project (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     general = app.load_index()
     project_index_path = ROOT / "project_data" / PROJECT_ID / "index.json"
     project_documents = json.loads(project_index_path.read_text(encoding="utf-8"))["documents"]
@@ -244,6 +351,21 @@ def _load_corpus(project):
 
 
 def _retrieve(case: Case, question: str, general, project_documents, project, *, use_planner=False):
+    """
+    Function: _retrieve
+    Purpose: Execute the  retrieve operation.
+    Inputs:
+            case (Case): Caller-provided input.
+            question (str): Caller-provided input.
+            general (value): Caller-provided input.
+            project_documents (value): Caller-provided input.
+            project (value): Caller-provided input.
+            use_planner (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if case.mode == "General Capstone":
         if use_planner:
             plan = app.plan_information_search(question, general, history=[], project=None)
@@ -298,12 +420,37 @@ def _retrieve(case: Case, question: str, general, project_documents, project, *,
 
 
 def _check_answer(answer: str, expected_groups: tuple[tuple[str, ...], ...]):
+    """
+    Function: _check_answer
+    Purpose: Execute the  check answer operation.
+    Inputs:
+            answer (str): Caller-provided input.
+            expected_groups (tuple[tuple[str, ...], ...]): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     normalised = _normalise(answer)
     missing = [list(group) for group in expected_groups if not any(_normalise(term) in normalised for term in group)]
     return not missing, missing
 
 
 def run_case(case: Case, general, project_documents, project, *, use_planner=False) -> Result:
+    """
+    Function: run_case
+    Purpose: Execute the run case operation.
+    Inputs:
+            case (Case): Caller-provided input.
+            general (value): Caller-provided input.
+            project_documents (value): Caller-provided input.
+            project (value): Caller-provided input.
+            use_planner (value): Caller-provided input.
+    Returns:
+            A value of type Result.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     result = Result(
         number=case.number,
         mode=case.mode,
@@ -342,6 +489,18 @@ def run_case(case: Case, general, project_documents, project, *, use_planner=Fal
 
 
 def _add_cell(cell, value, size=8):
+    """
+    Function: _add_cell
+    Purpose: Execute the  add cell operation.
+    Inputs:
+            cell (value): Caller-provided input.
+            value (value): Caller-provided input.
+            size (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     cell.text = str(value or "")
     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
     for paragraph in cell.paragraphs:
@@ -350,6 +509,20 @@ def _add_cell(cell, value, size=8):
 
 
 def write_report(cases, results, extracted_files, started_at, finished_at):
+    """
+    Function: write_report
+    Purpose: Execute the write report operation.
+    Inputs:
+            cases (value): Caller-provided input.
+            results (value): Caller-provided input.
+            extracted_files (value): Caller-provided input.
+            started_at (value): Caller-provided input.
+            finished_at (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     passed = sum(item.correct for item in results)
     doc = Document()
@@ -413,6 +586,16 @@ def write_report(cases, results, extracted_files, started_at, finished_at):
 
 
 def main():
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     retry_failed = "--retry-failed" in sys.argv
     use_planner = "--planner" in sys.argv
     cases = build_cases()

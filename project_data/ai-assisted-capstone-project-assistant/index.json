@@ -1,28 +1,7 @@
 {
   "index_version": 7,
-  "project_signature": "8f02e8f593867741253429d3daf06b3b5bfc0d5943d2b86f41ddd0500a8bbbf0",
+  "project_signature": "92afdf4b25881f679c2b143b7dd26a817914c34076d49f0f1baa6fb67e9efa0c",
   "documents": [
-    {
-      "text": "Headers: Assessment | Submission Type | Assignment URL | Due Date and Time | Available Until | Points Possible\nRow 2: Assessment=Part 2 Weekly Reflection Journal (Individual) (10%) | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176860 | Due Date and Time=18/10/2026 23:59 | Available Until=21/10/2026 23:59 | Points Possible=30\nRow 3: Assessment=Poster | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176874 | Due Date and Time=30/10/2026 23:59 | Available Until=2/11/2026 23:59 | Points Possible=10\nRow 4: Assessment=Peer Evaluation | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176869 | Due Date and Time=30/10/2026 23:59 | Available Until=3/12/2026 23:59 | Points Possible=3\nRow 5: Assessment=Deliverable and Report | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176861 | Due Date and Time=1/11/2026 23:59 | Available Until=4/11/2026 23:59 | Points Possible=100\nRow 6: Assessment=Project Presentation | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176875 | Due Date and Time=6/11/2026 23:59 | Available Until=9/11/2026 23:59 | Points Possible=15\nRow 7: Assessment=Engagement and Participation | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176871 | Due Date and Time=12/11/2026 23:59 | Available Until=20/11/2026 23:59 | Points Possible=10\nRow 8: Assessment=Moderated Final Mark | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176872 | Due Date and Time=[blank] | Available Until=[blank] | Points Possible=55\nRow 9: Assessment=Project Proposal and Plan Report | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176862 | Due Date and Time=4/09/2026 23:59 | Available Until=6/11/2026 23:59 | Points Possible=100\nRow 10: Assessment=Academic Integrity Module | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176867 | Due Date and Time=30/08/2026 23:59 | Available Until=[blank] | Points Possible=0\nRow 11: Assessment=Part 1 Weekly Reflection Journal (Individual) | Submission Type=Individual | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176868 | Due Date and Time=30/08/2026 23:59 | Available Until=[blank] | Points Possible=15\nRow 12: Assessment=Team formation and EOI submission | Submission Type=Group | Assignment URL=https://uclearn.canberra.edu.au/courses/20752/assignments/176866 | Due Date and Time=12/08/2026 23:59 | Available Until=[blank] | Points Possible=2",
-      "source": "Assessments_S2_2026.csv",
-      "location": "Rows 2-12",
-      "chunk": 1,
-      "index_version": 7,
-      "record_type": "table_block",
-      "page_number": null,
-      "page_end": null,
-      "slide_number": null,
-      "table_name": "Assessments_S2_2026",
-      "row_start": 2,
-      "row_end": 12,
-      "document_pages": null,
-      "blank_pages": [],
-      "extraction_method": "native",
-      "scope": "project",
-      "project_id": "ai-assisted-capstone-project-assistant",
-      "source_size": 1532,
-      "source_mtime_ns": 1792044556177927474
-    },
     {
       "text": "Initial Sponsor & Mentor Meeting Agenda\nApplied Sovereign AI: Rapid Prototyping MicroSaaS Solutions with Agentaus (Trellis Data)\nTable row 1: Date | 24 August 2026 | Time | 30-60 minutes\nTable row 2: Location | 1C73, UC campus | Teams Link | Prepared / shared\nTable row 3: Duration | Approx. 30 minutes | Note-taker | Ashly\nMeeting Objective\nClarify project expectations, understand Agentaus capabilities and constraints, discuss initial use-case directions, and agree on communication arrangements and immediate next steps.\nTeam Roles for the Meeting\nTable row 1: Team Member | Assigned Role | Main Responsibility\nTable row 2: Munkhuu | Project Leader / Facilitator | Open and close the meeting, guide the agenda, manage time, clarify scope and summarise next steps.\nTable row 3: Member 2 | Project & Use-Case Lead | Discuss the team's understanding of the project, micro-friction ideas, stakeholder needs and MVP expectations.\nTable row 4: Member 3 | Technical / Agentaus Lead | Ask about Agentaus API access, capabilities, documentation, limitations, privacy and technical support.\nTable row 5: Ashly | Note-taker / Action Tracker | Record key decisions, sponsor feedback, action items, owners and deadlines; monitor unanswered questions.\nAgenda\nTable row 1: Time | Agenda Item | Lead | Key Focus\nTable row 2: 5 min | 1. Welcome & Introductions | Munkhuu | Introduce the team, confirm attendees and outline the purpose of the meeting.\nTable row 3: 5-10 min | 2. Project Understanding & Expectations | Members 2 | Confirm project objectives, expected outcomes, scope, MVP complexity and success criteria.\nTable row 4: 10-20 min | 3.",
       "source": "Initial_Sponsor_Mentor_Meeting_Agenda.docx",

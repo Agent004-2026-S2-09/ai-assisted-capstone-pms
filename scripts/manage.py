@@ -1,3 +1,11 @@
+## File: scripts/manage.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Trusted local operator CLI for database setup and account administration.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Trusted local operator CLI for database setup and account administration.
 
 Run from the repository. This tool never prints or stores plaintext passwords
@@ -14,6 +22,19 @@ from app_modules import database
 
 
 def _assign(db, username, project_id, remove=False):
+    """
+    Function: _assign
+    Purpose: Execute the  assign operation.
+    Inputs:
+            db (value): Caller-provided input.
+            username (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            remove (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = db.execute(
         "SELECT id, role FROM users WHERE username = ?",
         (username.strip().casefold(),),
@@ -39,6 +60,16 @@ def _assign(db, username, project_id, remove=False):
 
 
 def main():
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     load_dotenv()
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)

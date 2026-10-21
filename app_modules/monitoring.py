@@ -1,6 +1,15 @@
+## File: app_modules/monitoring.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Privacy-conscious AI interaction monitoring and administrator reporting.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Privacy-conscious AI interaction monitoring and administrator reporting."""
 
 import hashlib
+import json
 import re
 import time
 from collections import Counter
@@ -45,6 +54,16 @@ PROMPT_TOPIC_RULES = (
 
 
 def hash_request(text):
+    """
+    Function: hash_request
+    Purpose: Execute the hash request operation.
+    Inputs:
+            text (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
 
 
@@ -65,6 +84,29 @@ def log_interaction(
     output_tokens=None,
     total_tokens=None,
 ):
+    """
+    Function: log_interaction
+    Purpose: Execute the log interaction operation.
+    Inputs:
+            user (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            assistant_mode (value): Caller-provided input.
+            prompt_name (value): Caller-provided input.
+            prompt_version (value): Caller-provided input.
+            question (value): Caller-provided input.
+            response_text (value): Caller-provided input.
+            latency_ms (value): Caller-provided input.
+            success (value): Caller-provided input.
+            error_type (value): Caller-provided input.
+            http_status (value): Caller-provided input.
+            input_tokens (value): Caller-provided input.
+            output_tokens (value): Caller-provided input.
+            total_tokens (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     current = auth.current_user(user)
     if not current:
         raise PermissionError("An active signed-in user is required.")
@@ -121,8 +163,10 @@ def log_rag_diagnostic(interaction_id, diagnostic):
             """INSERT INTO rag_diagnostics
                (interaction_id, created_at, failure_class, retrieval_relevant,
                 evidence_sufficient, validation_status, result_count, source_count,
-                structured_count, context_truncated, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                structured_count, context_truncated, notes, query_intent,
+                query_scope, query_entity, query_follow_up, subquery_count,
+                conflict_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(interaction_id) DO UPDATE SET
                  failure_class = excluded.failure_class,
                  retrieval_relevant = excluded.retrieval_relevant,
@@ -132,7 +176,13 @@ def log_rag_diagnostic(interaction_id, diagnostic):
                  source_count = excluded.source_count,
                  structured_count = excluded.structured_count,
                  context_truncated = excluded.context_truncated,
-                 notes = excluded.notes""",
+                 notes = excluded.notes,
+                 query_intent = excluded.query_intent,
+                 query_scope = excluded.query_scope,
+                 query_entity = excluded.query_entity,
+                 query_follow_up = excluded.query_follow_up,
+                 subquery_count = excluded.subquery_count,
+                 conflict_count = excluded.conflict_count""",
             (
                 interaction_id,
                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -145,8 +195,93 @@ def log_rag_diagnostic(interaction_id, diagnostic):
                 max(0, int(diagnostic.get("structured_count", 0))),
                 int(bool(diagnostic.get("context_truncated"))),
                 str(diagnostic.get("notes", ""))[:1000],
+                str(diagnostic.get("query_intent", "lookup"))[:40],
+                str(diagnostic.get("query_scope", "general"))[:40],
+                str(diagnostic.get("query_entity", "general"))[:40],
+                int(bool(diagnostic.get("query_follow_up"))),
+                max(0, int(diagnostic.get("subquery_count", 0))),
+                max(0, int(diagnostic.get("conflict_count", 0))),
             ),
         )
+
+
+def log_query_trace(interaction_id, trace):
+    """Persist bounded administrator diagnostics for one completed query."""
+
+    if not interaction_id or not isinstance(trace, dict):
+        return
+    route = trace.get("route") or {}
+    payload = {
+        "query_plan": trace.get("query_plan") or {},
+        "evidence": trace.get("evidence") or {},
+        "retrieval": trace.get("retrieval") or {},
+        "timeline": trace.get("timeline") or [],
+        "security": trace.get("security") or {},
+    }
+    with database.connect() as db:
+        db.execute(
+            """INSERT INTO ai_query_traces(
+                   interaction_id, created_at, route_source, route_filter,
+                   response_mode, final_status, query_plan_json, evidence_json,
+                   retrieval_json, timeline_json, security_json, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(interaction_id) DO UPDATE SET
+                   created_at = excluded.created_at,
+                   route_source = excluded.route_source,
+                   route_filter = excluded.route_filter,
+                   response_mode = excluded.response_mode,
+                   final_status = excluded.final_status,
+                   query_plan_json = excluded.query_plan_json,
+                   evidence_json = excluded.evidence_json,
+                   retrieval_json = excluded.retrieval_json,
+                   timeline_json = excluded.timeline_json,
+                   security_json = excluded.security_json,
+                   notes = excluded.notes""",
+            (
+                interaction_id,
+                str(trace.get("created_at") or datetime.now(timezone.utc).isoformat(timespec="seconds")),
+                str(route.get("source", "unclassified"))[:80],
+                str(route.get("filter", "none"))[:120],
+                str(route.get("response_mode", "ai"))[:40],
+                str(trace.get("final_status", "unknown"))[:60],
+                json.dumps(payload["query_plan"], ensure_ascii=False, default=str)[:4000],
+                json.dumps(payload["evidence"], ensure_ascii=False, default=str)[:4000],
+                json.dumps(payload["retrieval"], ensure_ascii=False, default=str)[:4000],
+                json.dumps(payload["timeline"], ensure_ascii=False, default=str)[:6000],
+                json.dumps(payload["security"], ensure_ascii=False, default=str)[:2000],
+                str(trace.get("notes", ""))[:1000],
+            ),
+        )
+
+
+def recent_query_traces(state, days=30, limit=200):
+    """Return administrator-only query traces with linked answer metadata."""
+
+    _admin(state)
+    since = time.time() - max(1, int(days)) * 86400
+    with database.connect() as db:
+        rows = db.execute(
+            """SELECT qt.interaction_id, qt.created_at, ai.user_role,
+                      ai.project_id, ai.assistant_mode, ai.request_chars,
+                      ai.response_chars, ai.latency_ms, ai.success,
+                      ai.error_type, ai.total_tokens, pa.question_text,
+                      ai.response_text, qt.route_source, qt.route_filter,
+                      qt.response_mode, qt.final_status, qt.query_plan_json,
+                      qt.evidence_json, qt.retrieval_json, qt.timeline_json,
+                      qt.security_json, qt.notes,
+                      COALESCE(rd.failure_class, 'not_recorded') AS failure_class,
+                      COALESCE(rd.validation_status, 'not_recorded') AS validation_status,
+                      COALESCE(rd.result_count, 0) AS result_count,
+                      COALESCE(rd.conflict_count, 0) AS conflict_count
+               FROM ai_query_traces qt
+               JOIN ai_interactions ai ON ai.id = qt.interaction_id
+               LEFT JOIN ai_prompt_archive pa ON pa.interaction_id = qt.interaction_id
+               LEFT JOIN rag_diagnostics rd ON rd.interaction_id = qt.interaction_id
+               WHERE ai.created_epoch >= ?
+               ORDER BY qt.id DESC LIMIT ?""",
+            (since, max(1, min(int(limit), 500))),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def rag_quality_metrics(state, days=30):
@@ -181,6 +316,18 @@ def rag_quality_metrics(state, days=30):
 
 
 def recent_rag_diagnostics(state, days=30, limit=100):
+    """
+    Function: recent_rag_diagnostics
+    Purpose: Execute the recent rag diagnostics operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+            limit (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:
@@ -188,7 +335,9 @@ def recent_rag_diagnostics(state, days=30, limit=100):
             """SELECT rd.interaction_id, rd.created_at, ai.assistant_mode,
                       ai.project_id, rd.failure_class, rd.retrieval_relevant,
                       rd.evidence_sufficient, rd.validation_status, rd.result_count,
-                      rd.source_count, rd.structured_count, rd.context_truncated, rd.notes
+                      rd.source_count, rd.structured_count, rd.context_truncated, rd.notes,
+                      rd.query_intent, rd.query_scope, rd.query_entity,
+                      rd.query_follow_up, rd.subquery_count, rd.conflict_count
                FROM rag_diagnostics rd JOIN ai_interactions ai
                  ON ai.id = rd.interaction_id
                WHERE rd.created_at >= datetime(?, 'unixepoch')
@@ -199,6 +348,17 @@ def recent_rag_diagnostics(state, days=30, limit=100):
 
 
 def _owned_successful_interaction(interaction_id, user):
+    """
+    Function: _owned_successful_interaction
+    Purpose: Execute the  owned successful interaction operation.
+    Inputs:
+            interaction_id (value): Caller-provided input.
+            user (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     current = auth.current_user(user)
     if not current:
         raise PermissionError("Please sign in to leave feedback.")
@@ -214,6 +374,17 @@ def _owned_successful_interaction(interaction_id, user):
 
 
 def get_feedback(interaction_id, *, user):
+    """
+    Function: get_feedback
+    Purpose: Execute the get feedback operation.
+    Inputs:
+            interaction_id (value): Caller-provided input.
+            user (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _owned_successful_interaction(interaction_id, user)
     with database.connect() as db:
         row = db.execute(
@@ -224,6 +395,19 @@ def get_feedback(interaction_id, *, user):
 
 
 def add_feedback(interaction_id, rating, comment=None, *, user):
+    """
+    Function: add_feedback
+    Purpose: Execute the add feedback operation.
+    Inputs:
+            interaction_id (value): Caller-provided input.
+            rating (value): Caller-provided input.
+            comment (value): Caller-provided input.
+            user (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _owned_successful_interaction(interaction_id, user)
     if type(rating) is not int or rating not in {-1, 1}:
         raise ValueError("Choose Helpful or Not Helpful.")
@@ -246,10 +430,31 @@ def add_feedback(interaction_id, rating, comment=None, *, user):
 
 
 def _admin(state):
+    """
+    Function: _admin
+    Purpose: Execute the  admin operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return access.require_admin(state)
 
 
 def dashboard_metrics(state, days=30):
+    """
+    Function: dashboard_metrics
+    Purpose: Execute the dashboard metrics operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:
@@ -284,6 +489,17 @@ def dashboard_metrics(state, days=30):
 
 
 def latency_series(state, days=30):
+    """
+    Function: latency_series
+    Purpose: Execute the latency series operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:
@@ -297,6 +513,17 @@ def latency_series(state, days=30):
 
 
 def recent_errors(state, limit=25):
+    """
+    Function: recent_errors
+    Purpose: Execute the recent errors operation.
+    Inputs:
+            state (value): Caller-provided input.
+            limit (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     with database.connect() as db:
         rows = db.execute(
@@ -309,6 +536,18 @@ def recent_errors(state, limit=25):
 
 
 def recent_feedback(state, days=30, limit=50):
+    """
+    Function: recent_feedback
+    Purpose: Execute the recent feedback operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+            limit (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:
@@ -323,6 +562,17 @@ def recent_feedback(state, days=30, limit=50):
 
 
 def recent_successful_interactions(state, limit=50):
+    """
+    Function: recent_successful_interactions
+    Purpose: Execute the recent successful interactions operation.
+    Inputs:
+            state (value): Caller-provided input.
+            limit (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     with database.connect() as db:
         rows = db.execute(
@@ -339,6 +589,23 @@ def recent_successful_interactions(state, limit=50):
 
 
 def add_evaluation(state, interaction_id, test_name, relevance, grounded_accuracy, hallucination_detected, notes="", usability=3):
+    """
+    Function: add_evaluation
+    Purpose: Execute the add evaluation operation.
+    Inputs:
+            state (value): Caller-provided input.
+            interaction_id (value): Caller-provided input.
+            test_name (value): Caller-provided input.
+            relevance (value): Caller-provided input.
+            grounded_accuracy (value): Caller-provided input.
+            hallucination_detected (value): Caller-provided input.
+            notes (value): Caller-provided input.
+            usability (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     if not str(test_name or "").strip():
         raise ValueError("Test case name is required.")
@@ -367,6 +634,18 @@ def add_evaluation(state, interaction_id, test_name, relevance, grounded_accurac
 
 
 def prompt_analytics(state, days=30, limit=500):
+    """
+    Function: prompt_analytics
+    Purpose: Execute the prompt analytics operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+            limit (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:
@@ -384,6 +663,17 @@ def prompt_analytics(state, days=30, limit=500):
 
 
 def summarise_prompt_terms(rows, maximum=15):
+    """
+    Function: summarise_prompt_terms
+    Purpose: Execute the summarise prompt terms operation.
+    Inputs:
+            rows (value): Caller-provided input.
+            maximum (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     stop_words = {
         "a", "about", "an", "and", "are", "can", "do", "for", "from", "how",
         "i", "in", "is", "it", "me", "my", "of", "on", "or", "please", "the",
@@ -429,6 +719,16 @@ def summarise_prompt_topics(rows, maximum=10):
 
 
 def _optional_user_id(state):
+    """
+    Function: _optional_user_id
+    Purpose: Execute the  optional user id operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not state:
         return None
     try:
@@ -475,6 +775,17 @@ def record_retrieval_event(*, state=None, project_id=None, question="", result_c
 
 
 def api_service_metrics(state, days=30):
+    """
+    Function: api_service_metrics
+    Purpose: Execute the api service metrics operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:
@@ -497,6 +808,17 @@ def api_service_metrics(state, days=30):
 
 
 def retrieval_quality_metrics(state, days=30):
+    """
+    Function: retrieval_quality_metrics
+    Purpose: Execute the retrieval quality metrics operation.
+    Inputs:
+            state (value): Caller-provided input.
+            days (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     _admin(state)
     since = time.time() - max(1, int(days)) * 86400
     with database.connect() as db:

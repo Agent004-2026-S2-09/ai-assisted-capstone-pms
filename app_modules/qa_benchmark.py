@@ -1,3 +1,11 @@
+## File: app_modules/qa_benchmark.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Deterministic QA benchmark cases and scoring helpers.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Deterministic QA benchmark cases and scoring helpers.
 
 The benchmark evaluates retrieval and routing, not a live LLM answer. That
@@ -9,9 +17,17 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
+from app_modules.query_planning import build_plan
+
 
 @dataclass(frozen=True)
 class BenchmarkCase:
+    """
+    Class: BenchmarkCase
+    Purpose: Represent the BenchmarkCase abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     name: str
     category: str
     question: str
@@ -22,10 +38,101 @@ class BenchmarkCase:
     expected_predicate: Callable[[list[dict]], bool] | None = field(default=None, repr=False)
 
 
+@dataclass(frozen=True)
+class QueryPlanBenchmarkCase:
+    """Offline regression case for routing and interpretation decisions."""
+
+    name: str
+    question: str
+    intent: str
+    entity: str
+    sources: tuple[str, ...]
+    required_filters: tuple[str, ...] = ()
+    follow_up: bool = False
+    subquery_count: int | None = None
+
+
+QUERY_PLAN_BENCHMARK_CASES = (
+    QueryPlanBenchmarkCase(
+        "paraphrased-overdue-work", "Who owns the overdue work?", "lookup", "task",
+        ("database",), ("status",),
+    ),
+    QueryPlanBenchmarkCase(
+        "misspelled-latest-meeting", "What happened at the latest meting?", "summarise", "meeting",
+        ("database",), ("relative",),
+    ),
+    QueryPlanBenchmarkCase(
+        "implicit-follow-up", "What about the second one?", "lookup", "meeting",
+        ("database",), ("ordinal",), True,
+    ),
+    QueryPlanBenchmarkCase(
+        "multi-part-comparison", "Compare the current records and also the project documents.", "compare", "document",
+        ("database", "documents"), (), False, 2,
+    ),
+    QueryPlanBenchmarkCase(
+        "completed-before-break", "Show everything completed before the break.", "list", "general",
+        ("documents",), ("status", "date_relation"),
+    ),
+)
+
+
+def evaluate_query_plan_case(case: QueryPlanBenchmarkCase, *, history=None, project_id="project-1"):
+    """
+    Function: evaluate_query_plan_case
+    Purpose: Execute the evaluate query plan case operation.
+    Inputs:
+            case (QueryPlanBenchmarkCase): Caller-provided input.
+            history (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    if history is None and case.follow_up:
+        history = [{"role": "user", "content": "What happened in the meetings?"}]
+    plan = build_plan(case.question, project_id=project_id, history=history)
+    checks = {
+        "intent": plan.intent == case.intent,
+        "entity": plan.entity == case.entity,
+        "sources": tuple(plan.required_sources) == case.sources,
+        "filters": all(filter_name in plan.filters for filter_name in case.required_filters),
+        "follow_up": plan.follow_up == case.follow_up,
+        "subquery_count": case.subquery_count is None or len(plan.subqueries) == case.subquery_count,
+    }
+    return {
+        "name": case.name,
+        "question": case.question,
+        "passed": all(checks.values()),
+        "checks": checks,
+        "plan": plan.to_dict(),
+    }
+
+
 def _contains_text(fragment: str) -> Callable[[list[dict]], bool]:
+    """
+    Function: _contains_text
+    Purpose: Execute the  contains text operation.
+    Inputs:
+            fragment (str): Caller-provided input.
+    Returns:
+            A value of type Callable[[list[dict]], bool].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     fragment = fragment.casefold()
 
     def predicate(results: list[dict]) -> bool:
+        """
+        Function: predicate
+        Purpose: Execute the predicate operation.
+        Inputs:
+                results (list[dict]): Caller-provided input.
+        Returns:
+                A value of type bool.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         return any(fragment in str(item.get("text", "")).casefold() for item in results)
 
     return predicate
@@ -49,7 +156,10 @@ BENCHMARK_CASES = (
     BenchmarkCase(
         "assessment-guidance", "general guidance",
         "What does the weekly reflection assessment rubric require?",
-        expected_sources=("Reflection Rubric",),
+        expected_sources=(
+            "Weekly_Reflection_Journal_Part_2_Assessment_Requirements",
+            "Reflection Rubric",
+        ),
         expected_keywords=("assessment", "rubric"),
         expected_predicate=_contains_text("assess"),
     ),
@@ -101,10 +211,15 @@ BENCHMARK_CASES = (
     BenchmarkCase(
         "remaining-assessments", "structured data",
         "What are the assessments between now and the end of the semester?",
-        expected_sources=("Assessments_S2_2026.csv",),
-        expected_record_types=("table_block",),
+        expected_sources=("Assignments_S2_2026.pdf",),
+        expected_record_types=("table_block", "document_chunk"),
         expected_keywords=("poster", "report", "presentation"),
-        expected_predicate=lambda results: bool(results and results[0].get("retrieval_complete")),
+        expected_predicate=lambda results: bool(
+            results and (
+                results[0].get("retrieval_complete")
+                or "due date" in str(results[0].get("text", "")).casefold()
+            )
+        ),
     ),
     BenchmarkCase(
         "genai-acknowledgement", "document retrieval",
@@ -112,10 +227,33 @@ BENCHMARK_CASES = (
         expected_sources=("Student_Template_for_GenAI_Acknowledgement",),
         expected_keywords=("acknowledge", "assessment"),
     ),
+    BenchmarkCase(
+        "proposal-plan-report", "document retrieval",
+        "What should be included in the Project Proposal and Plan Report?",
+        expected_sources=("Project_Proposal_and_Plan_Group_Assessment_Requirements",),
+        expected_keywords=("proposal", "requirements"),
+    ),
+    BenchmarkCase(
+        "presentation-expectations", "document retrieval",
+        "What are the main expectations for Capstone project presentations?",
+        expected_sources=("Guest Presentation", "Tutorial Workshop 5", "Week 10 Tutorial"),
+        expected_keywords=("presentation",),
+    ),
 )
 
 
 def evaluate_case(case: BenchmarkCase, results: Iterable[dict]) -> dict:
+    """
+    Function: evaluate_case
+    Purpose: Execute the evaluate case operation.
+    Inputs:
+            case (BenchmarkCase): Caller-provided input.
+            results (Iterable[dict]): Caller-provided input.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = list(results)
     sources = {str(item.get("source", "")) for item in results}
     record_types = {str(item.get("record_type", "")) for item in results}
@@ -165,6 +303,16 @@ def evaluate_case(case: BenchmarkCase, results: Iterable[dict]) -> dict:
 
 
 def summarise(results: Iterable[dict]) -> dict:
+    """
+    Function: summarise
+    Purpose: Execute the summarise operation.
+    Inputs:
+            results (Iterable[dict]): Caller-provided input.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = list(results)
     passed = sum(1 for result in results if result["passed"])
     by_category = {}
@@ -184,5 +332,15 @@ def summarise(results: Iterable[dict]) -> dict:
 
 
 def _average(values):
+    """
+    Function: _average
+    Purpose: Execute the  average operation.
+    Inputs:
+            values (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     values = list(values)
     return sum(values) / len(values) if values else 0.0

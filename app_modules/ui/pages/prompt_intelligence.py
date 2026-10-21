@@ -1,3 +1,11 @@
+## File: app_modules/ui/pages/prompt_intelligence.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Administrator prompt intelligence page.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Administrator prompt intelligence page."""
 
 from collections import Counter
@@ -11,6 +19,16 @@ from app_modules.ui.formatting import latency_ms, timestamp
 
 
 def render(state):
+    """
+    Function: render
+    Purpose: Execute the render operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_admin(state)
     st.title("Prompt and topic intelligence")
     st.caption("Use submitted questions to identify documentation and assistant improvements.")

@@ -1,3 +1,11 @@
+## File: app_modules/settings.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Administrator-managed feature flags and audit helpers.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Administrator-managed feature flags and audit helpers."""
 
 import json
@@ -33,6 +41,16 @@ TAB_CAPABILITIES = {
 
 
 def is_enabled(key: str) -> bool:
+    """
+    Function: is_enabled
+    Purpose: Execute the is enabled operation.
+    Inputs:
+            key (str): Caller-provided input.
+    Returns:
+            A value of type bool.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if key in ALWAYS_ENABLED:
         return True
     if key not in FEATURES and key not in TAB_CAPABILITIES:
@@ -45,6 +63,16 @@ def is_enabled(key: str) -> bool:
 
 
 def all_settings(state):
+    """
+    Function: all_settings
+    Purpose: Execute the all settings operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_admin(state)
     with database.connect() as db:
         rows = db.execute("SELECT key, value, updated_at FROM app_settings ORDER BY key").fetchall()
@@ -52,6 +80,17 @@ def all_settings(state):
 
 
 def update_settings(state, values):
+    """
+    Function: update_settings
+    Purpose: Execute the update settings operation.
+    Inputs:
+            state (value): Caller-provided input.
+            values (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     actor = access.require_admin(state)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with database.connect() as db:
@@ -71,6 +110,17 @@ def update_settings(state, values):
 
 
 def get_text_setting(key, default=""):
+    """
+    Function: get_text_setting
+    Purpose: Execute the get text setting operation.
+    Inputs:
+            key (value): Caller-provided input.
+            default (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if key not in TEXT_SETTINGS:
         raise ValueError("Unsupported text setting.")
     with database.connect() as db:
@@ -79,6 +129,18 @@ def get_text_setting(key, default=""):
 
 
 def update_text_setting(state, key, value):
+    """
+    Function: update_text_setting
+    Purpose: Execute the update text setting operation.
+    Inputs:
+            state (value): Caller-provided input.
+            key (value): Caller-provided input.
+            value (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     actor = access.require_admin(state)
     if key not in TEXT_SETTINGS:
         raise ValueError("Unsupported text setting.")

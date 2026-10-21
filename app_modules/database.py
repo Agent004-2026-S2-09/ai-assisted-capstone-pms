@@ -1,3 +1,11 @@
+## File: app_modules/database.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: SQLite persistence. These low-level helpers are for trusted application/CLI code.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """SQLite persistence. These low-level helpers are for trusted application/CLI code.
 
 Request handlers must authorize through access_control before using project writes.
@@ -13,16 +21,36 @@ import sqlite3
 from datetime import datetime, timezone
 
 ROLES = ("Student", "Mentor", "Convenor", "Administrator")
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 15
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "project_data" / "capstone.sqlite3"
 
 
 def database_path():
+    """
+    Function: database_path
+    Purpose: Execute the database path operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return Path(os.environ.get("CAPSTONE_DB_PATH", str(DEFAULT_PATH))).expanduser()
 
 
 @contextmanager
 def connect(path=None):
+    """
+    Function: connect
+    Purpose: Execute the connect operation.
+    Inputs:
+            path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     connection = sqlite3.connect(path or database_path(), timeout=15)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
@@ -348,12 +376,94 @@ def initialize(path=None, legacy_file=None):
             )""")
             db.execute("CREATE INDEX IF NOT EXISTS idx_rag_diagnostics_class_time ON rag_diagnostics(failure_class, created_at)")
             db.execute("PRAGMA user_version = 11")
+
+        # Additive v11 -> v12 migration for persistent project notifications.
+        if version < 12:
+            db.execute("""CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipient_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                comment_id INTEGER REFERENCES project_comments(id) ON DELETE SET NULL,
+                kind TEXT NOT NULL CHECK(kind IN ('discussion', 'mention')),
+                message TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                read_at TEXT
+            )""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_notifications_recipient_time ON notifications(recipient_user_id, read_at, created_at, id)")
+            db.execute("PRAGMA user_version = 12")
+
+        # Additive v12 -> v13 migration for reusable mentor guidance boxes.
+        if version < 13:
+            db.execute("""CREATE TABLE IF NOT EXISTS mentor_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                target_type TEXT NOT NULL CHECK(target_type IN ('overview','milestone','task','document')),
+                target_id TEXT NOT NULL,
+                body TEXT NOT NULL CHECK(length(trim(body)) BETWEEN 1 AND 10000),
+                author_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT,
+                UNIQUE(project_id, target_type, target_id)
+            )""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_mentor_feedback_project ON mentor_feedback(project_id, target_type, target_id)")
+            db.execute("PRAGMA user_version = 13")
+
+        # Additive v13 -> v14 migration for query-plan reliability telemetry.
+        if version < 14:
+            diagnostic_columns = {row[1] for row in db.execute("PRAGMA table_info(rag_diagnostics)").fetchall()}
+            additions = {
+                "query_intent": "TEXT NOT NULL DEFAULT 'lookup'",
+                "query_scope": "TEXT NOT NULL DEFAULT 'general'",
+                "query_entity": "TEXT NOT NULL DEFAULT 'general'",
+                "query_follow_up": "INTEGER NOT NULL DEFAULT 0 CHECK(query_follow_up IN (0,1))",
+                "subquery_count": "INTEGER NOT NULL DEFAULT 0",
+                "conflict_count": "INTEGER NOT NULL DEFAULT 0",
+            }
+            for column, definition in additions.items():
+                if column not in diagnostic_columns:
+                    db.execute(f"ALTER TABLE rag_diagnostics ADD COLUMN {column} {definition}")
+            db.execute("PRAGMA user_version = 14")
+
+        # Additive v14 -> v15 migration for administrator query traces. The
+        # trace stores bounded diagnostic metadata, not hidden model reasoning
+        # or raw retrieved document contents, and is safe to create repeatedly.
+        if version < 15:
+            db.execute("""CREATE TABLE IF NOT EXISTS ai_query_traces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                interaction_id INTEGER NOT NULL UNIQUE REFERENCES ai_interactions(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                route_source TEXT NOT NULL DEFAULT 'unclassified',
+                route_filter TEXT NOT NULL DEFAULT 'none',
+                response_mode TEXT NOT NULL DEFAULT 'ai',
+                final_status TEXT NOT NULL DEFAULT 'unknown',
+                query_plan_json TEXT NOT NULL DEFAULT '{}',
+                evidence_json TEXT NOT NULL DEFAULT '{}',
+                retrieval_json TEXT NOT NULL DEFAULT '{}',
+                timeline_json TEXT NOT NULL DEFAULT '[]',
+                security_json TEXT NOT NULL DEFAULT '{}',
+                notes TEXT NOT NULL DEFAULT ''
+            )""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_ai_query_traces_created ON ai_query_traces(created_at)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_ai_query_traces_route ON ai_query_traces(route_source, final_status)")
+            db.execute("PRAGMA user_version = 15")
     # Local database includes private profiles and password hashes.
     if os.name != "nt":
         path.chmod(0o600)
 
 
 def read_projects():
+    """
+    Function: read_projects
+    Purpose: Execute the read projects operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with connect() as db:
         return [json.loads(row[0]) for row in db.execute("SELECT profile FROM projects ORDER BY name, id")]
 

@@ -1,3 +1,11 @@
+## File: app_modules/exporting.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: AI-assisted response formatting and native document exporters.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """AI-assisted response formatting and native document exporters."""
 
 import json
@@ -46,6 +54,16 @@ def _register_pdf_fonts():
 
 
 def _fallback(answer):
+    """
+    Function: _fallback
+    Purpose: Execute the  fallback operation.
+    Inputs:
+            answer (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return {
         "title": "Capstone Assistant Response",
         "summary": "",
@@ -54,6 +72,17 @@ def _fallback(answer):
 
 
 def _parse_document(text, answer):
+    """
+    Function: _parse_document
+    Purpose: Execute the  parse document operation.
+    Inputs:
+            text (value): Caller-provided input.
+            answer (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     candidate = str(text or "").strip()
     if candidate.startswith("```"):
         candidate = re.sub(r"^```(?:json)?\s*|\s*```$", "", candidate, flags=re.IGNORECASE)
@@ -113,6 +142,16 @@ short and consistent. The project name is {project_name or 'General Capstone'}.
 
 
 def _plain(value):
+    """
+    Function: _plain
+    Purpose: Execute the  plain operation.
+    Inputs:
+            value (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return re.sub(r"[*_`#]", "", str(value or "")).strip()
 
 
@@ -126,6 +165,16 @@ def _normalised_rows(rows):
 
 
 def export_docx(document):
+    """
+    Function: export_docx
+    Purpose: Execute the export docx operation.
+    Inputs:
+            document (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     doc = Document()
     section = doc.sections[0]
     section.top_margin = Inches(0.7)
@@ -178,6 +227,16 @@ def export_docx(document):
 
 
 def export_xlsx(document):
+    """
+    Function: export_xlsx
+    Purpose: Execute the export xlsx operation.
+    Inputs:
+            document (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     workbook = Workbook()
     workbook.properties.title = _plain(document["title"])
     summary = workbook.active
@@ -245,6 +304,18 @@ def export_xlsx(document):
 
 
 def _pptx_title(slide, text, *, size=26):
+    """
+    Function: _pptx_title
+    Purpose: Execute the  pptx title operation.
+    Inputs:
+            slide (value): Caller-provided input.
+            text (value): Caller-provided input.
+            size (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     shape = slide.shapes.add_textbox(PptxInches(0.55), PptxInches(0.25), PptxInches(12.2), PptxInches(0.55))
     frame = shape.text_frame
     frame.clear()
@@ -257,6 +328,17 @@ def _pptx_title(slide, text, *, size=26):
 
 
 def _pptx_content_slide(presentation, section):
+    """
+    Function: _pptx_content_slide
+    Purpose: Execute the  pptx content slide operation.
+    Inputs:
+            presentation (value): Caller-provided input.
+            section (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     slide = presentation.slides.add_slide(presentation.slide_layouts[6])
     _pptx_title(slide, section["heading"])
     shape = slide.shapes.add_textbox(PptxInches(0.7), PptxInches(1.05), PptxInches(11.9), PptxInches(5.9))
@@ -285,6 +367,18 @@ def _pptx_content_slide(presentation, section):
 
 
 def _pptx_table_slides(presentation, heading, rows):
+    """
+    Function: _pptx_table_slides
+    Purpose: Execute the  pptx table slides operation.
+    Inputs:
+            presentation (value): Caller-provided input.
+            heading (value): Caller-provided input.
+            rows (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     rows = _normalised_rows(rows)
     if not rows:
         return
@@ -320,6 +414,16 @@ def _pptx_table_slides(presentation, heading, rows):
 
 
 def export_pptx(document):
+    """
+    Function: export_pptx
+    Purpose: Execute the export pptx operation.
+    Inputs:
+            document (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     presentation = Presentation()
     presentation.slide_width = PptxInches(13.333)
     presentation.slide_height = PptxInches(7.5)
@@ -345,6 +449,16 @@ def export_pptx(document):
 
 
 def export_pdf(document):
+    """
+    Function: export_pdf
+    Purpose: Execute the export pdf operation.
+    Inputs:
+            document (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     output = BytesIO()
     regular_font, bold_font = _register_pdf_fonts()
     styles = getSampleStyleSheet()
@@ -395,6 +509,17 @@ def export_pdf(document):
 
 
 def build_export(document, format_name):
+    """
+    Function: build_export
+    Purpose: Execute the build export operation.
+    Inputs:
+            document (value): Caller-provided input.
+            format_name (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     exporters = {"pdf": export_pdf, "docx": export_docx, "pptx": export_pptx, "xlsx": export_xlsx}
     if format_name not in exporters:
         raise ValueError("Unsupported export format.")

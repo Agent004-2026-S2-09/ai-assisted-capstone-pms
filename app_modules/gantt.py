@@ -1,3 +1,11 @@
+## File: app_modules/gantt.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Project schedule persistence, validation and Excel import/template support.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Project schedule persistence, validation and Excel import/template support."""
 
 import io
@@ -19,6 +27,16 @@ SIMPLE_HEADERS = ["WBS", "Task / Sub-task", "Start", "Finish", "days", "Status"]
 
 
 def _kanban_column(value):
+    """
+    Function: _kanban_column
+    Purpose: Execute the  kanban column operation.
+    Inputs:
+            value (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     value = str(value or "").strip().casefold().replace("-", " ")
     return {
         "backlog": "backlog", "new": "backlog",
@@ -30,6 +48,17 @@ def _kanban_column(value):
 
 
 def _canonical_status(value, progress=0):
+    """
+    Function: _canonical_status
+    Purpose: Execute the  canonical status operation.
+    Inputs:
+            value (value): Caller-provided input.
+            progress (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     value = str(value or "").strip().casefold()
     if value in {"done", "complete", "completed"} or int(progress or 0) >= 100:
         return "Completed"
@@ -41,14 +70,44 @@ def _canonical_status(value, progress=0):
 
 
 def empty_plan():
+    """
+    Function: empty_plan
+    Purpose: Execute the empty plan operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return {"tasks": []}
 
 
 def _now():
+    """
+    Function: _now
+    Purpose: Execute the  now operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _date(value):
+    """
+    Function: _date
+    Purpose: Execute the  date operation.
+    Inputs:
+            value (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
@@ -63,6 +122,16 @@ def _date(value):
 
 
 def _normalise(plan):
+    """
+    Function: _normalise
+    Purpose: Execute the  normalise operation.
+    Inputs:
+            plan (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not isinstance(plan, dict) or not isinstance(plan.get("tasks"), list):
         return empty_plan()
     tasks = []
@@ -108,6 +177,16 @@ def _normalise(plan):
 
 
 def _validate(plan):
+    """
+    Function: _validate
+    Purpose: Execute the  validate operation.
+    Inputs:
+            plan (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     tasks = plan["tasks"]
     codes = [task.get("code", "") for task in tasks if task.get("code")]
     if len(codes) != len(set(codes)):
@@ -136,6 +215,16 @@ def _validate(plan):
     }
     visiting, visited = set(), set()
     def visit(node):
+        """
+        Function: visit
+        Purpose: Execute the visit operation.
+        Inputs:
+                node (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         if node in visiting:
             raise ValueError("Gantt predecessors contain a circular dependency.")
         if node in visited:
@@ -150,6 +239,18 @@ def _validate(plan):
 
 
 def get_plan(state, project_id, seed_tasks=None):
+    """
+    Function: get_plan
+    Purpose: Execute the get plan operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            seed_tasks (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not settings.is_enabled("feature_gantt"):
         raise PermissionError("Gantt scheduling is disabled by an Administrator.")
     access.require_project(state, project_id)
@@ -174,6 +275,18 @@ def next_top_level_code(state, project_id):
 
 
 def save_plan(state, project_id, plan):
+    """
+    Function: save_plan
+    Purpose: Execute the save plan operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            plan (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_project(state, project_id)
     plan = _normalise(plan)
     _validate(plan)
@@ -210,6 +323,19 @@ def save_plan(state, project_id, plan):
 
 
 def add_task(state, project_id, task, *, sync_kanban=True):
+    """
+    Function: add_task
+    Purpose: Execute the add task operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            task (value): Caller-provided input.
+            sync_kanban (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     plan = get_plan(state, project_id)
     item = dict(task)
     item["id"] = uuid.uuid4().hex
@@ -224,6 +350,20 @@ def add_task(state, project_id, task, *, sync_kanban=True):
 
 
 def update_task(state, project_id, task_id, task, *, sync_kanban=True):
+    """
+    Function: update_task
+    Purpose: Execute the update task operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            task_id (value): Caller-provided input.
+            task (value): Caller-provided input.
+            sync_kanban (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     plan = get_plan(state, project_id)
     for index, current in enumerate(plan["tasks"]):
         if current["id"] == task_id:
@@ -241,6 +381,19 @@ def update_task(state, project_id, task_id, task, *, sync_kanban=True):
 
 
 def delete_task(state, project_id, task_id, *, sync_kanban=True):
+    """
+    Function: delete_task
+    Purpose: Execute the delete task operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            task_id (value): Caller-provided input.
+            sync_kanban (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     plan = get_plan(state, project_id)
     target = next((task for task in plan["tasks"] if task["id"] == task_id), None)
     if not target:
@@ -273,6 +426,19 @@ def delete_task(state, project_id, task_id, *, sync_kanban=True):
 
 
 def import_workbook(state, project_id, content, *, replace=False):
+    """
+    Function: import_workbook
+    Purpose: Execute the import workbook operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            content (value): Caller-provided input.
+            replace (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not settings.is_enabled("feature_gantt_import"):
         raise PermissionError("Excel Gantt import is disabled by an Administrator.")
     access.require_project(state, project_id)
@@ -393,6 +559,16 @@ def preview_workbook(content, limit=100):
 
 
 def template_bytes():
+    """
+    Function: template_bytes
+    Purpose: Execute the template bytes operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.title = "Gantt import"

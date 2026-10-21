@@ -1,3 +1,11 @@
+## File: tools/project_specific_100.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Run 100 live, project-scoped questions for one project.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Run 100 live, project-scoped questions for one project."""
 from __future__ import annotations
 
@@ -27,11 +35,31 @@ JSON_PATH = ROOT / f"docs/{OUTPUT_PREFIX}_results.json"
 
 
 def load_project():
+    """
+    Function: load_project
+    Purpose: Execute the load project operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with sqlite3.connect(ROOT / "project_data/capstone.sqlite3") as db:
         return app.Project.from_dict(json.loads(db.execute("SELECT profile FROM projects WHERE id = ?", (PROJECT_ID,)).fetchone()[0]))
 
 
 def load_schedule():
+    """
+    Function: load_schedule
+    Purpose: Execute the load schedule operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with sqlite3.connect(ROOT / "project_data/capstone.sqlite3") as db:
         gantt = json.loads(db.execute("SELECT plan_json FROM gantt_plans WHERE project_id = ?", (PROJECT_ID,)).fetchone()[0])
         kanban = json.loads(db.execute("SELECT board_json FROM kanban_boards WHERE project_id = ?", (PROJECT_ID,)).fetchone()[0])
@@ -39,9 +67,34 @@ def load_schedule():
 
 
 def build_cases(project, gantt_tasks, cards):
+    """
+    Function: build_cases
+    Purpose: Execute the build cases operation.
+    Inputs:
+            project (value): Caller-provided input.
+            gantt_tasks (value): Caller-provided input.
+            cards (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     cases = []
     number = 0
     def add(question, expected, category, structured=True):
+        """
+        Function: add
+        Purpose: Execute the add operation.
+        Inputs:
+                question (value): Caller-provided input.
+                expected (value): Caller-provided input.
+                category (value): Caller-provided input.
+                structured (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         nonlocal number
         number += 1
         cases.append(Case(number, "Project-specific", question, tuple((x,) for x in expected), category, structured=structured))
@@ -100,6 +153,16 @@ def build_cases(project, gantt_tasks, cards):
 
 
 def main():
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = load_project()
     gantt_tasks, cards = load_schedule()
     cases = build_cases(project, gantt_tasks, cards)

@@ -1,3 +1,11 @@
+## File: app_modules/vector_store.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: SQLite-backed semantic embeddings and vector similarity search.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """SQLite-backed semantic embeddings and vector similarity search.
 
 When ``sentence-transformers`` is installed, the default backend uses a
@@ -30,6 +38,16 @@ DEFAULT_DIMENSIONS = 384
 
 
 def _sentence_transformers_available() -> bool:
+    """
+    Function: _sentence_transformers_available
+    Purpose: Execute the  sentence transformers available operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type bool.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     try:
         import sentence_transformers  # noqa: F401
     except ImportError:
@@ -38,6 +56,16 @@ def _sentence_transformers_available() -> bool:
 
 
 def backend_name() -> str:
+    """
+    Function: backend_name
+    Purpose: Execute the backend name operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     configured = os.getenv("EMBEDDING_BACKEND", "auto").strip().casefold()
     if configured in {"hashing", "hashing-v1", "lexical"}:
         return "hashing"
@@ -51,6 +79,16 @@ def backend_name() -> str:
 
 
 def model_name() -> str:
+    """
+    Function: model_name
+    Purpose: Execute the model name operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if backend_name() == "hashing":
         return DEFAULT_HASHING_MODEL
     return os.getenv("EMBEDDING_MODEL_NAME", DEFAULT_NEURAL_MODEL).strip() or DEFAULT_NEURAL_MODEL
@@ -58,12 +96,32 @@ def model_name() -> str:
 
 @lru_cache(maxsize=1)
 def _sentence_model():
+    """
+    Function: _sentence_model
+    Purpose: Execute the  sentence model operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     from sentence_transformers import SentenceTransformer
 
     return SentenceTransformer(model_name())
 
 
 def dimensions() -> int:
+    """
+    Function: dimensions
+    Purpose: Execute the dimensions operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type int.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if backend_name() == "sentence-transformers":
         return int(_sentence_model().get_sentence_embedding_dimension())
     try:
@@ -73,18 +131,55 @@ def dimensions() -> int:
 
 
 def document_key(document: dict) -> str:
+    # Page/chunk metadata is not guaranteed to be unique. PDF extraction can
+    # legitimately emit multiple records on the same page with the same
+    # chunk number, especially for structured project tables. Include the
+    # content digest so those records remain distinct in SQLite.
+    """
+    Function: document_key
+    Purpose: Execute the document key operation.
+    Inputs:
+            document (dict): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    text_digest = hashlib.sha256(
+        str(document.get("text", "")).encode("utf-8", errors="ignore")
+    ).hexdigest()
     identity = "|".join(
         str(document.get(field, ""))
         for field in ("scope", "project_id", "source", "location", "chunk", "record_type")
-    )
+    ) + f"|{text_digest}"
     return hashlib.sha256(identity.encode("utf-8", errors="ignore")).hexdigest()
 
 
 def content_hash(document: dict) -> str:
+    """
+    Function: content_hash
+    Purpose: Execute the content hash operation.
+    Inputs:
+            document (dict): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return hashlib.sha256(str(document.get("text", "")).encode("utf-8", errors="ignore")).hexdigest()
 
 
 def _vectorizer() -> HashingVectorizer:
+    """
+    Function: _vectorizer
+    Purpose: Execute the  vectorizer operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type HashingVectorizer.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return HashingVectorizer(
         n_features=dimensions(),
         alternate_sign=False,
@@ -96,6 +191,17 @@ def _vectorizer() -> HashingVectorizer:
 
 
 def embed_texts(texts, *, is_query=False) -> np.ndarray:
+    """
+    Function: embed_texts
+    Purpose: Execute the embed texts operation.
+    Inputs:
+            texts (value): Caller-provided input.
+            is_query (value): Caller-provided input.
+    Returns:
+            A value of type np.ndarray.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     values = [str(text or "") for text in texts]
     if backend_name() == "sentence-transformers":
         model = _sentence_model()
@@ -114,23 +220,59 @@ def embed_texts(texts, *, is_query=False) -> np.ndarray:
 
 
 def _pack(vector: np.ndarray) -> bytes:
+    """
+    Function: _pack
+    Purpose: Execute the  pack operation.
+    Inputs:
+            vector (np.ndarray): Caller-provided input.
+    Returns:
+            A value of type bytes.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     values = np.asarray(vector, dtype=np.float32).reshape(-1)
     return struct.pack(f"<{len(values)}f", *values.tolist())
 
 
 def _unpack(blob: bytes, size: int) -> np.ndarray:
+    """
+    Function: _unpack
+    Purpose: Execute the  unpack operation.
+    Inputs:
+            blob (bytes): Caller-provided input.
+            size (int): Caller-provided input.
+    Returns:
+            A value of type np.ndarray.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return np.asarray(struct.unpack(f"<{size}f", blob), dtype=np.float32)
+
+
+def _selected_documents(documents, *, scope, project_id=None):
+    """Filter and de-duplicate source records before vector persistence."""
+    selected = []
+    seen = set()
+    for item in documents or []:
+        if not (
+            isinstance(item, dict)
+            and item.get("text")
+            and item.get("scope", "general") == scope
+            and (project_id is None or item.get("project_id") == project_id)
+        ):
+            continue
+        key = document_key(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(item)
+    return selected
 
 
 def rebuild_embeddings(documents, *, scope="general", project_id=None) -> int:
     """Replace embeddings for one authorised index scope."""
     started = time.perf_counter()
-    selected = [
-        item for item in (documents or [])
-        if isinstance(item, dict) and item.get("text")
-        and item.get("scope", "general") == scope
-        and (project_id is None or item.get("project_id") == project_id)
-    ]
+    selected = _selected_documents(documents, scope=scope, project_id=project_id)
     vectors = embed_texts([item["text"] for item in selected]) if selected else np.empty((0, dimensions()), dtype=np.float32)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with database.connect() as db:
@@ -164,12 +306,7 @@ def rebuild_embeddings(documents, *, scope="general", project_id=None) -> int:
 
 def ensure_embeddings(documents, *, scope="general", project_id=None) -> int:
     """Incrementally rebuild a scope when its SQLite vectors are stale."""
-    selected = [
-        item for item in (documents or [])
-        if isinstance(item, dict) and item.get("text")
-        and item.get("scope", "general") == scope
-        and (project_id is None or item.get("project_id") == project_id)
-    ]
+    selected = _selected_documents(documents, scope=scope, project_id=project_id)
     expected = {document_key(item): content_hash(item) for item in selected}
     with database.connect() as db:
         if project_id is None:
@@ -212,6 +349,16 @@ def score_documents(question: str, documents) -> list[float]:
 
 
 def health() -> dict:
+    """
+    Function: health
+    Purpose: Execute the health operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with database.connect() as db:
         row = db.execute(
             """SELECT COUNT(*) document_count,

@@ -1,3 +1,11 @@
+## File: tools/general_knowledge_live_certification.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Live, corpus-driven certification of the general Capstone knowledgebase.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Live, corpus-driven certification of the general Capstone knowledgebase.
 
 The runner deliberately discovers documents and indexed records at runtime.
@@ -42,6 +50,16 @@ STOP_WORDS = set(app.STOP_WORDS) | {
 
 
 def _words(text: str) -> list[str]:
+    """
+    Function: _words
+    Purpose: Execute the  words operation.
+    Inputs:
+            text (str): Caller-provided input.
+    Returns:
+            A value of type list[str].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return [
         token.casefold()
         for token in re.findall(r"[A-Za-z][A-Za-z0-9'/-]{3,}", str(text or ""))
@@ -50,6 +68,16 @@ def _words(text: str) -> list[str]:
 
 
 def _clean_topic(text: str) -> str:
+    """
+    Function: _clean_topic
+    Purpose: Execute the  clean topic operation.
+    Inputs:
+            text (str): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     lines = [re.sub(r"\s+", " ", line).strip(" -*#:") for line in str(text or "").splitlines()]
     for line in lines:
         words = _words(line)
@@ -60,6 +88,17 @@ def _clean_topic(text: str) -> str:
 
 
 def _representative_records(records: list[dict], count: int = 10) -> list[dict]:
+    """
+    Function: _representative_records
+    Purpose: Execute the  representative records operation.
+    Inputs:
+            records (list[dict]): Caller-provided input.
+            count (int): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     records = [item for item in records if str(item.get("text", "")).strip()]
     if not records:
         return []
@@ -99,6 +138,18 @@ def _representative_records(records: list[dict], count: int = 10) -> list[dict]:
 
 
 def _question(source: str, record: dict, number: int) -> str:
+    """
+    Function: _question
+    Purpose: Execute the  question operation.
+    Inputs:
+            source (str): Caller-provided input.
+            record (dict): Caller-provided input.
+            number (int): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     topic = _clean_topic(record.get("text", ""))
     source_hint = Path(source).stem
     return (
@@ -112,6 +163,16 @@ def _question(source: str, record: dict, number: int) -> str:
 
 
 def _source_records(documents: list[dict]) -> dict[str, list[dict]]:
+    """
+    Function: _source_records
+    Purpose: Execute the  source records operation.
+    Inputs:
+            documents (list[dict]): Caller-provided input.
+    Returns:
+            A value of type dict[str, list[dict]].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     grouped: dict[str, list[dict]] = defaultdict(list)
     for item in documents:
         source = str(item.get("source") or "").strip()
@@ -131,6 +192,20 @@ def _anchors(text: str) -> list[str]:
 
 
 def _verify(question: str, answer: str, target: dict, retrieved: list[dict], validation: str) -> dict:
+    """
+    Function: _verify
+    Purpose: Execute the  verify operation.
+    Inputs:
+            question (str): Caller-provided input.
+            answer (str): Caller-provided input.
+            target (dict): Caller-provided input.
+            retrieved (list[dict]): Caller-provided input.
+            validation (str): Caller-provided input.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     answer_text = app.clean_ai_response(answer)
     target_text = str(target.get("text", ""))
     target_source = str(target.get("source", ""))
@@ -165,10 +240,30 @@ def _verify(question: str, answer: str, target: dict, retrieved: list[dict], val
 
 
 def _save_checkpoint(rows: list[dict]) -> None:
+    """
+    Function: _save_checkpoint
+    Purpose: Execute the  save checkpoint operation.
+    Inputs:
+            rows (list[dict]): Caller-provided input.
+    Returns:
+            A value of type None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     CHECKPOINT_JSON.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _load_checkpoint() -> list[dict]:
+    """
+    Function: _load_checkpoint
+    Purpose: Execute the  load checkpoint operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not CHECKPOINT_JSON.exists():
         return []
     try:
@@ -179,6 +274,18 @@ def _load_checkpoint() -> list[dict]:
 
 
 def _write_docx(rows: list[dict], started: str, finished: str) -> None:
+    """
+    Function: _write_docx
+    Purpose: Execute the  write docx operation.
+    Inputs:
+            rows (list[dict]): Caller-provided input.
+            started (str): Caller-provided input.
+            finished (str): Caller-provided input.
+    Returns:
+            A value of type None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     document = Document()
     section = document.sections[0]
     section.top_margin = Inches(0.6)
@@ -235,6 +342,16 @@ def _write_docx(rows: list[dict], started: str, finished: str) -> None:
 
 
 def run() -> int:
+    """
+    Function: run
+    Purpose: Execute the run operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type int.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     st.session_state.clear()
     # This account is used only as an authenticated test actor. The password

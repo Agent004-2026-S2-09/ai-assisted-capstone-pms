@@ -1,6 +1,15 @@
+## File: app_modules/ui/pages/performance.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Administrator AI and system performance page.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Administrator AI and system performance page."""
 
 from collections import defaultdict
+import json
 
 import pandas as pd
 import streamlit as st
@@ -11,7 +20,167 @@ from app_modules import vector_store
 from app_modules.ui.formatting import latency_ms, percentile
 from app_modules.qa_benchmark import BENCHMARK_CASES, evaluate_case, summarise
 
+
+def _json_object(value, fallback=None):
+    """Safely decode bounded trace JSON for administrator display."""
+    try:
+        parsed = json.loads(value or "{}")
+        return parsed if isinstance(parsed, (dict, list)) else (fallback or {})
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return fallback if fallback is not None else {}
+
+
+def _display_trace_value(value):
+    """Return one stable, readable string for mixed trace values.
+
+    Query-plan and evidence telemetry legitimately contains strings, numbers,
+    booleans, lists and nested dictionaries.  Streamlit serialises dataframe
+    columns through Apache Arrow, which requires one compatible type per
+    column.  Converting only the diagnostic detail values keeps the stored
+    JSON unchanged while preventing display-time ArrowTypeError warnings.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _render_query_trace_section(state, days):
+    """Render the administrator query-trace tables at the bottom of the page."""
+    st.divider()
+    st.subheader("Query trace diagnostics")
+    st.caption(
+        "A stage-by-stage view of what happened during each AI query: planning, "
+        "routing, retrieval, evidence, validation, security checks and outcome. "
+        "This is administrator-only telemetry and does not include hidden model reasoning."
+    )
+    traces = monitoring.recent_query_traces(state, days, limit=200)
+    if not traces:
+        st.info("No query traces are available for this period yet.")
+        return
+
+    successful = sum(bool(row.get("success")) for row in traces)
+    failed = len(traces) - successful
+    cards = st.columns(4)
+    cards[0].metric("Traced queries", len(traces))
+    cards[1].metric("Successful", successful)
+    cards[2].metric("Failed", failed)
+    cards[3].metric(
+        "Average traced latency",
+        latency_ms(sum(int(row.get("latency_ms") or 0) for row in traces) / len(traces)),
+    )
+
+    overview = []
+    for row in traces:
+        overview.append({
+            "Interaction": row.get("interaction_id"),
+            "Time (UTC)": row.get("created_at"),
+            "Role": row.get("user_role"),
+            "Project": row.get("project_id") or "General Capstone",
+            "Question": str(row.get("question_text") or "")[:240],
+            "Route": row.get("route_source"),
+            "Filter": row.get("route_filter"),
+            "Outcome": row.get("final_status"),
+            "Failure class": row.get("failure_class"),
+            "Validation": row.get("validation_status"),
+            "Evidence": row.get("result_count"),
+            "Conflicts": row.get("conflict_count"),
+            "Latency": latency_ms(row.get("latency_ms") or 0),
+        })
+    st.dataframe(
+        overview,
+        hide_index=True,
+        width="stretch",
+        height=360,
+        alt="Recent administrator AI query trace overview",
+    )
+
+    choices = [
+        f"{row.get('interaction_id')} · {str(row.get('question_text') or '')[:100]}"
+        for row in traces
+    ]
+    selected_label = st.selectbox("Inspect one query trace", choices, key="ai_query_trace_selection")
+    selected_index = choices.index(selected_label)
+    selected = traces[selected_index]
+
+    st.markdown("#### Selected query trace")
+    st.dataframe(
+        [{
+            "Interaction": selected.get("interaction_id"),
+            "Question": selected.get("question_text") or "",
+            "Response": selected.get("response_text") or "",
+            "Route": selected.get("route_source"),
+            "Final status": selected.get("final_status"),
+            "Failure class": selected.get("failure_class"),
+            "Validation": selected.get("validation_status"),
+            "Error": selected.get("error_type") or "",
+        }],
+        hide_index=True,
+        width="stretch",
+        alt="Selected AI query question and outcome",
+    )
+
+    timeline = _json_object(selected.get("timeline_json"), fallback=[])
+    plan = _json_object(selected.get("query_plan_json"))
+    evidence = _json_object(selected.get("evidence_json"))
+    retrieval = _json_object(selected.get("retrieval_json"))
+    security = _json_object(selected.get("security_json"))
+    detail_columns = st.columns(2)
+    with detail_columns[0]:
+        st.markdown("#### Processing timeline")
+        timeline_rows = [
+            {str(key): _display_trace_value(value) for key, value in row.items()}
+            for row in timeline
+            if isinstance(row, dict)
+        ]
+        st.dataframe(
+            timeline_rows or [{"stage": "No stage detail recorded"}],
+            hide_index=True,
+            width="stretch",
+            alt="Selected query processing timeline",
+        )
+        st.markdown("#### Query plan")
+        st.dataframe(
+            [{"Field": str(key), "Value": _display_trace_value(value)} for key, value in plan.items()]
+            or [{"Field": "Status", "Value": "No plan detail recorded"}],
+            hide_index=True,
+            width="stretch",
+            alt="Selected query plan fields",
+        )
+    with detail_columns[1]:
+        st.markdown("#### Evidence and retrieval")
+        detail_rows = []
+        for label, payload in (("Evidence", evidence), ("Retrieval", retrieval), ("Security", security)):
+            for key, value in payload.items():
+                detail_rows.append({
+                    "Area": label,
+                    "Field": str(key),
+                    "Value": _display_trace_value(value),
+                })
+        st.dataframe(
+            detail_rows or [{"Area": "Status", "Field": "Detail", "Value": "No detail recorded"}],
+            hide_index=True,
+            width="stretch",
+            alt="Selected query evidence retrieval and security details",
+        )
+    if selected.get("notes"):
+        st.caption(f"Trace notes: {selected['notes']}")
+
 def render(state, render_recent_usage):
+    """
+    Function: render
+    Purpose: Execute the render operation.
+    Inputs:
+            state (value): Caller-provided input.
+            render_recent_usage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_admin(state)
     st.title("AI and system performance")
     st.caption("Monitor reliability, response quality and AI service performance.")
@@ -210,3 +379,7 @@ def render(state, render_recent_usage):
             hide_index=True,
             width="stretch",
         )
+
+    # Keep the detailed trace section at the very bottom so existing
+    # performance, RAG and benchmark panels retain their current layout.
+    _render_query_trace_section(state, days)

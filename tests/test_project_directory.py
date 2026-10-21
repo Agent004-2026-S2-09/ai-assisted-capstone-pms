@@ -1,3 +1,11 @@
+## File: tests/test_project_directory.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing test project directory functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 import pytest
 from plotly.io import to_json
 
@@ -9,6 +17,16 @@ PASSWORD = "directory-test-password"
 
 
 def test_project_directory_filters_roles_and_limits_students():
+    """
+    Function: test_project_directory_filters_roles_and_limits_students
+    Purpose: Execute the test project directory filters roles and limits students operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     student_ids = [
         auth.create_user(f"Student {index}", f"student-{index}", PASSWORD, "Student")
         for index in range(1, 6)
@@ -38,6 +56,16 @@ def test_project_directory_filters_roles_and_limits_students():
 
 
 def test_gantt_resources_are_searchable_existing_project_members_only():
+    """
+    Function: test_gantt_resources_are_searchable_existing_project_members_only
+    Purpose: Execute the test gantt resources are searchable existing project members only operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     student_id = auth.create_user("Resource Student", "resource-student", PASSWORD, "Student")
     inactive_id = auth.create_user("Inactive Student", "inactive-student", PASSWORD, "Student", active=False)
     mentor_id = auth.create_user("Resource Mentor", "resource-mentor", PASSWORD, "Mentor")
@@ -64,6 +92,16 @@ def test_gantt_resources_are_searchable_existing_project_members_only():
 
 
 def test_gantt_chart_uses_plotly_serializable_date_values(monkeypatch):
+    """
+    Function: test_gantt_chart_uses_plotly_serializable_date_values
+    Purpose: Execute the test gantt chart uses plotly serializable date values operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     rendered = []
     monkeypatch.setattr(app.st, "plotly_chart", lambda figure, **kwargs: rendered.append(to_json(figure)))
     app._render_gantt_chart([

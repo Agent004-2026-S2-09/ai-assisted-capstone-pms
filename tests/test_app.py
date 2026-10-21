@@ -1,3 +1,11 @@
+## File: tests/test_app.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing test app functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 from types import SimpleNamespace
 import io
 import json
@@ -14,12 +22,29 @@ from app_modules import access_control as access
 
 
 class SessionState(dict):
+    """
+    Class: SessionState
+    Purpose: Represent the SessionState abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
 
 
 @pytest.fixture
 def isolated_knowledge_base(tmp_path, monkeypatch):
+    """
+    Function: isolated_knowledge_base
+    Purpose: Execute the isolated knowledge base operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     knowledge_base = tmp_path / "knowledge_base"
     knowledge_index = tmp_path / "knowledge_index"
     knowledge_base.mkdir()
@@ -32,9 +57,29 @@ def isolated_knowledge_base(tmp_path, monkeypatch):
 
 
 def test_llm_plans_natural_search_without_requiring_capstone_keyword(monkeypatch):
+    """
+    Function: test_llm_plans_natural_search_without_requiring_capstone_keyword
+    Purpose: Execute the test llm plans natural search without requiring capstone keyword operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {
             "choices": [{"message": {"content": (
@@ -57,9 +102,29 @@ def test_llm_plans_natural_search_without_requiring_capstone_keyword(monkeypatch
 
 
 def test_llm_search_planner_receives_history_for_follow_up(monkeypatch):
+    """
+    Function: test_llm_search_planner_receives_history_for_follow_up
+    Purpose: Execute the test llm search planner receives history for follow up operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {
             "choices": [{"message": {"content": (
@@ -90,10 +155,31 @@ def test_llm_search_planner_receives_history_for_follow_up(monkeypatch):
     ],
 )
 def test_context_dependent_question_detection(question, expected):
+    """
+    Function: test_context_dependent_question_detection
+    Purpose: Execute the test context dependent question detection operation.
+    Inputs:
+            question (value): Caller-provided input.
+            expected (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     assert app.is_context_dependent_question(question) is expected
 
 
 def test_planner_keeps_vague_contextual_questions_in_scope(monkeypatch):
+    """
+    Function: test_planner_keeps_vague_contextual_questions_in_scope
+    Purpose: Execute the test planner keeps vague contextual questions in scope operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     monkeypatch.setattr(
         app,
         "call_agentaus",
@@ -106,6 +192,16 @@ def test_planner_keeps_vague_contextual_questions_in_scope(monkeypatch):
 
 
 def test_follow_up_retrieval_query_preserves_prior_user_context():
+    """
+    Function: test_follow_up_retrieval_query_preserves_prior_user_context
+    Purpose: Execute the test follow up retrieval query preserves prior user context operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     history = [
         {"role": "user", "content": "List all items in the schedule"},
         {"role": "assistant", "content": "Here are the schedule items."},
@@ -117,9 +213,31 @@ def test_follow_up_retrieval_query_preserves_prior_user_context():
 
 
 def test_project_search_uses_contextual_follow_up_fallback(monkeypatch):
+    """
+    Function: test_project_search_uses_contextual_follow_up_fallback
+    Purpose: Execute the test project search uses contextual follow up fallback operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     calls = []
 
     def fake_retrieve(question, documents, project_id):
+        """
+        Function: fake_retrieve
+        Purpose: Execute the fake retrieve operation.
+        Inputs:
+                question (value): Caller-provided input.
+                documents (value): Caller-provided input.
+                project_id (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(question)
         return [{
             "scope": "project",
@@ -150,14 +268,91 @@ def test_project_search_uses_contextual_follow_up_fallback(monkeypatch):
     assert len(results) == 2
 
 
+def test_project_search_falls_back_when_planner_says_out_of_scope(monkeypatch):
+    """
+    Function: test_project_search_falls_back_when_planner_says_out_of_scope
+    Purpose: Execute the test project search falls back when planner says out of scope operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    calls = []
+
+    def fake_retrieve(question, documents, project_id):
+        """
+        Function: fake_retrieve
+        Purpose: Execute the fake retrieve operation.
+        Inputs:
+                question (value): Caller-provided input.
+                documents (value): Caller-provided input.
+                project_id (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
+        calls.append(question)
+        return [{
+            "scope": "project",
+            "project_id": project_id,
+            "source": "Team Charter.docx",
+            "location": "Roles and Responsibilities",
+            "chunk": 0,
+            "record_type": "document_chunk",
+            "text": "team responsibilities evidence",
+        }]
+
+    monkeypatch.setattr(app, "require_project_access", lambda project_id: None)
+    monkeypatch.setattr(app, "retrieve_project_information", fake_retrieve)
+    monkeypatch.setattr(app, "expand_retrieval_context", lambda results, documents: results)
+
+    results = app.execute_project_search_plan(
+        {"action": "out_of_scope", "queries": []},
+        [],
+        "project-1",
+        original_question="What responsibilities are recorded in the Team Charter?",
+    )
+
+    assert calls == ["What responsibilities are recorded in the Team Charter?"]
+    assert results[0]["source"] == "Team Charter.docx"
+
+
 def test_low_signal_retrieval_requests_clarification():
+    """
+    Function: test_low_signal_retrieval_requests_clarification
+    Purpose: Execute the test low signal retrieval requests clarification operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     assert app.retrieval_needs_clarification([])
     assert app.retrieval_needs_clarification([{"score": 0.05}])
     assert not app.retrieval_needs_clarification([{"score": 0.72}])
     assert not app.retrieval_needs_clarification([{"record_type": "structured_project_context"}])
+    assert not app.retrieval_needs_clarification(
+        [{"score": 0.08, "source": "Teaching Team.docx"}],
+        "Where can a Capstone student get teaching support?",
+    )
 
 
 def test_authorised_general_document_download_requires_signed_in_user(tmp_path, monkeypatch):
+    """
+    Function: test_authorised_general_document_download_requires_signed_in_user
+    Purpose: Execute the test authorised general document download requires signed in user operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     knowledge_base = tmp_path / "knowledge_base"
     knowledge_base.mkdir()
     document = knowledge_base / "approved-guidance.txt"
@@ -173,6 +368,17 @@ def test_authorised_general_document_download_requires_signed_in_user(tmp_path, 
 
 
 def test_project_document_download_rechecks_project_access(tmp_path, monkeypatch):
+    """
+    Function: test_project_document_download_rechecks_project_access
+    Purpose: Execute the test project document download rechecks project access operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project_root = tmp_path / "project_knowledge"
     project_dir = project_root / "project-a"
     project_dir.mkdir(parents=True)
@@ -192,6 +398,17 @@ def test_project_document_download_rechecks_project_access(tmp_path, monkeypatch
 
 
 def test_document_download_rejects_paths_outside_managed_knowledge(tmp_path, monkeypatch):
+    """
+    Function: test_document_download_rejects_paths_outside_managed_knowledge
+    Purpose: Execute the test document download rejects paths outside managed knowledge operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     monkeypatch.setattr(app.access, "require_user", lambda state: {"id": 1})
     outside = tmp_path / "not-a-knowledge-document.txt"
     outside.write_text("secret", encoding="utf-8")
@@ -201,9 +418,29 @@ def test_document_download_rejects_paths_outside_managed_knowledge(tmp_path, mon
 
 
 def test_clarification_response_uses_prompt_derived_options_without_filenames(monkeypatch):
+    """
+    Function: test_clarification_response_uses_prompt_derived_options_without_filenames
+    Purpose: Execute the test clarification response uses prompt derived options without filenames operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {"choices": [{"message": {"content": "Could you clarify which area you mean?"}}]}
 
@@ -221,6 +458,16 @@ def test_clarification_response_uses_prompt_derived_options_without_filenames(mo
 
 
 def test_api_messages_include_current_question_once():
+    """
+    Function: test_api_messages_include_current_question_once
+    Purpose: Execute the test api messages include current question once operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     question = "UNIQUE_CURRENT_QUESTION"
     history = [
         {"role": "user", "content": "Earlier question"},
@@ -235,6 +482,16 @@ def test_api_messages_include_current_question_once():
 
 
 def test_model_context_does_not_expose_document_metadata():
+    """
+    Function: test_model_context_does_not_expose_document_metadata
+    Purpose: Execute the test model context does not expose document metadata operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     result = {
         "scope": "general",
         "source": "confidential-internal-name.pdf",
@@ -251,6 +508,16 @@ def test_model_context_does_not_expose_document_metadata():
 
 
 def test_academic_calendar_context_is_timezone_aware_and_deterministic():
+    """
+    Function: test_academic_calendar_context_is_timezone_aware_and_deterministic
+    Purpose: Execute the test academic calendar context is timezone aware and deterministic operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
@@ -263,6 +530,16 @@ def test_academic_calendar_context_is_timezone_aware_and_deterministic():
 
 
 def test_assessment_due_date_questions_return_complete_table():
+    """
+    Function: test_assessment_due_date_questions_return_complete_table
+    Purpose: Execute the test assessment due date questions return complete table operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "table_block",
@@ -287,6 +564,16 @@ def test_assessment_due_date_questions_return_complete_table():
 
 
 def test_search_pipeline_returns_complete_assessment_table_as_primary_evidence():
+    """
+    Function: test_search_pipeline_returns_complete_assessment_table_as_primary_evidence
+    Purpose: Execute the test search pipeline returns complete assessment table as primary evidence operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [{
         "record_type": "table_block",
         "source": "assessment.csv",
@@ -308,7 +595,51 @@ def test_search_pipeline_returns_complete_assessment_table_as_primary_evidence()
     assert "Project Proposal and Plan Report" in results[0]["text"]
 
 
+def test_assignment_workplan_delivers_template_without_inventing_official_intermediate_dates():
+    """
+    Function: test_assignment_workplan_delivers_template_without_inventing_official_intermediate_dates
+    Purpose: Execute the test assignment workplan delivers template without inventing official intermediate dates operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    schedule = {
+        "source": "Assignments_S2_2026.pdf",
+        "record_type": "document_chunk",
+        "text": (
+            "Poster Group https://example.test/poster 30/10/2026 23:59 2/11/2026 23:59 10\n"
+            "Deliverable and Report Group https://example.test/report 1/11/2026 23:59 4/11/2026 23:59 100"
+        ),
+    }
+
+    answer = app._assignment_workplan_answer(
+        "I would like a more detailed draft schedule or a template for the shared board",
+        [schedule],
+    )
+
+    assert answer
+    assert "Poster" in answer
+    assert "Deliverable and Report" in answer
+    assert "Suggested shared-board columns" in answer
+    assert "not an official unit requirement" in answer
+    assert "supplied material does not prescribe" in answer
+    assert "If you’d like" not in answer
+
+
 def test_ethics_lecture_query_prioritises_ethics_lecture_material():
+    """
+    Function: test_ethics_lecture_query_prioritises_ethics_lecture_material
+    Purpose: Execute the test ethics lecture query prioritises ethics lecture material operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -331,6 +662,16 @@ def test_ethics_lecture_query_prioritises_ethics_lecture_material():
 
 
 def test_genai_reference_query_prioritises_acknowledgement_template():
+    """
+    Function: test_genai_reference_query_prioritises_acknowledgement_template
+    Purpose: Execute the test genai reference query prioritises acknowledgement template operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -353,6 +694,16 @@ def test_genai_reference_query_prioritises_acknowledgement_template():
 
 
 def test_week_query_prioritises_source_dated_in_requested_teaching_week():
+    """
+    Function: test_week_query_prioritises_source_dated_in_requested_teaching_week
+    Purpose: Execute the test week query prioritises source dated in requested teaching week operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -375,6 +726,16 @@ def test_week_query_prioritises_source_dated_in_requested_teaching_week():
 
 
 def test_expanded_context_preserves_original_retrieval_score():
+    """
+    Function: test_expanded_context_preserves_original_retrieval_score
+    Purpose: Execute the test expanded context preserves original retrieval score operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     result = {
         "source": "guide.pdf",
         "location": "Page 2",
@@ -394,6 +755,16 @@ def test_expanded_context_preserves_original_retrieval_score():
 
 
 def test_answer_prompt_requires_real_visual_source_for_visual_requests(monkeypatch):
+    """
+    Function: test_answer_prompt_requires_real_visual_source_for_visual_requests
+    Purpose: Execute the test answer prompt requires real visual source for visual requests operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     monkeypatch.setattr(app.prompts, "get_active_prompt", lambda name: {"prompt_text": ""})
     messages, _, _ = app._build_answer_request("Can you generate visuals for the PowerPoint?", [])
     prompt = messages[0]["content"]
@@ -405,6 +776,16 @@ def test_answer_prompt_requires_real_visual_source_for_visual_requests(monkeypat
 
 
 def test_project_profile_includes_authorised_schedule_and_tasks_context():
+    """
+    Function: test_project_profile_includes_authorised_schedule_and_tasks_context
+    Purpose: Execute the test project profile includes authorised schedule and tasks context operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("AI Context Project", code="AI-CONTEXT")
     gantt.add_task(app.st.session_state, project.id, {
         "code": "1",
@@ -435,10 +816,30 @@ def test_project_profile_includes_authorised_schedule_and_tasks_context():
 
 
 def test_project_search_planner_is_told_about_authorised_structured_context(monkeypatch):
+    """
+    Function: test_project_search_planner_is_told_about_authorised_structured_context
+    Purpose: Execute the test project search planner is told about authorised structured context operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Planner Context Project")
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {"choices": [{"message": {"content": '{"action":"search","queries":["project tasks"]}'}}]}
 
@@ -450,6 +851,16 @@ def test_project_search_planner_is_told_about_authorised_structured_context(monk
 
 
 def test_project_specific_assistant_uses_only_project_documents():
+    """
+    Function: test_project_specific_assistant_uses_only_project_documents
+    Purpose: Execute the test project specific assistant uses only project documents operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     selected_project = app.create_project("Scoped assistant project")
     general = [{"scope": "general", "source": "general.txt", "text": "General guidance"}]
     project = [{"scope": "project", "project_id": selected_project.id, "source": "alpha.txt", "text": "Alpha guidance"}]
@@ -459,6 +870,16 @@ def test_project_specific_assistant_uses_only_project_documents():
 
 
 def test_completed_project_task_questions_use_exact_schedule_records():
+    """
+    Function: test_completed_project_task_questions_use_exact_schedule_records
+    Purpose: Execute the test completed project task questions use exact schedule records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Completion Facts Project")
     gantt.add_task(app.st.session_state, project.id, {
         "code": "1",
@@ -495,6 +916,16 @@ def test_completed_project_task_questions_use_exact_schedule_records():
 
 
 def test_backlog_questions_use_authoritative_kanban_records():
+    """
+    Function: test_backlog_questions_use_authoritative_kanban_records
+    Purpose: Execute the test backlog questions use authoritative kanban records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Structured Backlog Project")
     kanban.add_card(
         app.st.session_state, project.id, "Prepare UAT plan",
@@ -515,7 +946,54 @@ def test_backlog_questions_use_authoritative_kanban_records():
     assert "Already completed task" not in context
 
 
+def test_database_first_router_defers_backlog_to_kanban_filter():
+    """Backlog must not be converted into an unfiltered Gantt task query."""
+    project = app.create_project("Backlog Routing Project")
+
+    assert app._structured_project_database_answer(
+        "list all tasks that are in the Backlog",
+        project,
+    ) is None
+
+
+def test_done_questions_use_authoritative_kanban_records():
+    """Done is a Kanban column and must use the same filter boundary."""
+    project = app.create_project("Done Routing Project")
+    kanban.add_card(
+        app.st.session_state, project.id, "Completed UAT plan",
+        column_id="done", source="manual",
+    )
+
+    context = app._structured_project_task_context(
+        "list all tasks in Done",
+        project,
+    )
+
+    assert "Authoritative Kanban column: Done" in context
+    assert "Completed UAT plan" in context
+
+
+def test_database_first_router_defers_percentage_to_exact_progress_filter():
+    """An exact percentage must reach the deterministic progress filter."""
+    project = app.create_project("Progress Routing Project")
+
+    assert app._structured_project_database_answer(
+        "list all tasks that are 0% complete",
+        project,
+    ) is None
+
+
 def test_assessment_questions_do_not_use_project_task_shortcut():
+    """
+    Function: test_assessment_questions_do_not_use_project_task_shortcut
+    Purpose: Execute the test assessment questions do not use project task shortcut operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Assessment Retrieval Project")
 
     context = app._structured_project_task_context(
@@ -527,6 +1005,16 @@ def test_assessment_questions_do_not_use_project_task_shortcut():
 
 
 def test_percentage_questions_use_exact_gantt_task_records():
+    """
+    Function: test_percentage_questions_use_exact_gantt_task_records
+    Purpose: Execute the test percentage questions use exact gantt task records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Structured Progress Project")
     gantt.add_task(app.st.session_state, project.id, {
         "code": "1", "name": "Zero progress task", "type": "Task",
@@ -550,6 +1038,16 @@ def test_percentage_questions_use_exact_gantt_task_records():
 
 
 def test_all_task_questions_use_complete_structured_schedule_collection():
+    """
+    Function: test_all_task_questions_use_complete_structured_schedule_collection
+    Purpose: Execute the test all task questions use complete structured schedule collection operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Structured Task Collection Project")
     gantt.add_task(app.st.session_state, project.id, {
         "code": "1", "name": "First scheduled task", "type": "Task",
@@ -570,6 +1068,16 @@ def test_all_task_questions_use_complete_structured_schedule_collection():
 
 
 def test_structured_task_answer_restores_omitted_authoritative_rows():
+    """
+    Function: test_structured_task_answer_restores_omitted_authoritative_rows
+    Purpose: Execute the test structured task answer restores omitted authoritative rows operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = [{
         "record_type": "structured_project_context",
         "text": (
@@ -590,6 +1098,16 @@ def test_structured_task_answer_restores_omitted_authoritative_rows():
 
 
 def test_structured_meeting_answer_restores_omitted_authoritative_rows():
+    """
+    Function: test_structured_meeting_answer_restores_omitted_authoritative_rows
+    Purpose: Execute the test structured meeting answer restores omitted authoritative rows operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = [{
         "record_type": "structured_project_context",
         "text": (
@@ -612,6 +1130,16 @@ def test_structured_meeting_answer_restores_omitted_authoritative_rows():
 
 
 def test_project_relationship_questions_use_authoritative_project_records():
+    """
+    Function: test_project_relationship_questions_use_authoritative_project_records
+    Purpose: Execute the test project relationship questions use authoritative project records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project(
         "Relationship Project", sponsor="Sponsor Person", mentor="Mentor Person"
     )
@@ -642,6 +1170,16 @@ def test_project_relationship_questions_use_authoritative_project_records():
 
 
 def test_refusal_does_not_append_project_profile_details():
+    """
+    Function: test_refusal_does_not_append_project_profile_details
+    Purpose: Execute the test refusal does not append project profile details operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = SimpleNamespace(
         id="selected-project",
         mentor="Private Mentor",
@@ -662,11 +1200,31 @@ def test_refusal_does_not_append_project_profile_details():
 
 
 def test_completion_context_still_uses_ai_generation_and_grounding(monkeypatch):
+    """
+    Function: test_completion_context_still_uses_ai_generation_and_grounding
+    Purpose: Execute the test completion context still uses ai generation and grounding operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("AI Completion Response Project")
     context = app._structured_project_completion_context("list all completed tasks", project)
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {"choices": [{"message": {"content": "AI-generated completion response"}}]}
 
@@ -690,7 +1248,47 @@ def test_completion_context_still_uses_ai_generation_and_grounding(monkeypatch):
     assert "Authoritative completion count" in calls[0][0]["content"]
 
 
+def test_structured_project_evidence_still_uses_ai_generation(monkeypatch):
+    """Structured records are evidence for AgentAus, not a final answer."""
+    calls = []
+    project = app.create_project("Selected Project")
+
+    def fake_agentaus(messages):
+        calls.append(messages)
+        return {"choices": [{"message": {"content": "AI-written project explanation"}}]}
+
+    monkeypatch.setattr(app, "call_agentaus", fake_agentaus)
+    monkeypatch.setenv("ENABLE_ANSWER_VALIDATION", "false")
+    answer = app.generate_response(
+        "What is the current project status?",
+        [{
+            "scope": "project",
+            "project_id": project.id,
+            "record_type": "structured_project_context",
+            "location": "Authoritative project database",
+            "text": "Project status: Active. Current milestone: Integration.",
+            "retrieval_complete": True,
+        }],
+        project=project,
+    )
+
+    assert answer == "AI-written project explanation"
+    assert calls
+    assert "Project status: Active" in calls[0][0]["content"]
+
+
 def test_deleted_document_invalidates_index(isolated_knowledge_base, monkeypatch):
+    """
+    Function: test_deleted_document_invalidates_index
+    Purpose: Execute the test deleted document invalidates index operation.
+    Inputs:
+            isolated_knowledge_base (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     document = isolated_knowledge_base / "guide.txt"
     document.write_text("Capstone milestone guidance", encoding="utf-8")
     indexed, errors = app.rebuild_index()
@@ -709,6 +1307,17 @@ def test_deleted_document_invalidates_index(isolated_knowledge_base, monkeypatch
 def test_legacy_mtime_index_migrates_without_rebuilding(
     isolated_knowledge_base, monkeypatch
 ):
+    """
+    Function: test_legacy_mtime_index_migrates_without_rebuilding
+    Purpose: Execute the test legacy mtime index migrates without rebuilding operation.
+    Inputs:
+            isolated_knowledge_base (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     document = isolated_knowledge_base / "guide.txt"
     document.write_text("Capstone milestone guidance", encoding="utf-8")
     indexed, errors = app.rebuild_index()
@@ -732,6 +1341,16 @@ def test_legacy_mtime_index_migrates_without_rebuilding(
 def test_unreadable_upload_does_not_replace_existing_document(
     isolated_knowledge_base,
 ):
+    """
+    Function: test_unreadable_upload_does_not_replace_existing_document
+    Purpose: Execute the test unreadable upload does not replace existing document operation.
+    Inputs:
+            isolated_knowledge_base (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     document = isolated_knowledge_base / "guide.txt"
     original = b"Original approved Capstone guidance"
     document.write_bytes(original)
@@ -747,6 +1366,17 @@ def test_upload_rolls_back_files_and_index_when_rebuild_fails(
     isolated_knowledge_base,
     monkeypatch,
 ):
+    """
+    Function: test_upload_rolls_back_files_and_index_when_rebuild_fails
+    Purpose: Execute the test upload rolls back files and index when rebuild fails operation.
+    Inputs:
+            isolated_knowledge_base (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     document = isolated_knowledge_base / "guide.txt"
     original = b"Original approved Capstone guidance"
     document.write_bytes(original)
@@ -754,6 +1384,16 @@ def test_upload_rolls_back_files_and_index_when_rebuild_fails(
     original_index = app.INDEX_FILE.read_bytes()
 
     def fail_rebuild():
+        """
+        Function: fail_rebuild
+        Purpose: Execute the fail rebuild operation.
+        Inputs:
+                None.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         raise OSError("simulated index failure")
 
     monkeypatch.setattr(app, "rebuild_index", fail_rebuild)
@@ -766,6 +1406,16 @@ def test_upload_rolls_back_files_and_index_when_rebuild_fails(
 
 
 def test_duplicate_upload_names_are_rejected(isolated_knowledge_base):
+    """
+    Function: test_duplicate_upload_names_are_rejected
+    Purpose: Execute the test duplicate upload names are rejected operation.
+    Inputs:
+            isolated_knowledge_base (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with pytest.raises(ValueError, match="duplicate filenames"):
         app.install_uploaded_files(
             [("guide.txt", b"First"), ("guide.txt", b"Second")]
@@ -776,6 +1426,17 @@ def test_new_upload_is_found_through_llm_search_without_capstone_keyword(
     isolated_knowledge_base,
     monkeypatch,
 ):
+    """
+    Function: test_new_upload_is_found_through_llm_search_without_capstone_keyword
+    Purpose: Execute the test new upload is found through llm search without capstone keyword operation.
+    Inputs:
+            isolated_knowledge_base (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     app.install_uploaded_files(
         [
             (
@@ -788,6 +1449,16 @@ def test_new_upload_is_found_through_llm_search_without_capstone_keyword(
     documents = app.load_index()
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         return {
             "choices": [{"message": {"content": (
                 '{"action":"search","queries":["Phoenix protocol coordinator"]}'
@@ -808,6 +1479,16 @@ def test_new_upload_is_found_through_llm_search_without_capstone_keyword(
 
 
 def test_named_multi_document_question_keeps_retrieval_inside_named_sources(monkeypatch):
+    """
+    Function: test_named_multi_document_question_keeps_retrieval_inside_named_sources
+    Purpose: Execute the test named multi document question keeps retrieval inside named sources operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Stakeholder guidance from the named document.",
@@ -830,6 +1511,17 @@ def test_named_multi_document_question_keeps_retrieval_inside_named_sources(monk
     ]
 
     def fake_retrieve(question, corpus, **kwargs):
+        """
+        Function: fake_retrieve
+        Purpose: Execute the fake retrieve operation.
+        Inputs:
+                question (value): Caller-provided input.
+                corpus (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         return [corpus[-1], corpus[0]]
 
     monkeypatch.setattr(app, "retrieve_information", fake_retrieve)
@@ -847,6 +1539,16 @@ def test_named_multi_document_question_keeps_retrieval_inside_named_sources(monk
 
 
 def test_exact_project_id_bypasses_ambiguous_page_number():
+    """
+    Function: test_exact_project_id_bypasses_ambiguous_page_number
+    Purpose: Execute the test exact project id bypasses ambiguous page number operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Unrelated content on page 47 for the 2026 S2 project list",
@@ -872,6 +1574,16 @@ def test_exact_project_id_bypasses_ambiguous_page_number():
 
 
 def test_general_guidance_questions_exclude_project_catalogue_records():
+    """
+    Function: test_general_guidance_questions_exclude_project_catalogue_records
+    Purpose: Execute the test general guidance questions exclude project catalogue records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "University Capstone technology support includes cloud resources and hardware.",
@@ -897,6 +1609,16 @@ def test_general_guidance_questions_exclude_project_catalogue_records():
 
 
 def test_project_catalogue_questions_retain_project_records():
+    """
+    Function: test_project_catalogue_questions_retain_project_records
+    Purpose: Execute the test project catalogue questions retain project records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Project ID: 2026-S2-01 Project title: Available project",
@@ -914,7 +1636,49 @@ def test_project_catalogue_questions_retain_project_records():
     assert results[0].get("record_type") == "project"
 
 
+def test_project_id_lookup_accepts_copied_unicode_punctuation():
+    """
+    Function: test_project_id_lookup_accepts_copied_unicode_punctuation
+    Purpose: Verify mobile and document punctuation does not break project routing.
+    Inputs:
+            None.
+    Returns:
+            None.
+    Raises/side effects:
+            None; this is a deterministic retrieval regression test.
+    """
+    documents = [
+        {
+            "text": "Project ID: 2026-S2-21 Project title: Anomaly Detection",
+            "source": "catalogue.pdf",
+            "location": "Page 6",
+            "record_type": "project",
+            "project_id": "2026-S2-21",
+            "title": "Anomaly Detection",
+        },
+    ]
+
+    results = app.retrieve_information(
+        "give me more details of Project ID:\u202f2026\u2011S2\u201121",
+        documents,
+    )
+
+    assert results
+    assert results[0]["project_id"] == "2026-S2-21"
+    assert results[0]["retrieval_reason"] == "exact project ID"
+
+
 def test_document_context_expands_adjacent_pdf_pages():
+    """
+    Function: test_document_context_expands_adjacent_pdf_pages
+    Purpose: Execute the test document context expands adjacent pdf pages operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Support overview", "source": "support.pdf", "location": "Page 1",
@@ -936,6 +1700,16 @@ def test_document_context_expands_adjacent_pdf_pages():
 
 
 def test_broad_overview_retrieval_covers_each_general_source():
+    """
+    Function: test_broad_overview_retrieval_covers_each_general_source
+    Purpose: Execute the test broad overview retrieval covers each general source operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Capstone governance and sponsor guidance.",
@@ -964,6 +1738,16 @@ def test_broad_overview_retrieval_covers_each_general_source():
 
 
 def test_semantic_retrieval_path_handles_three_or_more_documents():
+    """
+    Function: test_semantic_retrieval_path_handles_three_or_more_documents
+    Purpose: Execute the test semantic retrieval path handles three or more documents operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Capstone project governance includes weekly sponsor meetings.",
@@ -992,6 +1776,16 @@ def test_semantic_retrieval_path_handles_three_or_more_documents():
 
 
 def test_exhaustive_catalogue_request_is_not_limited_by_top_k():
+    """
+    Function: test_exhaustive_catalogue_request_is_not_limited_by_top_k
+    Purpose: Execute the test exhaustive catalogue request is not limited by top k operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": f"Project ID: 2026-S2-{number:02d}\nProject title: Title {number}",
@@ -1013,6 +1807,16 @@ def test_exhaustive_catalogue_request_is_not_limited_by_top_k():
 
 
 def test_long_catalogue_is_parsed_into_complete_project_records():
+    """
+    Function: test_long_catalogue_is_parsed_into_complete_project_records
+    Purpose: Execute the test long catalogue is parsed into complete project records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     catalogue = app.KB_DIR / "List of project S2 2026 V.1.pdf"
     if not catalogue.exists():
         pytest.skip("The catalogue integration fixture is not available")
@@ -1031,6 +1835,16 @@ def test_long_catalogue_is_parsed_into_complete_project_records():
 
 
 def test_csv_rows_and_headers_are_indexed_and_searchable(tmp_path):
+    """
+    Function: test_csv_rows_and_headers_are_indexed_and_searchable
+    Purpose: Execute the test csv rows and headers are indexed and searchable operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     csv_file = tmp_path / "project_risks.csv"
     csv_file.write_text(
         "Risk owner,Description,Rating\n"
@@ -1054,6 +1868,16 @@ def test_csv_rows_and_headers_are_indexed_and_searchable(tmp_path):
 
 
 def test_csv_header_is_schema_and_blank_cells_are_explicit(tmp_path):
+    """
+    Function: test_csv_header_is_schema_and_blank_cells_are_explicit
+    Purpose: Execute the test csv header is schema and blank cells are explicit operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     csv_file = tmp_path / "assessments.csv"
     csv_file.write_text(
         "Assessment,Due Date,Available Until,Points\n"
@@ -1071,6 +1895,16 @@ def test_csv_header_is_schema_and_blank_cells_are_explicit(tmp_path):
 
 
 def test_exhaustive_csv_query_returns_all_table_chunks(tmp_path):
+    """
+    Function: test_exhaustive_csv_query_returns_all_table_chunks
+    Purpose: Execute the test exhaustive csv query returns all table chunks operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     csv_file = tmp_path / "assessments.csv"
     rows = ["Assessment,Due Date,Available Until,Points"]
     rows.extend(
@@ -1092,6 +1926,16 @@ def test_exhaustive_csv_query_returns_all_table_chunks(tmp_path):
 
 
 def test_powerpoint_table_cells_are_extracted(tmp_path):
+    """
+    Function: test_powerpoint_table_cells_are_extracted
+    Purpose: Execute the test powerpoint table cells are extracted operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     presentation = app.Presentation()
     slide = presentation.slides.add_slide(presentation.slide_layouts[6])
     table = slide.shapes.add_table(2, 2, 0, 0, 5000000, 1000000).table
@@ -1108,6 +1952,16 @@ def test_powerpoint_table_cells_are_extracted(tmp_path):
 
 
 def test_word_headers_body_and_tables_are_all_indexed(tmp_path):
+    """
+    Function: test_word_headers_body_and_tables_are_all_indexed
+    Purpose: Execute the test word headers body and tables are all indexed operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     document = app.Document()
     document.sections[0].header.paragraphs[0].text = "Policy version 7"
     document.add_heading("Assessment", level=1)
@@ -1127,6 +1981,16 @@ def test_word_headers_body_and_tables_are_all_indexed(tmp_path):
 
 
 def test_excel_formulas_and_values_are_preserved(tmp_path):
+    """
+    Function: test_excel_formulas_and_values_are_preserved
+    Purpose: Execute the test excel formulas and values are preserved operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "Budget"
@@ -1143,6 +2007,16 @@ def test_excel_formulas_and_values_are_preserved(tmp_path):
 
 
 def test_named_non_project_file_is_not_forced_into_project_catalogue_search():
+    """
+    Function: test_named_non_project_file_is_not_forced_into_project_catalogue_search
+    Purpose: Execute the test named non project file is not forced into project catalogue search operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "Project ID: 2026-S2-01\nProject title: Unrelated project",
@@ -1169,6 +2043,16 @@ def test_named_non_project_file_is_not_forced_into_project_catalogue_search():
 def test_requested_projects_are_random_non_repeating_batches_and_answer_uses_llm(
     monkeypatch,
 ):
+    """
+    Function: test_requested_projects_are_random_non_repeating_batches_and_answer_uses_llm
+    Purpose: Execute the test requested projects are random non repeating batches and answer uses llm operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": f"Project ID: 2026-S2-{number:02d}\nProject title: Title {number}",
@@ -1186,6 +2070,16 @@ def test_requested_projects_are_random_non_repeating_batches_and_answer_uses_llm
     api_calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         api_calls.append(messages)
         return {
             "choices": [
@@ -1229,6 +2123,16 @@ def test_requested_projects_are_random_non_repeating_batches_and_answer_uses_llm
 
 
 def test_source_sections_are_removed_from_assistant_output():
+    """
+    Function: test_source_sections_are_removed_from_assistant_output
+    Purpose: Execute the test source sections are removed from assistant output operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     answer = (
         "Here are five suitable projects.\n\n"
         "**Sources**\n\n"
@@ -1239,6 +2143,16 @@ def test_source_sections_are_removed_from_assistant_output():
 
 
 def test_ai_response_markup_is_normalised_without_losing_line_breaks():
+    """
+    Function: test_ai_response_markup_is_normalised_without_losing_line_breaks
+    Purpose: Execute the test ai response markup is normalised without losing line breaks operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     answer = (
         "Project Plan Allocation:<br>"
         " - Chernor Bah – Sections 3 &amp; 5<br>"
@@ -1254,18 +2168,89 @@ def test_ai_response_markup_is_normalised_without_losing_line_breaks():
 
 
 def test_clean_ai_response_removes_internal_evidence_labels():
+    """
+    Function: test_clean_ai_response_removes_internal_evidence_labels
+    Purpose: Execute the test clean ai response removes internal evidence labels operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     response = "The project requires a report (Evidence 9). Evidence item 2 confirms the deadline."
 
     assert app.clean_ai_response(response) == "The project requires a report. confirms the deadline."
 
 
 def test_clean_ai_response_removes_unicode_reference_markers():
+    """
+    Function: test_clean_ai_response_removes_unicode_reference_markers
+    Purpose: Execute the test clean ai response removes unicode reference markers operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     response = "Work Breakdown Structure (WBS) details the work required【】. See the source【12†source】."
 
     assert app.clean_ai_response(response) == "Work Breakdown Structure (WBS) details the work required. See the source."
 
 
+def test_clean_ai_response_hides_file_paths_and_page_details():
+    """
+    Function: test_clean_ai_response_hides_file_paths_and_page_details
+    Purpose: Ensure internal retrieval file details cannot reach students.
+    Inputs:
+            None
+    Returns:
+            None
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    response = (
+        "According to knowledge_base/guides/Week 1.pdf (page 3), "
+        "the project brief requires a clear scope."
+    )
+
+    cleaned = app.clean_ai_response(response)
+
+    assert "Week 1.pdf" not in cleaned
+    assert "knowledge_base/" not in cleaned
+    assert "page 3" not in cleaned.lower()
+    assert "the approved material" in cleaned
+
+
+def test_clean_ai_response_removes_explicit_file_metadata_lines():
+    """
+    Function: test_clean_ai_response_removes_explicit_file_metadata_lines
+    Purpose: Ensure provider metadata labels are not shown in final answers.
+    Inputs:
+            None
+    Returns:
+            None
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    response = "Source: Team Charter.docx\nThe team meets weekly."
+
+    assert app.clean_ai_response(response) == "The team meets weekly."
+
+
 def test_embedded_package_image_ocr_is_added_as_searchable_evidence(tmp_path, monkeypatch):
+    """
+    Function: test_embedded_package_image_ocr_is_added_as_searchable_evidence
+    Purpose: Execute the test embedded package image ocr is added as searchable evidence operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     package = tmp_path / "document.docx"
     with zipfile.ZipFile(package, "w") as archive:
         archive.writestr("word/media/image1.png", b"image-bytes")
@@ -1281,6 +2266,16 @@ def test_embedded_package_image_ocr_is_added_as_searchable_evidence(tmp_path, mo
 
 
 def test_text_extraction_preserves_common_legacy_encoding(tmp_path):
+    """
+    Function: test_text_extraction_preserves_common_legacy_encoding
+    Purpose: Execute the test text extraction preserves common legacy encoding operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     path = tmp_path / "legacy.txt"
     path.write_bytes("Café résumé".encode("cp1252"))
 
@@ -1290,6 +2285,16 @@ def test_text_extraction_preserves_common_legacy_encoding(tmp_path):
 
 
 def test_ingestion_report_exposes_extraction_quality(tmp_path):
+    """
+    Function: test_ingestion_report_exposes_extraction_quality
+    Purpose: Execute the test ingestion report exposes extraction quality operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     path = tmp_path / "notes.txt"
     path.write_text("Approved guidance", encoding="utf-8")
 
@@ -1313,9 +2318,29 @@ def test_ingestion_report_exposes_extraction_quality(tmp_path):
 
 
 def test_no_retrieval_results_fail_closed_without_calling_llm(monkeypatch):
+    """
+    Function: test_no_retrieval_results_fail_closed_without_calling_llm
+    Purpose: Execute the test no retrieval results fail closed without calling llm operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     api_calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         api_calls.append(messages)
         return {"choices": [{"message": {"content": "LLM handled missing context"}}]}
 
@@ -1328,6 +2353,16 @@ def test_no_retrieval_results_fail_closed_without_calling_llm(monkeypatch):
 
 
 def test_sensitive_inventory_questions_fail_closed_without_llm_or_metadata():
+    """
+    Function: test_sensitive_inventory_questions_fail_closed_without_llm_or_metadata
+    Purpose: Execute the test sensitive inventory questions fail closed without llm or metadata operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     answer = app.generate_response(
         "What documents and files do you have in your knowledge base?",
         [{
@@ -1341,7 +2376,67 @@ def test_sensitive_inventory_questions_fail_closed_without_llm_or_metadata():
     assert "confidential.docx" not in answer
 
 
+def test_project_facts_comparison_uses_current_records_and_authorised_documents(monkeypatch):
+    """
+    Function: test_project_facts_comparison_uses_current_records_and_authorised_documents
+    Purpose: Execute the test project facts comparison uses current records and authorised documents operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    question = (
+        "What current project facts come from the database, and how do they "
+        "compare with the authorised project documents?"
+    )
+    assert app.is_project_facts_comparison_question(question)
+
+    project = SimpleNamespace(id="demo-project")
+    monkeypatch.setattr(app, "require_project_access", lambda project_id: None)
+    monkeypatch.setattr(
+        app,
+        "build_project_profile",
+        lambda project, include_operational_context=False: (
+            "Project ID: demo-project\nProject name: Demo Project\nStatus: Active"
+        ),
+    )
+    monkeypatch.setattr(
+        app.evidence_retrieval,
+        "retrieve",
+        lambda documents, query, top_k=2, minimum_score=0.0: documents[:top_k],
+    )
+    context = app._structured_project_facts_comparison_context(
+        question,
+        project,
+        [{
+            "scope": "project",
+            "project_id": "demo-project",
+            "source": "Team Charter.docx",
+            "location": "Section 1",
+            "chunk": 1,
+            "text": "Project name: Demo Project; team responsibilities are recorded here.",
+        }],
+    )
+
+    assert "AUTHORITATIVE CURRENT PROJECT RECORDS" in context
+    assert "Project ID: demo-project" in context
+    assert "DOCUMENT: Team Charter.docx" in context
+    assert "COMPARISON RULE" in context
+
+
 def test_ordinary_policy_questions_do_not_rank_incidental_spreadsheet_rows():
+    """
+    Function: test_ordinary_policy_questions_do_not_rank_incidental_spreadsheet_rows
+    Purpose: Execute the test ordinary policy questions do not rank incidental spreadsheet rows operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "text": "A1=Risk Log Guidelines | A2=Student risks and team controls",
@@ -1366,9 +2461,29 @@ def test_ordinary_policy_questions_do_not_rank_incidental_spreadsheet_rows():
 
 
 def test_non_capstone_response_uses_llm_api(monkeypatch):
+    """
+    Function: test_non_capstone_response_uses_llm_api
+    Purpose: Execute the test non capstone response uses llm api operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     api_calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         api_calls.append(messages)
         return {"choices": [{"message": {"content": "LLM scope response"}}]}
 
@@ -1381,6 +2496,16 @@ def test_non_capstone_response_uses_llm_api(monkeypatch):
 
 
 def test_private_context_reports_items_omitted_by_token_budget():
+    """
+    Function: test_private_context_reports_items_omitted_by_token_budget
+    Purpose: Execute the test private context reports items omitted by token budget operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = [
         {
             "text": "Detailed milestone guidance " * 12,
@@ -1404,6 +2529,16 @@ def test_private_context_reports_items_omitted_by_token_budget():
 
 
 def test_private_context_compresses_broad_retrieval_without_dropping_complete_table():
+    """
+    Function: test_private_context_compresses_broad_retrieval_without_dropping_complete_table
+    Purpose: Execute the test private context compresses broad retrieval without dropping complete table operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = [
         {
             "text": "Headers: Assessment | Due Date\nRow 2: Assessment=Poster | Due Date=30/10/2026",
@@ -1434,12 +2569,32 @@ def test_private_context_compresses_broad_retrieval_without_dropping_complete_ta
     assert metadata["truncated"] is False
 
 
-def test_adaptive_validation_skips_second_pass_for_high_signal_evidence():
+def test_grounded_answer_validation_runs_for_high_signal_evidence():
+    """
+    Function: test_grounded_answer_validation_runs_for_high_signal_evidence
+    Purpose: Execute the test grounded answer validation runs for high signal evidence operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = [{"score": 0.9, "retrieval_complete": True, "record_type": "table_block"}]
-    assert app.should_validate_answer(results, {"truncated": False}) is False
+    assert app.should_validate_answer(results, {"truncated": False}) is True
 
 
 def test_conversation_history_is_limited_by_token_budget(monkeypatch):
+    """
+    Function: test_conversation_history_is_limited_by_token_budget
+    Purpose: Execute the test conversation history is limited by token budget operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     monkeypatch.setattr(app, "MAX_CONVERSATION_HISTORY_TOKENS", 12)
     history = [
         {"role": "user", "content": "old " * 30},
@@ -1456,13 +2611,49 @@ def test_conversation_history_is_limited_by_token_budget(monkeypatch):
 
 
 def test_agentaus_sse_stream_is_parsed_and_usage_recorded(monkeypatch):
+    """
+    Function: test_agentaus_sse_stream_is_parsed_and_usage_recorded
+    Purpose: Execute the test agentaus sse stream is parsed and usage recorded operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     class FakeResponse:
+        """
+        Class: FakeResponse
+        Purpose: Represent the FakeResponse abstraction.
+        Responsibilities:
+                Preserve the existing class interface and behaviour.
+        """
         headers = {"Content-Type": "text/event-stream; charset=utf-8"}
 
         def raise_for_status(self):
+            """
+            Function: raise_for_status
+            Purpose: Execute the raise for status operation.
+            Inputs:
+                    None.
+            Returns:
+                    The function result, or None where no value is returned.
+            Raises/side effects:
+                    Existing validation, authorization, persistence, and error handling apply.
+            """
             return None
 
         def iter_lines(self, decode_unicode=True):
+            """
+            Function: iter_lines
+            Purpose: Execute the iter lines operation.
+            Inputs:
+                    decode_unicode (value): Caller-provided input.
+            Returns:
+                    The function result, or None where no value is returned.
+            Raises/side effects:
+                    Existing validation, authorization, persistence, and error handling apply.
+            """
             return iter([
                 'data: {"choices":[{"delta":{"content":"Hello "}}]}',
                 'data: {"choices":[{"delta":{"content":"there"}}]}',
@@ -1471,11 +2662,31 @@ def test_agentaus_sse_stream_is_parsed_and_usage_recorded(monkeypatch):
             ])
 
         def close(self):
+            """
+            Function: close
+            Purpose: Execute the close operation.
+            Inputs:
+                    None.
+            Returns:
+                    The function result, or None where no value is returned.
+            Raises/side effects:
+                    Existing validation, authorization, persistence, and error handling apply.
+            """
             return None
 
     request_details = {}
 
     def fake_post(*args, **kwargs):
+        """
+        Function: fake_post
+        Purpose: Execute the fake post operation.
+        Inputs:
+                None.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         request_details.update(kwargs)
         return FakeResponse()
 
@@ -1493,6 +2704,16 @@ def test_agentaus_sse_stream_is_parsed_and_usage_recorded(monkeypatch):
 
 
 def test_api_service_error_message_explains_unreachable_endpoint():
+    """
+    Function: test_api_service_error_message_explains_unreachable_endpoint
+    Purpose: Execute the test api service error message explains unreachable endpoint operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     error = app.requests.exceptions.ConnectionError("DNS lookup failed")
 
     message = app.api_service_error_message(error)
@@ -1502,6 +2723,16 @@ def test_api_service_error_message_explains_unreachable_endpoint():
 
 
 def test_api_service_error_message_includes_provider_http_status():
+    """
+    Function: test_api_service_error_message_includes_provider_http_status
+    Purpose: Execute the test api service error message includes provider http status operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     response = SimpleNamespace(status_code=401)
     error = app.requests.exceptions.HTTPError(response=response)
 
@@ -1511,6 +2742,16 @@ def test_api_service_error_message_includes_provider_http_status():
 
 
 def test_stream_filter_removes_sources_without_hiding_long_answer():
+    """
+    Function: test_stream_filter_removes_sources_without_hiding_long_answer
+    Purpose: Execute the test stream filter removes sources without hiding long answer operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     visible = "A" * 120
     chunks = list(app._without_source_section([visible, "\nSources\nprivate.pdf"]))
 
@@ -1519,13 +2760,44 @@ def test_stream_filter_removes_sources_without_hiding_long_answer():
 
 
 def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
+    """
+    Function: test_grounded_stream_shows_validation_instead_of_draft
+    Purpose: Execute the test grounded stream shows validation instead of draft operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {"choices": [{"message": {"content": "Unvalidated draft"}}]}
 
     def fake_stream(messages, stage="answer"):
+        """
+        Function: fake_stream
+        Purpose: Execute the fake stream operation.
+        Inputs:
+                messages (value): Caller-provided input.
+                stage (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         assert stage == "answer_validation"
         assert "strict factual editor" in messages[0]["content"]
         yield "Checked "
@@ -1544,13 +2816,44 @@ def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
 
 
 def test_validation_stream_failure_does_not_trigger_a_second_full_completion(monkeypatch):
+    """
+    Function: test_validation_stream_failure_does_not_trigger_a_second_full_completion
+    Purpose: Execute the test validation stream failure does not trigger a second full completion operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     calls = []
 
     def fake_agentaus(messages):
+        """
+        Function: fake_agentaus
+        Purpose: Execute the fake agentaus operation.
+        Inputs:
+                messages (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         calls.append(messages)
         return {"choices": [{"message": {"content": "Grounded draft"}}]}
 
     def failed_stream(messages, stage="answer"):
+        """
+        Function: failed_stream
+        Purpose: Execute the failed stream operation.
+        Inputs:
+                messages (value): Caller-provided input.
+                stage (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         assert stage == "answer_validation"
         raise app.requests.exceptions.HTTPError(
             response=type("Response", (), {"status_code": 406})()
@@ -1574,17 +2877,55 @@ def test_validation_stream_failure_does_not_trigger_a_second_full_completion(mon
 
 
 class UploadedFile:
+    """
+    Class: UploadedFile
+    Purpose: Represent the UploadedFile abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     def __init__(self, name, content=b"content"):
+        """
+        Function: __init__
+        Purpose: Execute the   init   operation.
+        Inputs:
+                name (value): Caller-provided input.
+                content (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         self.name = name
         self.size = len(content)
         self._content = content
 
     def getbuffer(self):
+        """
+        Function: getbuffer
+        Purpose: Execute the getbuffer operation.
+        Inputs:
+                None.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         return self._content
 
 
 @pytest.fixture
 def isolated_project_storage(tmp_path, monkeypatch):
+    """
+    Function: isolated_project_storage
+    Purpose: Execute the isolated project storage operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project_data = tmp_path / "project_data"
     project_knowledge = tmp_path / "project_knowledge"
     project_data.mkdir(exist_ok=True)
@@ -1597,12 +2938,32 @@ def isolated_project_storage(tmp_path, monkeypatch):
 
 
 def test_project_id_rejects_path_traversal():
+    """
+    Function: test_project_id_rejects_path_traversal
+    Purpose: Execute the test project id rejects path traversal operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     for value in ("../secret", "project/other", "Project Name", ""):
         with pytest.raises(ValueError):
             app.validate_project_id(value)
 
 
 def test_project_lifecycle_uses_revisions_and_removes_folders(isolated_project_storage):
+    """
+    Function: test_project_lifecycle_uses_revisions_and_removes_folders
+    Purpose: Execute the test project lifecycle uses revisions and removes folders operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project_data, project_knowledge = isolated_project_storage
 
     created = app.create_project("AI Assisted Capstone")
@@ -1624,6 +2985,16 @@ def test_project_lifecycle_uses_revisions_and_removes_folders(isolated_project_s
 
 
 def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_project_storage):
+    """
+    Function: test_project_access_is_limited_to_assigned_students_and_mentors
+    Purpose: Execute the test project access is limited to assigned students and mentors operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     from app_modules import auth
     from app_modules import access_control as access
 
@@ -1644,6 +3015,16 @@ def test_project_access_is_limited_to_assigned_students_and_mentors(isolated_pro
 
 
 def test_convenor_can_access_all_projects(isolated_project_storage):
+    """
+    Function: test_convenor_can_access_all_projects
+    Purpose: Execute the test convenor can access all projects operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     from app_modules import auth
     from app_modules import access_control as access
 
@@ -1659,6 +3040,16 @@ def test_convenor_can_access_all_projects(isolated_project_storage):
 
 
 def test_project_retrieval_stays_inside_selected_project(isolated_project_storage):
+    """
+    Function: test_project_retrieval_stays_inside_selected_project
+    Purpose: Execute the test project retrieval stays inside selected project operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     alpha = app.create_project("Alpha Project")
     beta = app.create_project("Beta Project")
 
@@ -1696,6 +3087,17 @@ def test_project_upload_rolls_back_files_and_index_when_rebuild_fails(
     isolated_project_storage,
     monkeypatch,
 ):
+    """
+    Function: test_project_upload_rolls_back_files_and_index_when_rebuild_fails
+    Purpose: Execute the test project upload rolls back files and index when rebuild fails operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Rollback Project")
     project_dir = app.get_project_knowledge_dir(project.id)
     original = project_dir / "guide.txt"
@@ -1704,6 +3106,16 @@ def test_project_upload_rolls_back_files_and_index_when_rebuild_fails(
     original_index = app.get_project_index_file(project.id).read_bytes()
 
     def fail_rebuild(project_id):
+        """
+        Function: fail_rebuild
+        Purpose: Execute the fail rebuild operation.
+        Inputs:
+                project_id (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         raise OSError("simulated project index failure")
 
     monkeypatch.setattr(app, "rebuild_project_index", fail_rebuild)
@@ -1719,6 +3131,16 @@ def test_project_upload_rolls_back_files_and_index_when_rebuild_fails(
 
 
 def test_project_document_upload_and_stale_index_reload(isolated_project_storage):
+    """
+    Function: test_project_document_upload_and_stale_index_reload
+    Purpose: Execute the test project document upload and stale index reload operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Document Project")
 
     count = app.save_project_documents(
@@ -1741,6 +3163,16 @@ def test_project_document_upload_and_stale_index_reload(isolated_project_storage
 
 
 def test_project_csv_index_uses_current_schema_and_rows(isolated_project_storage):
+    """
+    Function: test_project_csv_index_uses_current_schema_and_rows
+    Purpose: Execute the test project csv index uses current schema and rows operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Assessment CSV Project")
     app.save_project_documents(
         project.id,
@@ -1759,6 +3191,16 @@ def test_project_csv_index_uses_current_schema_and_rows(isolated_project_storage
 
 
 def test_project_text_document_can_be_edited_in_app_and_reindexed(isolated_project_storage):
+    """
+    Function: test_project_text_document_can_be_edited_in_app_and_reindexed
+    Purpose: Execute the test project text document can be edited in app and reindexed operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Editable Knowledge Project")
     app.save_project_documents(
         project.id,
@@ -1778,6 +3220,16 @@ def test_project_text_document_can_be_edited_in_app_and_reindexed(isolated_proje
 
 
 def test_project_word_document_can_be_edited_in_app_and_reindexed(isolated_project_storage):
+    """
+    Function: test_project_word_document_can_be_edited_in_app_and_reindexed
+    Purpose: Execute the test project word document can be edited in app and reindexed operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Editable Word Project")
     document = app.Document()
     document.add_heading("Original heading", level=1)
@@ -1806,6 +3258,16 @@ def test_project_word_document_can_be_edited_in_app_and_reindexed(isolated_proje
 
 
 def test_binary_knowledge_documents_are_not_rewritten_as_plain_text(isolated_project_storage):
+    """
+    Function: test_binary_knowledge_documents_are_not_rewritten_as_plain_text
+    Purpose: Execute the test binary knowledge documents are not rewritten as plain text operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Protected Format Project")
     document = app.get_project_knowledge_dir(project.id) / "reference.pdf"
     document.write_bytes(b"%PDF-1.7")
@@ -1818,6 +3280,16 @@ def test_binary_knowledge_documents_are_not_rewritten_as_plain_text(isolated_pro
 
 
 def test_question_analytics_are_recorded_and_summarised(isolated_project_storage):
+    """
+    Function: test_question_analytics_are_recorded_and_summarised
+    Purpose: Execute the test question analytics are recorded and summarised operation.
+    Inputs:
+            isolated_project_storage (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     from app_modules import auth
     from app_modules import access_control as access
     project = app.create_project("Alpha Project")
@@ -1841,6 +3313,16 @@ def test_question_analytics_are_recorded_and_summarised(isolated_project_storage
 
 
 def test_pptx_extracts_shape_alt_text(tmp_path):
+    """
+    Function: test_pptx_extracts_shape_alt_text
+    Purpose: Execute the test pptx extracts shape alt text operation.
+    Inputs:
+            tmp_path (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     path = tmp_path / "slides.pptx"
     presentation = app.Presentation()
     slide = presentation.slides.add_slide(presentation.slide_layouts[6])
@@ -1859,6 +3341,16 @@ def test_pptx_extracts_shape_alt_text(tmp_path):
 
 
 def test_project_answer_prompt_prioritises_authoritative_profile_records():
+    """
+    Function: test_project_answer_prompt_prioritises_authoritative_profile_records
+    Purpose: Execute the test project answer prompt prioritises authoritative profile records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project(
         "Authoritative Profile Project",
         code="PROFILE-01",
@@ -1908,6 +3400,16 @@ def test_project_answer_prompt_prioritises_authoritative_profile_records():
 
 
 def test_uploaded_project_text_is_untrusted_context_not_instructions():
+    """
+    Function: test_uploaded_project_text_is_untrusted_context_not_instructions
+    Purpose: Execute the test uploaded project text is untrusted context not instructions operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Prompt Injection Project")
     result = {
         "scope": "project",
@@ -1931,6 +3433,16 @@ def test_uploaded_project_text_is_untrusted_context_not_instructions():
 
 
 def test_project_profile_context_cannot_accept_foreign_project_records():
+    """
+    Function: test_project_profile_context_cannot_accept_foreign_project_records
+    Purpose: Execute the test project profile context cannot accept foreign project records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     alpha = app.create_project("Alpha Scope")
     beta = app.create_project("Beta Scope")
     foreign = {
@@ -1951,10 +3463,30 @@ def test_project_profile_context_cannot_accept_foreign_project_records():
 
 
 def test_answer_generation_reuses_project_profile_for_validation(monkeypatch):
+    """
+    Function: test_answer_generation_reuses_project_profile_for_validation
+    Purpose: Execute the test answer generation reuses project profile for validation operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project = app.create_project("Profile Reuse Project")
     profile_calls = []
 
     def fake_profile(value):
+        """
+        Function: fake_profile
+        Purpose: Execute the fake profile operation.
+        Inputs:
+                value (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         profile_calls.append(value.id if value else None)
         return "SELECTED PROJECT PROFILE"
 
@@ -1973,3 +3505,50 @@ def test_answer_generation_reuses_project_profile_for_validation(monkeypatch):
     }]
     assert app.generate_response("What is this project about?", evidence, project=project) == "Grounded answer"
     assert profile_calls == [project.id]
+
+
+def test_complete_general_table_answer_restores_missing_verified_rows():
+    """
+    Function: test_complete_general_table_answer_restores_missing_verified_rows
+    Purpose: Ensure a complete approved general table cannot be shortened by the
+             answer model when the student requests every row.
+    Inputs:
+            None.
+    Returns:
+            None; pytest raises an assertion on failure.
+    Raises/side effects:
+            None; operates on in-memory evidence only.
+    """
+    results = [{
+        "record_type": "table_block",
+        "retrieval_complete": True,
+        "text": (
+            "Headers: Assessment | Due Date\n"
+            "Row 2: Assessment=Poster | Due Date=30/10/2026\n"
+            "Row 3: Assessment=Report | Due Date=01/11/2026"
+        ),
+    }]
+
+    answer = app.ensure_complete_document_answer(
+        "List every assessment and its due date",
+        "The Poster is due on 30/10/2026.",
+        results,
+    )
+
+    assert "Row 3: Assessment=Report | Due Date=01/11/2026" in answer
+
+
+def test_incomplete_general_table_is_not_augmented():
+    """Partial retrieval must not be presented as a complete table."""
+    results = [{
+        "record_type": "table_block",
+        "text": "Row 2: Assessment=Poster | Due Date=30/10/2026",
+    }]
+
+    answer = app.ensure_complete_document_answer(
+        "List every assessment",
+        "The Poster is due on 30/10/2026.",
+        results,
+    )
+
+    assert answer == "The Poster is due on 30/10/2026."

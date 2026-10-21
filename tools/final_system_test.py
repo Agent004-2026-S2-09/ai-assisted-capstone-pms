@@ -1,3 +1,11 @@
+## File: tools/final_system_test.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Dynamic final handover certification runner.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Dynamic final handover certification runner.
 
 This runner is intentionally corpus-driven. It discovers the current general
@@ -53,10 +61,30 @@ REPORTS = {
 
 
 def now() -> str:
+    """
+    Function: now
+    Purpose: Execute the now operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def words(text: str) -> list[str]:
+    """
+    Function: words
+    Purpose: Execute the words operation.
+    Inputs:
+            text (str): Caller-provided input.
+    Returns:
+            A value of type list[str].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     stop = set(app.STOP_WORDS) | {
         "document", "documents", "information", "knowledge", "capstone",
         "student", "students", "university", "provide", "detailed", "detail",
@@ -71,11 +99,33 @@ def words(text: str) -> list[str]:
 
 
 def topic(text: str, limit: int = 14) -> str:
+    """
+    Function: topic
+    Purpose: Execute the topic operation.
+    Inputs:
+            text (str): Caller-provided input.
+            limit (int): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     counts = Counter(words(text))
     return " ".join(word for word, _ in counts.most_common(limit)) or "the documented requirements"
 
 
 def text_windows(item: dict, count: int) -> list[dict]:
+    """
+    Function: text_windows
+    Purpose: Execute the text windows operation.
+    Inputs:
+            item (dict): Caller-provided input.
+            count (int): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     text = str(item.get("text", ""))
     if not text:
         return []
@@ -96,6 +146,16 @@ def text_windows(item: dict, count: int) -> list[dict]:
 
 
 def dynamic_anchors(text: str) -> set[str]:
+    """
+    Function: dynamic_anchors
+    Purpose: Execute the dynamic anchors operation.
+    Inputs:
+            text (str): Caller-provided input.
+    Returns:
+            A value of type set[str].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     values = set(words(text))
     values.update(value.casefold() for value in re.findall(r"\b(?:19|20)\d{2}(?:[-/]\d{1,2})?(?:[-/]\d{1,2})?\b", text))
     values.update(value.casefold() for value in re.findall(r"\b\d+(?:\.\d+)?%?\b", text))
@@ -103,6 +163,19 @@ def dynamic_anchors(text: str) -> set[str]:
 
 
 def verify(answer: str, evidence: list[dict], expected_sources: set[str], *, minimum_sources: int = 1) -> dict:
+    """
+    Function: verify
+    Purpose: Execute the verify operation.
+    Inputs:
+            answer (str): Caller-provided input.
+            evidence (list[dict]): Caller-provided input.
+            expected_sources (set[str]): Caller-provided input.
+            minimum_sources (int): Caller-provided input.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     clean = app.clean_ai_response(answer)
     sources = {str(item.get("source", "")) for item in evidence if item.get("source")}
     answer_words = set(words(clean))
@@ -131,6 +204,16 @@ def verify(answer: str, evidence: list[dict], expected_sources: set[str], *, min
 
 
 def impersonate_student(user_id: int | None = None) -> None:
+    """
+    Function: impersonate_student
+    Purpose: Execute the impersonate student operation.
+    Inputs:
+            user_id (int | None): Caller-provided input.
+    Returns:
+            A value of type None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user_id = int(user_id if user_id is not None else os.getenv("IMPERSONATE_USER_ID", "1"))
     with database.connect() as db:
         row = db.execute(
@@ -151,6 +234,16 @@ def impersonate_student(user_id: int | None = None) -> None:
 
 
 def general_documents() -> list[dict]:
+    """
+    Function: general_documents
+    Purpose: Execute the general documents operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = app.ensure_index_is_current()
     if not documents:
         raise RuntimeError("The general knowledge base is empty.")
@@ -158,6 +251,16 @@ def general_documents() -> list[dict]:
 
 
 def project_data() -> tuple[dict[str, object], list[dict], dict[str, list[int]]]:
+    """
+    Function: project_data
+    Purpose: Execute the project data operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type tuple[dict[str, object], list[dict], dict[str, list[int]]].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     projects: dict[str, object] = {}
     records: list[dict] = []
     memberships: dict[str, list[int]] = defaultdict(list)
@@ -279,6 +382,17 @@ def make_general_questions(
 
 
 def make_project_questions(records: list[dict], limit: int) -> list[dict]:
+    """
+    Function: make_project_questions
+    Purpose: Execute the make project questions operation.
+    Inputs:
+            records (list[dict]): Caller-provided input.
+            limit (int): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     sections = ["teams", "meetings", "milestones", "Gantt chart", "task board", "knowledge base"]
     teams = sorted({str(item.get("project_id")) for item in records if item.get("project_id")}, key=str.casefold)
     questions = []
@@ -312,6 +426,17 @@ def make_project_questions(records: list[dict], limit: int) -> list[dict]:
 
 
 def make_cross_questions(documents: list[dict], limit: int) -> list[dict]:
+    """
+    Function: make_cross_questions
+    Purpose: Execute the make cross questions operation.
+    Inputs:
+            documents (list[dict]): Caller-provided input.
+            limit (int): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     grouped: dict[str, list[dict]] = defaultdict(list)
     for item in documents:
         if item.get("source") and item.get("text"):
@@ -329,6 +454,17 @@ def make_cross_questions(documents: list[dict], limit: int) -> list[dict]:
 
 
 def make_broad_questions(documents: list[dict], limit: int) -> list[dict]:
+    """
+    Function: make_broad_questions
+    Purpose: Execute the make broad questions operation.
+    Inputs:
+            documents (list[dict]): Caller-provided input.
+            limit (int): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     grouped: dict[str, list[dict]] = defaultdict(list)
     for item in documents:
         if item.get("source") and item.get("text"):
@@ -344,6 +480,18 @@ def make_broad_questions(documents: list[dict], limit: int) -> list[dict]:
 
 
 def make_conversation_questions(documents: list[dict], project_records: list[dict], limit: int) -> list[dict]:
+    """
+    Function: make_conversation_questions
+    Purpose: Execute the make conversation questions operation.
+    Inputs:
+            documents (list[dict]): Caller-provided input.
+            project_records (list[dict]): Caller-provided input.
+            limit (int): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     sources = sorted({str(item.get("source")) for item in documents if item.get("source")})
     questions = []
     for number in range(1, limit + 1):
@@ -368,6 +516,18 @@ def make_conversation_questions(documents: list[dict], project_records: list[dic
 
 
 def retrieve(question: dict, documents: list[dict], project=None) -> list[dict]:
+    """
+    Function: retrieve
+    Purpose: Execute the retrieve operation.
+    Inputs:
+            question (dict): Caller-provided input.
+            documents (list[dict]): Caller-provided input.
+            project (value): Caller-provided input.
+    Returns:
+            A value of type list[dict].
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     seeds = question["evidence_seed"]
     expected = question["expected_sources"]
     if question["category"] in {"broad overview", "broad summary"}:
@@ -384,6 +544,17 @@ def retrieve(question: dict, documents: list[dict], project=None) -> list[dict]:
 
 
 def run_batch(batch: str, limit: int) -> int:
+    """
+    Function: run_batch
+    Purpose: Execute the run batch operation.
+    Inputs:
+            batch (str): Caller-provided input.
+            limit (int): Caller-provided input.
+    Returns:
+            A value of type int.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     impersonate_student()
     general = general_documents()
     projects, project_records, _memberships = project_data()
@@ -503,6 +674,17 @@ def run_batch(batch: str, limit: int) -> int:
 
 
 def write_report(path: Path, payload: dict) -> None:
+    """
+    Function: write_report
+    Purpose: Execute the write report operation.
+    Inputs:
+            path (Path): Caller-provided input.
+            payload (dict): Caller-provided input.
+    Returns:
+            A value of type None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     doc = Document()
     section = doc.sections[0]
     section.top_margin = Inches(0.55)
@@ -541,6 +723,16 @@ def write_report(path: Path, payload: dict) -> None:
 
 
 def main() -> int:
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type int.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch", choices=[*REPORTS, "all"], required=True)
     parser.add_argument("--limit", type=int, default=TARGET)

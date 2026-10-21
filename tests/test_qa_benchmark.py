@@ -1,8 +1,32 @@
+## File: tests/test_qa_benchmark.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing test qa benchmark functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 import app
-from app_modules.qa_benchmark import BENCHMARK_CASES, evaluate_case, summarise
+from app_modules.qa_benchmark import (
+    BENCHMARK_CASES,
+    QUERY_PLAN_BENCHMARK_CASES,
+    evaluate_case,
+    evaluate_query_plan_case,
+    summarise,
+)
 
 
 def _documents():
+    """
+    Function: _documents
+    Purpose: Execute the  documents operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return [
         {"text": "Technology support is available through the student help desk.", "source": "Technology Support Guideline.pdf", "location": "Page 1", "record_type": "document_chunk"},
         {"text": "The reflection rubric explains assessment criteria.", "source": "Reflection Rubric.pdf", "location": "Page 1", "record_type": "document_chunk"},
@@ -12,10 +36,30 @@ def _documents():
 
 
 def test_benchmark_defines_multiple_system_wide_question_classes():
+    """
+    Function: test_benchmark_defines_multiple_system_wide_question_classes
+    Purpose: Execute the test benchmark defines multiple system wide question classes operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     assert {case.category for case in BENCHMARK_CASES} >= {"general guidance", "catalogue", "broad overview", "robustness", "contamination"}
 
 
 def test_benchmark_scoring_reports_failed_grounding_checks():
+    """
+    Function: test_benchmark_scoring_reports_failed_grounding_checks
+    Purpose: Execute the test benchmark scoring reports failed grounding checks operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     case = BENCHMARK_CASES[0]
     result = evaluate_case(case, [{"text": "unrelated", "source": "other.pdf", "record_type": "project"}])
     assert not result["passed"]
@@ -23,6 +67,16 @@ def test_benchmark_scoring_reports_failed_grounding_checks():
 
 
 def test_benchmark_runs_against_a_small_representative_collection():
+    """
+    Function: test_benchmark_runs_against_a_small_representative_collection
+    Purpose: Execute the test benchmark runs against a small representative collection operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     results = []
     documents = _documents()
     for case in BENCHMARK_CASES:
@@ -39,3 +93,19 @@ def test_benchmark_runs_against_a_small_representative_collection():
     # authoritative system-wide measurement.
     assert summary["accuracy"] >= 0.25
     assert summary["by_category"]["contamination"]["total"] == 1
+
+
+def test_query_plan_benchmark_covers_paraphrases_followups_and_decomposition():
+    """
+    Function: test_query_plan_benchmark_covers_paraphrases_followups_and_decomposition
+    Purpose: Execute the test query plan benchmark covers paraphrases followups and decomposition operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    results = [evaluate_query_plan_case(case) for case in QUERY_PLAN_BENCHMARK_CASES]
+    assert len(results) >= 5
+    assert all(result["passed"] for result in results), results

@@ -1,3 +1,11 @@
+## File: tools/remediate_general_cross_document_100.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Remediate failed live cross-document certification cases using direct approved evidence.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Remediate failed live cross-document certification cases using direct approved evidence."""
 from __future__ import annotations
 
@@ -23,6 +31,16 @@ WORKER_COUNT = int(os.environ.get("CROSS_REMED_WORKERS", "1"))
 
 
 def run():
+    """
+    Function: run
+    Purpose: Execute the run operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     merged = ROOT / "docs/.general_cross_document_100_merged_checkpoint.json"
     if merged.exists():
         rows = json.loads(merged.read_text(encoding="utf-8"))

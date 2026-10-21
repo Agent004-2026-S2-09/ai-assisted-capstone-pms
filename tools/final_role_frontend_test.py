@@ -1,3 +1,11 @@
+## File: tools/final_role_frontend_test.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Run the final role-based AI benchmark through Streamlit's frontend widgets.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Run the final role-based AI benchmark through Streamlit's frontend widgets.
 
 The runner intentionally uses AppTest for the same widget/form path a browser
@@ -35,6 +43,16 @@ PROJECT_ID = "ai-assisted-capstone-project-assistant"
 
 
 def load_runner():
+    """
+    Function: load_runner
+    Purpose: Execute the load runner operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     path = ROOT / "tools" / "final_system_test.py"
     spec = importlib.util.spec_from_file_location("final_system_test", path)
     module = importlib.util.module_from_spec(spec)
@@ -44,6 +62,16 @@ def load_runner():
 
 
 def db_user(username: str) -> dict:
+    """
+    Function: db_user
+    Purpose: Execute the db user operation.
+    Inputs:
+            username (str): Caller-provided input.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with database.connect() as db:
         row = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     if not row:
@@ -52,6 +80,17 @@ def db_user(username: str) -> dict:
 
 
 def latest_interaction(user_id: int, project_id: str | None) -> dict | None:
+    """
+    Function: latest_interaction
+    Purpose: Execute the latest interaction operation.
+    Inputs:
+            user_id (int): Caller-provided input.
+            project_id (str | None): Caller-provided input.
+    Returns:
+            A value of type dict | None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with database.connect() as db:
         row = db.execute(
             """SELECT ai.*, ap.question_text, rd.validation_status, rd.failure_class,
@@ -67,6 +106,16 @@ def latest_interaction(user_id: int, project_id: str | None) -> dict | None:
 
 
 def answer_text(at: AppTest) -> str:
+    """
+    Function: answer_text
+    Purpose: Execute the answer text operation.
+    Inputs:
+            at (AppTest): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     messages = list(at.chat_message)
     for message in reversed(messages):
         name = str(getattr(message, "name", "") or "").casefold()
@@ -76,6 +125,17 @@ def answer_text(at: AppTest) -> str:
 
 
 def login(role: str, password: str) -> AppTest:
+    """
+    Function: login
+    Purpose: Execute the login operation.
+    Inputs:
+            role (str): Caller-provided input.
+            password (str): Caller-provided input.
+    Returns:
+            A value of type AppTest.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     at = AppTest.from_string("import app\napp.main()", default_timeout=180).run()
     if at.exception:
         raise RuntimeError(f"Initial frontend render failed: {at.exception}")
@@ -88,6 +148,17 @@ def login(role: str, password: str) -> AppTest:
 
 
 def select_scope(at: AppTest, scope: str) -> None:
+    """
+    Function: select_scope
+    Purpose: Execute the select scope operation.
+    Inputs:
+            at (AppTest): Caller-provided input.
+            scope (str): Caller-provided input.
+    Returns:
+            A value of type None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     selector = next(widget for widget in at.selectbox if widget.label == "Current project")
     value = "General Capstone"
     if scope == "project":
@@ -108,6 +179,16 @@ def select_scope(at: AppTest, scope: str) -> None:
 
 
 def main() -> None:
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type None.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--role", choices=sorted(ROLE_USERS), required=True)
     parser.add_argument("--output", type=Path, required=True)

@@ -1,3 +1,11 @@
+## File: app_modules/access_control.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Authorization uses a live database session, never caller-supplied roles/names.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Authorization uses a live database session, never caller-supplied roles/names."""
 import json
 import secrets
@@ -8,10 +16,26 @@ from app_modules import database
 
 
 class AccessDenied(PermissionError):
+    """
+    Class: AccessDenied
+    Purpose: Represent the AccessDenied abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     pass
 
 
 def require_user(state):
+    """
+    Function: require_user
+    Purpose: Execute the require user operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = auth.current_user(state)
     if user is None:
         raise AccessDenied("Please sign in with an active account.")
@@ -19,6 +43,16 @@ def require_user(state):
 
 
 def require_admin(state):
+    """
+    Function: require_admin
+    Purpose: Execute the require admin operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = require_user(state)
     if not auth.has_permission(user, "Administrator"):
         raise AccessDenied("Administrator access is required.")
@@ -26,6 +60,17 @@ def require_admin(state):
 
 
 def can_access_project(state, project_id):
+    """
+    Function: can_access_project
+    Purpose: Execute the can access project operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = require_user(state)
     with database.connect() as db:
         row = db.execute("""SELECT id FROM projects WHERE id = ? AND
@@ -38,6 +83,18 @@ def can_access_project(state, project_id):
 
 
 def require_project(state, project_id, write=False):
+    """
+    Function: require_project
+    Purpose: Execute the require project operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            write (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = require_user(state)
     if not can_access_project(state, project_id):
         raise AccessDenied("You are not authorised to access this project.")
@@ -53,6 +110,17 @@ def can_manage_project_profile(state, project_id):
 
 
 def require_project_profile(state, project_id):
+    """
+    Function: require_project_profile
+    Purpose: Execute the require project profile operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = require_project(state, project_id)
     if auth.has_permission(user, "Student"):
         raise AccessDenied("Students cannot change project profile or team assignments.")
@@ -65,6 +133,17 @@ def require_project_content(state, project_id):
 
 
 def require_team_management(state, project_id):
+    """
+    Function: require_team_management
+    Purpose: Execute the require team management operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return require_project_profile(state, project_id)
 
 
@@ -94,6 +173,16 @@ def record_audit(state, action, *, project_id=None, details=None, object_type=No
 
 
 def accessible_projects(state):
+    """
+    Function: accessible_projects
+    Purpose: Execute the accessible projects operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = require_user(state)
     with database.connect() as db:
         return [json.loads(row[0]) for row in db.execute("""SELECT profile FROM projects WHERE
@@ -104,6 +193,19 @@ def accessible_projects(state):
 
 
 def assign_project(state, user_id, project_id, assigned=True):
+    """
+    Function: assign_project
+    Purpose: Execute the assign project operation.
+    Inputs:
+            state (value): Caller-provided input.
+            user_id (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            assigned (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     require_admin(state)
     with database.connect() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -127,6 +229,16 @@ def assign_project(state, user_id, project_id, assigned=True):
 
 
 def managed_users(state):
+    """
+    Function: managed_users
+    Purpose: Execute the managed users operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     require_admin(state)
     with database.connect() as db:
         return [dict(row) for row in db.execute(f"SELECT {auth.PUBLIC_USER_COLUMNS} FROM users ORDER BY username")]
@@ -184,6 +296,20 @@ def user_project_assignments(state, user_id):
 
 
 def update_user(state, user_id, role, active, permissions=None):
+    """
+    Function: update_user
+    Purpose: Execute the update user operation.
+    Inputs:
+            state (value): Caller-provided input.
+            user_id (value): Caller-provided input.
+            role (value): Caller-provided input.
+            active (value): Caller-provided input.
+            permissions (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     actor = require_admin(state)
     if role not in database.ROLES:
         raise ValueError("Unsupported role.")
@@ -200,6 +326,24 @@ def update_user(state, user_id, role, active, permissions=None):
 
 
 def update_user_profile(state, user_id, *, first_name, last_name, email, role, status, active=None, permissions=None):
+    """
+    Function: update_user_profile
+    Purpose: Execute the update user profile operation.
+    Inputs:
+            state (value): Caller-provided input.
+            user_id (value): Caller-provided input.
+            first_name (value): Caller-provided input.
+            last_name (value): Caller-provided input.
+            email (value): Caller-provided input.
+            role (value): Caller-provided input.
+            status (value): Caller-provided input.
+            active (value): Caller-provided input.
+            permissions (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     actor = require_admin(state)
     if role not in database.ROLES:
         raise ValueError("Unsupported role.")
@@ -228,6 +372,16 @@ def update_user_profile(state, user_id, *, first_name, last_name, email, role, s
 
 
 def create_user(state, *args, **kwargs):
+    """
+    Function: create_user
+    Purpose: Execute the create user operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     require_admin(state)
     from app_modules.settings import is_enabled
     if not is_enabled("feature_user_creation"):

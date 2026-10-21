@@ -1,3 +1,11 @@
+## File: app_modules/prompts.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Administrator-managed prompt versions for assistant responses.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Administrator-managed prompt versions for assistant responses."""
 
 from datetime import datetime, timezone
@@ -32,6 +40,16 @@ DEFAULT_PROMPTS = {
 
 
 def ensure_default_prompts():
+    """
+    Function: ensure_default_prompts
+    Purpose: Execute the ensure default prompts operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with database.connect() as db:
         for name, text in DEFAULT_PROMPTS.items():
             db.execute(
@@ -44,6 +62,16 @@ def ensure_default_prompts():
 
 
 def get_active_prompt(name):
+    """
+    Function: get_active_prompt
+    Purpose: Execute the get active prompt operation.
+    Inputs:
+            name (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if name not in DEFAULT_PROMPTS:
         raise ValueError("Unsupported prompt type.")
     ensure_default_prompts()
@@ -59,6 +87,18 @@ def get_active_prompt(name):
 
 
 def create_prompt_version(name, prompt_text, *, state):
+    """
+    Function: create_prompt_version
+    Purpose: Execute the create prompt version operation.
+    Inputs:
+            name (value): Caller-provided input.
+            prompt_text (value): Caller-provided input.
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_admin(state)
     if name not in DEFAULT_PROMPTS:
         raise ValueError("Unsupported prompt type.")
@@ -87,6 +127,17 @@ def create_prompt_version(name, prompt_text, *, state):
 
 
 def list_prompt_versions(name, *, state):
+    """
+    Function: list_prompt_versions
+    Purpose: Execute the list prompt versions operation.
+    Inputs:
+            name (value): Caller-provided input.
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_admin(state)
     if name not in DEFAULT_PROMPTS:
         raise ValueError("Unsupported prompt type.")

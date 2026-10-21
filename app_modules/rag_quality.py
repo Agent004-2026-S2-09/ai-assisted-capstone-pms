@@ -1,3 +1,11 @@
+## File: app_modules/rag_quality.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Explainable, low-cost diagnostics for grounded retrieval-augmented answers.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Explainable, low-cost diagnostics for grounded retrieval-augmented answers."""
 
 import re
@@ -20,6 +28,16 @@ _STOP_WORDS = {
 
 
 def _terms(value):
+    """
+    Function: _terms
+    Purpose: Execute the  terms operation.
+    Inputs:
+            value (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return {
         token.casefold()
         for token in re.findall(r"[a-zA-Z][a-zA-Z0-9'-]{2,}", str(value or ""))
@@ -48,7 +66,16 @@ def _is_abstention(answer):
     return False
 
 
-def build_diagnostic(question, results, context_metadata=None, answer="", validation_status="unknown"):
+def build_diagnostic(
+    question,
+    results,
+    context_metadata=None,
+    answer="",
+    validation_status="unknown",
+    query_plan=None,
+    conflicts=None,
+    route=None,
+):
     """Return explainable signals without making a second provider request."""
 
     items = [item for item in (results or []) if isinstance(item, dict)]
@@ -96,6 +123,15 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
     else:
         confidence_band = "low"
 
+    plan = query_plan or {}
+    route = route or {}
+    route_source = str(route.get("source", "unclassified"))
+    route_filter = str(route.get("filter", "none"))
+    response_mode = str(route.get("response_mode", "ai"))
+    notes = (
+        f"Route: {route_source}; filter: {route_filter}; response: {response_mode}. "
+        f"{notes}"
+    )
     return {
         "failure_class": failure_class,
         "retrieval_relevant": int(bool(retrieval_relevant)),
@@ -113,5 +149,14 @@ def build_diagnostic(question, results, context_metadata=None, answer="", valida
         "answer_evidence_overlap": len(answer_evidence_overlap),
         "confidence_band": confidence_band,
         "notes": notes,
+        "route_source": route_source,
+        "route_filter": route_filter,
+        "response_mode": response_mode,
+        "query_intent": str(plan.get("intent", "lookup")),
+        "query_scope": str(plan.get("scope", "general")),
+        "query_entity": str(plan.get("entity", "general")),
+        "query_follow_up": int(bool(plan.get("follow_up"))),
+        "subquery_count": len(plan.get("subqueries", []) or []),
+        "conflict_count": len(conflicts or []),
     }
 

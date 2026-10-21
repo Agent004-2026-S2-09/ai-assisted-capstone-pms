@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+## File: tools/qa_benchmark.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Run the offline retrieval benchmark against the current general index.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Run the offline retrieval benchmark against the current general index."""
 
 import argparse
@@ -15,6 +23,16 @@ from app_modules.qa_benchmark import BENCHMARK_CASES, evaluate_case, summarise  
 
 
 def run() -> dict:
+    """
+    Function: run
+    Purpose: Execute the run operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = app.load_index()
     results = []
     for case in BENCHMARK_CASES:
@@ -28,6 +46,16 @@ def run() -> dict:
 
 
 def main() -> int:
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type int.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     args = parser.parse_args()

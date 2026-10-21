@@ -1,18 +1,46 @@
+## File: app_modules/comments.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Persistent, project-scoped discussion threads.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Persistent, project-scoped discussion threads."""
 
 from datetime import datetime, timezone
 
 from app_modules import access_control as access
-from app_modules import auth, database
+from app_modules import auth, database, notifications
 
 MAX_COMMENT_LENGTH = 10000
 
 
 def _now():
+    """
+    Function: _now
+    Purpose: Execute the  now operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _clean_body(body):
+    """
+    Function: _clean_body
+    Purpose: Execute the  clean body operation.
+    Inputs:
+            body (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     body = str(body or "").strip()
     if not body:
         raise ValueError("Write a comment before posting.")
@@ -47,10 +75,33 @@ def list_comments(state, project_id):
 
 
 def _author_can_moderate(user):
+    """
+    Function: _author_can_moderate
+    Purpose: Execute the  author can moderate operation.
+    Inputs:
+            user (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return auth.has_permission(user, "Administrator") or auth.has_permission(user, "Convenor")
 
 
 def add_comment(state, project_id, body, *, parent_comment_id=None):
+    """
+    Function: add_comment
+    Purpose: Execute the add comment operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            body (value): Caller-provided input.
+            parent_comment_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = access.require_project_content(state, project_id)
     body = _clean_body(body)
     now = _now()
@@ -68,6 +119,14 @@ def add_comment(state, project_id, body, *, parent_comment_id=None):
             VALUES (?, ?, ?, ?, ?, ?)
         """, (project_id, user["id"], parent_comment_id, body, now, now))
         comment_id = cursor.lastrowid
+        notifications.create_discussion_notifications(
+            db,
+            project_id=project_id,
+            comment_id=comment_id,
+            actor_user_id=user["id"],
+            actor_name=user["name"],
+            body=body,
+        )
     access.record_audit(state, "project_comment_created", project_id=project_id,
                         object_type="project_comment", object_id=comment_id,
                         details={"parent_comment_id": parent_comment_id})
@@ -75,6 +134,18 @@ def add_comment(state, project_id, body, *, parent_comment_id=None):
 
 
 def update_comment(state, comment_id, body):
+    """
+    Function: update_comment
+    Purpose: Execute the update comment operation.
+    Inputs:
+            state (value): Caller-provided input.
+            comment_id (value): Caller-provided input.
+            body (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = access.require_user(state)
     body = _clean_body(body)
     now = _now()
@@ -93,6 +164,17 @@ def update_comment(state, comment_id, body):
 
 
 def delete_comment(state, comment_id):
+    """
+    Function: delete_comment
+    Purpose: Execute the delete comment operation.
+    Inputs:
+            state (value): Caller-provided input.
+            comment_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = access.require_user(state)
     now = _now()
     with database.connect() as db:

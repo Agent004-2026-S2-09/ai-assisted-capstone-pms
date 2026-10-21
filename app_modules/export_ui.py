@@ -1,3 +1,11 @@
+## File: app_modules/export_ui.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Answer export controls for the assistant conversation.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Answer export controls for the assistant conversation."""
 
 import re
@@ -21,6 +29,16 @@ _FORMAT_WORDS = r"pdf|word|docx|powerpoint|pptx|excel|xlsx"
 
 
 def detect_export_intent(text):
+    """
+    Function: detect_export_intent
+    Purpose: Execute the detect export intent operation.
+    Inputs:
+            text (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     value = str(text or "").casefold()
     format_match = re.search(rf"\b({_FORMAT_WORDS})\b", value)
     has_action = bool(re.search(rf"\b(?:{_EXPORT_ACTIONS})\b", value))
@@ -31,6 +49,16 @@ def detect_export_intent(text):
 
 
 def split_trailing_export_request(text):
+    """
+    Function: split_trailing_export_request
+    Purpose: Execute the split trailing export request operation.
+    Inputs:
+            text (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     match = re.search(
         rf"\s+(?:and\s+)?(?:{_TRAILING_EXPORT_ACTIONS})\b.*?\b(?:to|as|in)\s+({_FORMAT_WORDS})\b(?:\s+(?:file|document|format))?\s*$",
         str(text or ""), flags=re.IGNORECASE | re.DOTALL,
@@ -41,6 +69,16 @@ def split_trailing_export_request(text):
 
 
 def is_export_only_request(text):
+    """
+    Function: is_export_only_request
+    Purpose: Execute the is export only request operation.
+    Inputs:
+            text (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return bool(re.fullmatch(
         rf"\s*(?:please\s+)?(?:{_EXPORT_ACTIONS})\b(?:\s+(?:this|the|latest|previous|current))*"
         rf"(?:\s+(?:answer|response|result|document|file|report|copy))?(?:\s+(?:to|as|in))?"
@@ -50,6 +88,19 @@ def is_export_only_request(text):
 
 
 def prepare_export(answer, format_name, *, question="", project_name=""):
+    """
+    Function: prepare_export
+    Purpose: Execute the prepare export operation.
+    Inputs:
+            answer (value): Caller-provided input.
+            format_name (value): Caller-provided input.
+            question (value): Caller-provided input.
+            project_name (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     from app_modules.exporting import build_export, format_with_agentaus
 
     structured = format_with_agentaus(answer, format_name=format_name, question=question, project_name=project_name)
@@ -58,6 +109,19 @@ def prepare_export(answer, format_name, *, question="", project_name=""):
 
 
 def render_export(message, *, question="", project_name="", identity="0"):
+    """
+    Function: render_export
+    Purpose: Execute the render export operation.
+    Inputs:
+            message (value): Caller-provided input.
+            question (value): Caller-provided input.
+            project_name (value): Caller-provided input.
+            identity (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     answer = str(message.get("content", "")).strip()
     if not answer:
         return

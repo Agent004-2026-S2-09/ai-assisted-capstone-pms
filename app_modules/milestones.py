@@ -1,3 +1,11 @@
+## File: app_modules/milestones.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Bidirectional project milestone records linked to explicit Gantt milestones.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Bidirectional project milestone records linked to explicit Gantt milestones."""
 
 import json
@@ -11,6 +19,16 @@ from app_modules import database
 def _duration(task):
     """Return a positive schedule weight for a task."""
     def parse(value):
+        """
+        Function: parse
+        Purpose: Execute the parse operation.
+        Inputs:
+                value (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         try:
             return date.fromisoformat(str(value or ""))
         except ValueError:

@@ -1,3 +1,11 @@
+## File: tools/remediate_general_knowledge_certification.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Rerun first-pass review cases with semantically normalised questions.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Rerun first-pass review cases with semantically normalised questions."""
 
 from __future__ import annotations
@@ -21,6 +29,16 @@ from general_knowledge_live_certification import _anchors  # noqa: E402
 
 
 def _semantic_terms(text: str) -> str:
+    """
+    Function: _semantic_terms
+    Purpose: Execute the  semantic terms operation.
+    Inputs:
+            text (str): Caller-provided input.
+    Returns:
+            A value of type str.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     cleaned = re.sub(r"\b[A-Z]{1,3}\d+\s*=\s*", "", str(text or ""))
     cleaned = cleaned.replace("|", " ").replace("=", " ")
     words = re.findall(r"[A-Za-z][A-Za-z0-9'/-]{4,}", cleaned)
@@ -29,6 +47,19 @@ def _semantic_terms(text: str) -> str:
 
 
 def _verify(answer: str, target: dict, retrieved: list[dict], validation: str) -> dict:
+    """
+    Function: _verify
+    Purpose: Execute the  verify operation.
+    Inputs:
+            answer (str): Caller-provided input.
+            target (dict): Caller-provided input.
+            retrieved (list[dict]): Caller-provided input.
+            validation (str): Caller-provided input.
+    Returns:
+            A value of type dict.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     text = app.clean_ai_response(answer)
     source = str(target.get("source", ""))
     sources = {str(item.get("source", "")) for item in retrieved}
@@ -63,6 +94,16 @@ def _verify(answer: str, target: dict, retrieved: list[dict], validation: str) -
 
 
 def run() -> int:
+    """
+    Function: run
+    Purpose: Execute the run operation.
+    Inputs:
+            None.
+    Returns:
+            A value of type int.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     bucket = int(os.getenv("CERT_REMEDIATION_BUCKET", "0"))
     bucket_count = int(os.getenv("CERT_REMEDIATION_BUCKET_COUNT", "1"))
     suffix = re.sub(r"[^A-Za-z0-9_-]+", "", os.getenv("CERT_RUN_SUFFIX", "worker0"))

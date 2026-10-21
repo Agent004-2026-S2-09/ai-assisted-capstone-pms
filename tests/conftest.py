@@ -1,3 +1,11 @@
+## File: tests/conftest.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing conftest functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 import sys
 from pathlib import Path
 
@@ -13,6 +21,12 @@ from app_modules import database
 
 
 class TestSession(dict):
+    """
+    Class: TestSession
+    Purpose: Represent the TestSession abstraction.
+    Responsibilities:
+            Preserve the existing class interface and behaviour.
+    """
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
 

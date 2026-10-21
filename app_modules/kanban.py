@@ -1,3 +1,11 @@
+## File: app_modules/kanban.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Project-scoped Kanban boards and Gantt-to-backlog synchronisation.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Project-scoped Kanban boards and Gantt-to-backlog synchronisation."""
 
 import json
@@ -14,6 +22,16 @@ COLUMN_PROGRESS = {"backlog": 0, "todo": 25, "progress": 50, "review": 75, "done
 
 
 def _task_column(task):
+    """
+    Function: _task_column
+    Purpose: Execute the  task column operation.
+    Inputs:
+            task (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     explicit = str(task.get("kanban_column") or "").strip().casefold()
     if explicit in COLUMN_PROGRESS:
         return explicit
@@ -26,10 +44,30 @@ def _task_column(task):
 
 
 def empty_board():
+    """
+    Function: empty_board
+    Purpose: Execute the empty board operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return {"columns": [{"id": key, "title": title, "cardIds": []} for key, title in DEFAULT_COLUMNS], "cards": {}}
 
 
 def _normalise(board):
+    """
+    Function: _normalise
+    Purpose: Execute the  normalise operation.
+    Inputs:
+            board (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not isinstance(board, dict) or not isinstance(board.get("columns"), list) or not isinstance(board.get("cards"), dict):
         return empty_board()
     valid = {key for key, _ in DEFAULT_COLUMNS}
@@ -52,6 +90,17 @@ def _normalise(board):
 
 
 def get_board(state, project_id):
+    """
+    Function: get_board
+    Purpose: Execute the get board operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not settings.is_enabled("feature_kanban"):
         raise PermissionError("Kanban task management is disabled by an Administrator.")
     access.require_project(state, project_id)
@@ -65,6 +114,18 @@ def get_board(state, project_id):
 
 
 def save_board(state, project_id, board):
+    """
+    Function: save_board
+    Purpose: Execute the save board operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            board (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     access.require_project(state, project_id)
     board = _normalise(board)
     with database.connect() as db:
@@ -88,6 +149,16 @@ def save_board(state, project_id, board):
 
 
 def _card_locations(board):
+    """
+    Function: _card_locations
+    Purpose: Execute the  card locations operation.
+    Inputs:
+            board (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return {
         card_id: column["id"]
         for column in board.get("columns", [])
@@ -150,6 +221,24 @@ def _next_gantt_code(plan, milestone_id=None):
 
 
 def add_card(state, project_id, title, details="", column_id="backlog", *, gantt_task_id=None, gantt_code=None, milestone_id=None, source="manual"):
+    """
+    Function: add_card
+    Purpose: Execute the add card operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            title (value): Caller-provided input.
+            details (value): Caller-provided input.
+            column_id (value): Caller-provided input.
+            gantt_task_id (value): Caller-provided input.
+            gantt_code (value): Caller-provided input.
+            milestone_id (value): Caller-provided input.
+            source (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     board = get_board(state, project_id)
     if column_id not in {column["id"] for column in board["columns"]}:
         raise ValueError("Choose a valid Kanban column.")
@@ -220,6 +309,21 @@ def sync_gantt_task(state, project_id, task):
 
 
 def update_card(state, project_id, card_id, title, details, milestone_id=None):
+    """
+    Function: update_card
+    Purpose: Execute the update card operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            card_id (value): Caller-provided input.
+            title (value): Caller-provided input.
+            details (value): Caller-provided input.
+            milestone_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     board = get_board(state, project_id)
     card = board["cards"].get(card_id)
     if not card or not str(title or "").strip():
@@ -251,6 +355,19 @@ def update_card(state, project_id, card_id, title, details, milestone_id=None):
 
 
 def move_card(state, project_id, card_id, column_id):
+    """
+    Function: move_card
+    Purpose: Execute the move card operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            card_id (value): Caller-provided input.
+            column_id (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     board = get_board(state, project_id)
     if card_id not in board["cards"] or column_id not in {column["id"] for column in board["columns"]}:
         raise ValueError("The card or destination column could not be found.")
@@ -261,6 +378,19 @@ def move_card(state, project_id, card_id, column_id):
 
 
 def delete_card(state, project_id, card_id, *, sync_gantt=True):
+    """
+    Function: delete_card
+    Purpose: Execute the delete card operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            card_id (value): Caller-provided input.
+            sync_gantt (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     board = get_board(state, project_id)
     card = board["cards"].get(card_id)
     if sync_gantt and card and settings.is_enabled("feature_backlog_sync") and (card.get("gantt_task_id") or card.get("gantt_code")):
@@ -285,6 +415,20 @@ def delete_card(state, project_id, card_id, *, sync_gantt=True):
 
 
 def delete_linked_card(state, project_id, *, gantt_task_id=None, gantt_code=None, sync_gantt=False):
+    """
+    Function: delete_linked_card
+    Purpose: Execute the delete linked card operation.
+    Inputs:
+            state (value): Caller-provided input.
+            project_id (value): Caller-provided input.
+            gantt_task_id (value): Caller-provided input.
+            gantt_code (value): Caller-provided input.
+            sync_gantt (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     board = get_board(state, project_id)
     card_id = next(
         (
@@ -345,4 +489,14 @@ def apply_ai_action(state, project_id, action):
 
 
 def _now():
+    """
+    Function: _now
+    Purpose: Execute the  now operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return datetime.now(timezone.utc).isoformat(timespec="seconds")

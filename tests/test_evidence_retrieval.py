@@ -1,7 +1,88 @@
-from app_modules.evidence_retrieval import retrieve
+## File: tests/test_evidence_retrieval.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing test evidence retrieval functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
+from app_modules.evidence_retrieval import filter_current_documents, retrieve
+
+
+def test_metadata_filter_removes_retired_versions_before_ranking():
+    """Retired evidence must never enter lexical or semantic ranking."""
+    documents = [
+        {
+            "source": "policy.pdf",
+            "text": "Old policy says use the retired process.",
+            "document_status": "superseded",
+        },
+        {
+            "source": "policy.pdf",
+            "text": "Current policy says use the approved process.",
+            "document_status": "current",
+        },
+    ]
+
+    eligible = filter_current_documents(documents)
+    assert len(eligible) == 1
+    assert "Current policy" in eligible[0]["text"]
+
+    results = retrieve(documents, "What process is approved?", top_k=10)
+    assert all("retired" not in item["text"] for item in results)
+
+
+def test_legacy_documents_without_lifecycle_metadata_remain_searchable():
+    """Missing migration metadata must preserve existing indexed behaviour."""
+    documents = [{"source": "legacy.pdf", "text": "Legacy approved guidance."}]
+
+    assert filter_current_documents(documents) == documents
+    assert retrieve(documents, "What guidance is approved?")
+
+
+def test_general_vocabulary_aliases_retrieve_matching_capstone_guidance():
+    """Student terminology should match equivalent wording in guidance."""
+    documents = [{
+        "source": "Capstone Guide.pdf",
+        "text": "Each sprint must produce an assessment deliverable for review by the supervisor.",
+    }]
+
+    results = retrieve(
+        documents,
+        "What deliverables are expected in each iteration from my advisor?",
+    )
+
+    assert results
+    assert results[0]["source"] == "Capstone Guide.pdf"
+
+
+def test_access_level_filter_is_fail_closed_when_requested():
+    """An explicit caller access policy must exclude restricted candidates."""
+    documents = [
+        {"source": "private.pdf", "text": "Private answer.", "access_level": "mentor"},
+        {"source": "public.pdf", "text": "Public answer.", "access_level": "student"},
+    ]
+
+    results = retrieve(
+        documents,
+        "What answer is available?",
+        allowed_access_levels={"student"},
+    )
+    assert results
+    assert all(item["access_level"] == "student" for item in results)
 
 
 def test_assessment_question_returns_complete_relevant_table_without_catalogue_noise():
+    """
+    Function: test_assessment_question_returns_complete_relevant_table_without_catalogue_noise
+    Purpose: Execute the test assessment question returns complete relevant table without catalogue noise operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "table_block",
@@ -34,6 +115,16 @@ def test_assessment_question_returns_complete_relevant_table_without_catalogue_n
 
 
 def test_ethics_question_prefers_source_title_over_incidental_lecture_word():
+    """
+    Function: test_ethics_question_prefers_source_title_over_incidental_lecture_word
+    Purpose: Execute the test ethics question prefers source title over incidental lecture word operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -55,6 +146,16 @@ def test_ethics_question_prefers_source_title_over_incidental_lecture_word():
 
 
 def test_genai_acknowledgement_question_prefers_relevant_template():
+    """
+    Function: test_genai_acknowledgement_question_prefers_relevant_template
+    Purpose: Execute the test genai acknowledgement question prefers relevant template operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -76,6 +177,16 @@ def test_genai_acknowledgement_question_prefers_relevant_template():
 
 
 def test_week_question_prefers_exact_week_evidence():
+    """
+    Function: test_week_question_prefers_exact_week_evidence
+    Purpose: Execute the test week question prefers exact week evidence operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -97,6 +208,16 @@ def test_week_question_prefers_exact_week_evidence():
 
 
 def test_hybrid_retrieval_can_promote_semantic_paraphrase():
+    """
+    Function: test_hybrid_retrieval_can_promote_semantic_paraphrase
+    Purpose: Execute the test hybrid retrieval can promote semantic paraphrase operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -113,6 +234,17 @@ def test_hybrid_retrieval_can_promote_semantic_paraphrase():
     ]
 
     def semantic_scores(question, items):
+        """
+        Function: semantic_scores
+        Purpose: Execute the semantic scores operation.
+        Inputs:
+                question (value): Caller-provided input.
+                items (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         assert question == "How often should we meet the client?"
         return [0.94, 0.05]
 
@@ -130,6 +262,16 @@ def test_hybrid_retrieval_can_promote_semantic_paraphrase():
 
 
 def test_hybrid_retrieval_keeps_exact_lexical_match_ahead_of_weak_semantics():
+    """
+    Function: test_hybrid_retrieval_keeps_exact_lexical_match_ahead_of_weak_semantics
+    Purpose: Execute the test hybrid retrieval keeps exact lexical match ahead of weak semantics operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {
             "record_type": "document_chunk",
@@ -154,3 +296,136 @@ def test_hybrid_retrieval_keeps_exact_lexical_match_ahead_of_weak_semantics():
 
     assert results[0]["source"] == "assessment-schedule.csv"
     assert results[0]["lexical_score"] > 0
+
+
+def test_assessment_schedule_pdf_beats_weekly_assessment_guidance():
+    """
+    Function: test_assessment_schedule_pdf_beats_weekly_assessment_guidance
+    Purpose: Execute the test assessment schedule pdf beats weekly assessment guidance operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "Week 10 Tutorial - Assessment Details.pdf",
+            "location": "Page 1",
+            "text": "Assessment details and guidance for completing the final report.",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "Assessments_S2_2026.pdf",
+            "location": "Page 1",
+            "text": (
+                "Assessments S2 2026\n"
+                "Assessment Submission Type Assignment URL Due Date and Time Available Until Points Possible\n"
+                "Poster Group https://example.test/poster 30/10/2026 23:59 2/11/2026 23:59 10"
+            ),
+        },
+    ]
+
+    results = retrieve(documents, "What are the remaining assessments and their due dates?")
+
+    assert results[0]["source"] == "Assessments_S2_2026.pdf"
+
+
+def test_proposal_question_does_not_promote_reflection_rubric():
+    """
+    Function: test_proposal_question_does_not_promote_reflection_rubric
+    Purpose: Execute the test proposal question does not promote reflection rubric operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "Reflection Rubric.docx",
+            "location": "Document",
+            "text": "Reflect on the project plan and proposal in your weekly journal.",
+        },
+        {
+            "record_type": "document_chunk",
+            "source": "Tutorial Slides week 2.pdf",
+            "location": "Page 8",
+            "text": "Project Proposal and Plan Report: problem definition, background study, and requirements analysis.",
+        },
+    ]
+
+    results = retrieve(documents, "What should be included in the Project Proposal and Plan Report?")
+
+    assert results[0]["source"] == "Tutorial Slides week 2.pdf"
+
+
+def test_project_assessment_schedule_prefers_complete_table_for_schedule_question():
+    """
+    Function: test_project_assessment_schedule_prefers_complete_table_for_schedule_question
+    Purpose: Execute the test project assessment schedule prefers complete table for schedule question operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    documents = [
+        {
+            "record_type": "document_chunk",
+            "source": "Project Proposal and Plan Report.docx",
+            "location": "Document",
+            "text": "The project plan includes assessment milestones and deliverables.",
+        },
+        {
+            "record_type": "table_block",
+            "source": "Assessments_S2_2026.csv",
+            "location": "Rows 1-3",
+            "text": (
+                "Headers: Assessment | Due Date and Time | Available Until\n"
+                "Row 2: Assessment=Poster | Due Date and Time=30/10/2026 23:59 | "
+                "Available Until=02/11/2026 23:59"
+            ),
+        },
+    ]
+
+    results = retrieve(documents, "What assessment schedule information is stored?")
+
+    assert results
+    assert results[0]["source"] == "Assessments_S2_2026.csv"
+    assert results[0]["record_type"] == "table_block"
+
+
+def test_risk_question_can_retrieve_risk_tables_without_table_keyword():
+    """
+    Function: test_risk_question_can_retrieve_risk_tables_without_table_keyword
+    Purpose: Execute the test risk question can retrieve risk tables without table keyword operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
+    documents = [
+        {
+            "record_type": "table_block",
+            "source": "Risk Management Framework Template.xlsx",
+            "location": "Sheet1 rows 1-3",
+            "text": (
+                "Headers: Risk Type | Risk | Likelihood | Impact / Consequence | Action | Planning / Control\n"
+                "Row 2: Risk Type=Schedule | Risk=Timeline may cause delays | Likelihood=5 | "
+                "Impact / Consequence=3 | Action=Mitigate | Planning / Control=Monitor velocity and descope low priority items"
+            ),
+        },
+    ]
+
+    results = retrieve(documents, "How do the risk-management documents and project planning guidance support risk control?")
+
+    assert results
+    assert results[0]["source"] == "Risk Management Framework Template.xlsx"

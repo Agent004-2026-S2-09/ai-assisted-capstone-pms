@@ -1,3 +1,11 @@
+## File: tools/general_cross_document_100.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Run 100 live, cross-document general Capstone questions.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Run 100 live, cross-document general Capstone questions."""
 
 from __future__ import annotations
@@ -39,21 +47,64 @@ STOP = set(app.STOP_WORDS) | {
 
 
 def words(text):
+    """
+    Function: words
+    Purpose: Execute the words operation.
+    Inputs:
+            text (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return [w.casefold() for w in re.findall(r"[A-Za-z][A-Za-z0-9'/-]{4,}", str(text or "")) if w.casefold() not in STOP]
 
 
 def source_topic(records):
+    """
+    Function: source_topic
+    Purpose: Execute the source topic operation.
+    Inputs:
+            records (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     text = " ".join(str(x.get("text", ""))[:3000] for x in records[:3])
     counts = Counter(words(text))
     return " ".join(word for word, _ in counts.most_common(12)) or "the main guidance and requirements"
 
 
 def source_terms(records):
+    """
+    Function: source_terms
+    Purpose: Execute the source terms operation.
+    Inputs:
+            records (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     counts = Counter(words(" ".join(str(x.get("text", "")) for x in records)))
     return {word for word, _ in counts.most_common(40)}
 
 
 def make_question(index, left, right, topics):
+    """
+    Function: make_question
+    Purpose: Execute the make question operation.
+    Inputs:
+            index (value): Caller-provided input.
+            left (value): Caller-provided input.
+            right (value): Caller-provided input.
+            topics (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     left_name, right_name = Path(left).stem, Path(right).stem
     a, b = topics[left], topics[right]
     if index % 4 == 0:
@@ -76,6 +127,17 @@ def make_question(index, left, right, topics):
 
 
 def evidence_overlap(answer, records):
+    """
+    Function: evidence_overlap
+    Purpose: Execute the evidence overlap operation.
+    Inputs:
+            answer (value): Caller-provided input.
+            records (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     answer_words = set(words(answer))
     values = []
     for source, items in records.items():
@@ -86,6 +148,21 @@ def evidence_overlap(answer, records):
 
 
 def verify(answer, question, retrieved, evidence, validation, style):
+    """
+    Function: verify
+    Purpose: Execute the verify operation.
+    Inputs:
+            answer (value): Caller-provided input.
+            question (value): Caller-provided input.
+            retrieved (value): Caller-provided input.
+            evidence (value): Caller-provided input.
+            validation (value): Caller-provided input.
+            style (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     clean = app.clean_ai_response(answer)
     source_names = {str(item.get("source", "")) for item in retrieved if item.get("source")}
     overlaps = evidence_overlap(clean, evidence)
@@ -117,6 +194,18 @@ def verify(answer, question, retrieved, evidence, validation, style):
 
 
 def write_report(rows, started, finished):
+    """
+    Function: write_report
+    Purpose: Execute the write report operation.
+    Inputs:
+            rows (value): Caller-provided input.
+            started (value): Caller-provided input.
+            finished (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     doc = Document()
     sec = doc.sections[0]
     sec.top_margin = Inches(0.6)
@@ -154,6 +243,16 @@ def write_report(rows, started, finished):
 
 
 def run():
+    """
+    Function: run
+    Purpose: Execute the run operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     st.session_state.clear()
     if not auth.login(st.session_state, "aisha.rahman@demo.local", "Temp-dy0ZTpbyBphPxTJW4aMm"):

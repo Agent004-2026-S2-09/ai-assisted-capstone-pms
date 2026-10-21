@@ -1,3 +1,11 @@
+## File: app_modules/auth.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Password hashing and revocable database sessions, without extra dependencies.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Password hashing and revocable database sessions, without extra dependencies."""
 import hashlib
 import hmac
@@ -43,10 +51,31 @@ def permission_list(value):
 
 
 def has_permission(user, permission):
+    """
+    Function: has_permission
+    Purpose: Execute the has permission operation.
+    Inputs:
+            user (value): Caller-provided input.
+            permission (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return str(permission) in permission_list(user)
 
 
 def hash_password(password):
+    """
+    Function: hash_password
+    Purpose: Execute the hash password operation.
+    Inputs:
+            password (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not isinstance(password, str) or not 12 <= len(password) <= 1024:
         raise ValueError("Use a password between 12 and 1024 characters.")
     salt = secrets.token_bytes(16)
@@ -55,6 +84,17 @@ def hash_password(password):
 
 
 def verify_password(password, encoded):
+    """
+    Function: verify_password
+    Purpose: Execute the verify password operation.
+    Inputs:
+            password (value): Caller-provided input.
+            encoded (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     if not isinstance(password, str) or len(password) > 1024:
         return False
     try:
@@ -72,6 +112,25 @@ _DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
 
 
 def create_user(name, username, password, role, active=True, *, first_name="", last_name="", email="", must_change_password=False, permissions=None):
+    """
+    Function: create_user
+    Purpose: Execute the create user operation.
+    Inputs:
+            name (value): Caller-provided input.
+            username (value): Caller-provided input.
+            password (value): Caller-provided input.
+            role (value): Caller-provided input.
+            active (value): Caller-provided input.
+            first_name (value): Caller-provided input.
+            last_name (value): Caller-provided input.
+            email (value): Caller-provided input.
+            must_change_password (value): Caller-provided input.
+            permissions (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     name, username = str(name or "").strip(), str(username or "").strip().casefold()
     first_name = str(first_name or "").strip()
     last_name = str(last_name or "").strip()
@@ -156,6 +215,18 @@ def create_users_batch(rows):
 
 
 def _authenticate(db, username, password):
+    """
+    Function: _authenticate
+    Purpose: Execute the  authenticate operation.
+    Inputs:
+            db (value): Caller-provided input.
+            username (value): Caller-provided input.
+            password (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     row = db.execute("SELECT * FROM users WHERE username = ?", (username.strip().casefold(),)).fetchone()
     valid = verify_password(password, row["password_hash"] if row else _DUMMY_HASH)
     if not row or not valid or not row["active"]:
@@ -166,15 +237,48 @@ def _authenticate(db, username, password):
 
 
 def authenticate(username, password):
+    """
+    Function: authenticate
+    Purpose: Execute the authenticate operation.
+    Inputs:
+            username (value): Caller-provided input.
+            password (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with database.connect() as db:
         return _authenticate(db, username, password)
 
 
 def _token_hash(token):
+    """
+    Function: _token_hash
+    Purpose: Execute the  token hash operation.
+    Inputs:
+            token (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return hashlib.sha256(token.encode()).hexdigest()
 
 
 def login(state, username, password):
+    """
+    Function: login
+    Purpose: Execute the login operation.
+    Inputs:
+            state (value): Caller-provided input.
+            username (value): Caller-provided input.
+            password (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     logout(state)
     token = secrets.token_urlsafe(32)
     with database.connect() as db:
@@ -202,6 +306,16 @@ def restore_session(state, token):
 
 
 def current_user(state):
+    """
+    Function: current_user
+    Purpose: Execute the current user operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     token = state.get("auth_token")
     if not isinstance(token, str) or not token:
         return None
@@ -219,6 +333,16 @@ def current_user(state):
 
 
 def logout(state):
+    """
+    Function: logout
+    Purpose: Execute the logout operation.
+    Inputs:
+            state (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     token = state.get("auth_token")
     if isinstance(token, str) and token:
         with database.connect() as db:
@@ -245,6 +369,19 @@ def complete_password_reset(username, token, password, confirmation):
 
 
 def _replace_password(db, user_id, encoded, *, revoke_sessions=True):
+    """
+    Function: _replace_password
+    Purpose: Execute the  replace password operation.
+    Inputs:
+            db (value): Caller-provided input.
+            user_id (value): Caller-provided input.
+            encoded (value): Caller-provided input.
+            revoke_sessions (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     db.execute("UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?",
                (encoded, datetime.now(timezone.utc).isoformat(timespec="seconds"), user_id))
     if revoke_sessions:
@@ -264,6 +401,17 @@ def reset_password_for_operator(username, password):
 
 
 def _check_password_change_rate_limit(db, username):
+    """
+    Function: _check_password_change_rate_limit
+    Purpose: Execute the  check password change rate limit operation.
+    Inputs:
+            db (value): Caller-provided input.
+            username (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     cutoff = time.time() - 900
     row = db.execute("SELECT COUNT(*) FROM password_change_attempts WHERE username = ? AND attempted_at >= ?", (username, cutoff)).fetchone()
     if int(row[0]) >= 8:
@@ -293,6 +441,19 @@ def change_password_from_login(username, full_name, email, new_password, confirm
 
 
 def change_own_password(state, current_password, new_password, confirmation):
+    """
+    Function: change_own_password
+    Purpose: Execute the change own password operation.
+    Inputs:
+            state (value): Caller-provided input.
+            current_password (value): Caller-provided input.
+            new_password (value): Caller-provided input.
+            confirmation (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = current_user(state)
     if not user:
         raise ValueError("Please sign in before changing your password.")
@@ -307,6 +468,18 @@ def change_own_password(state, current_password, new_password, confirmation):
 
 
 def complete_first_password_change(state, new_password, confirmation):
+    """
+    Function: complete_first_password_change
+    Purpose: Execute the complete first password change operation.
+    Inputs:
+            state (value): Caller-provided input.
+            new_password (value): Caller-provided input.
+            confirmation (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     user = current_user(state)
     if not user:
         raise ValueError("Please sign in before changing your password.")

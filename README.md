@@ -2,7 +2,7 @@
 
 AI-assisted project management and knowledge retrieval for UC Canberra Capstone projects.
 
-**Current release:** Version 7 — Sprint 7 complete
+**Current release:** Version 7 — Sprint 7 complete; final demo-readiness verification recorded 21 October 2026
 **Application:** Streamlit
 **Sponsor:** Trellis Data — Agentaus AI
 
@@ -11,6 +11,8 @@ Capstone Assistant gives authorised students, mentors, convenors and administrat
 ## Handover status
 
 The prototype has completed the seven-sprint delivery plan. Sprint 6 covered system testing and User Acceptance Testing. Sprint 7 covered priority defect resolution, refinement, deployment preparation and post-deployment verification.
+
+The current verification baseline is recorded in [Current project status](docs/technical-docs/current-project-status.md).
 
 The current sponsor-review deployment is the Streamlit Community Cloud instance. The repository is also ready for local setup and handover using Docker.
 
@@ -35,7 +37,7 @@ Docker remains the recommended setup when a reproducible local environment or pe
 - Supports follow-up questions using the current conversation context.
 - Supports summaries, comparisons, report-style answers, table-style answers and broad information requests.
 - Uses hybrid retrieval combining lexical, fuzzy, semantic and local vector signals.
-- Uses `BAAI/bge-small-en-v1.5` neural embeddings when available, with a deterministic hashing fallback for offline or dependency-light operation.
+- Supports `BAAI/bge-small-en-v1.5` neural embeddings when the optional neural dependencies are installed, with the retained deterministic `hashing-v1` backend for the current MVP/offline runtime.
 - Builds bounded evidence context instead of sending the entire knowledge base with every request.
 - Streams responses to the interface and records provider, latency, usage and failure metadata for administration.
 - Performs grounded-response checks and provides safe fallback responses when information is missing, unsupported or unavailable.
@@ -116,13 +118,13 @@ The system separates document retrieval from answer generation. This means the l
 - **AgentAus** is the system's writing assistant. It uses the question and the information found by BGE to write the final answer, summary or report.
 - **Hashing** is a lightweight backup search method used when the BGE search model is unavailable or when the system is running in offline test mode.
 
-### 1. Local embedding model: `BAAI/bge-small-en-v1.5`
+### 1. Optional local neural embedding model: `BAAI/bge-small-en-v1.5`
 
 **Function:** Converts document chunks and user questions into numerical vectors so semantically related content can be found even when the wording does not exactly match. These vectors support the local vector-similarity component of the hybrid retrieval pipeline.
 
 **Runtime behaviour:**
 
-- This is the default neural embedding model when `sentence-transformers` is installed.
+- This is the optional neural embedding model when `sentence-transformers` is installed. It is not being enabled automatically for the current MVP baseline.
 - It is used for both indexed document embeddings and query embeddings; the application does not run separate document and query models.
 - Query embeddings use the model's query encoding method when available, with a search-instruction prefix for compatible versions.
 - Embeddings are normalised and stored in the SQLite `document_embeddings` table.
@@ -185,9 +187,9 @@ EMBEDDING_BACKEND=hashing
 
 ### Model count at runtime
 
-In the normal deployed configuration, the system has two model responsibilities:
+The architecture has two model responsibilities:
 
-1. One local embedding model: `BAAI/bge-small-en-v1.5`.
+1. One local embedding backend. The current verified MVP runtime uses `hashing-v1`; BGE remains an optional, explicitly selected alternative.
 2. One external AgentAus answer-generation model, whose exact provider-side name is not exposed by this repository.
 
 `hashing-v1` is an alternative embedding backend, not an additional concurrently running model. The system does not contain a second local language model or a separate reranking model.
@@ -330,17 +332,7 @@ python -m compileall -q app.py app_modules tools
 python -m pip check
 ```
 
-The final verification record includes:
-
-- 171 automated tests passed in the latest completed full-suite run.
-- 250/250 mixed AI evaluation questions passed; the merged question index is available in `docs/test-docs/all_test_questions.docx`.
-- 340/340 general knowledge certification questions passed.
-- 100/100 cross-document questions passed.
-- 100/100 project-specific questions passed for the Trellis Data project.
-- 100/100 project-specific questions passed for Smart Gate, including empty project-knowledge handling.
-- 100/100 project-specific questions passed for Team Plus Motorsport, including empty project-knowledge handling.
-- Authenticated project-access isolation checks passed.
-- Streamlit startup, compilation, dependency and deployment checks passed.
+Verification records and historical test artefacts are retained in `docs/test/` and `docs/test-docs/`.
 
 For the offline retrieval benchmark:
 
@@ -407,6 +399,8 @@ Confirm the container is running and that port `8501` is available. Check the he
 **AgentAus requests fail**
 Check `AGENTAUS_API_KEY` and `API_ENDPOINT` in `.env`. Do not put credentials directly in source files.
 
+If an AI request fails, the application shows a safe user-facing message, records the failure for administrators and changes the AI service indicator to offline/red. A reachable health probe does not guarantee that every provider generation or validation request is available.
+
 **OCR is unavailable**
 The Docker image installs Tesseract. For a non-Docker setup, install Tesseract separately and verify it with `tesseract --version`.
 
@@ -419,3 +413,5 @@ Use a supported, non-password-protected PDF, DOCX, XLSX, CSV, PPTX, TXT or MD fi
 ## Scope and limitations
 
 This is a prototype and does not include LMS integration, enterprise orchestration or production hosting configuration. Local accounts, assignments and project records remain the current source of truth. AI output supports formal academic, mentor and stakeholder decisions; it does not replace them.
+
+The current MVP uses `hashing-v1` for deterministic local embeddings unless the neural backend is explicitly installed and selected. Independent AI response validation depends on the provider being available. A real Chromium browser run remains an environment-dependent check; browser-level verification should be repeated from a machine with a working Chromium installation before a production deployment.

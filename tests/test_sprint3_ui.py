@@ -1,3 +1,11 @@
+## File: tests/test_sprint3_ui.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Exercise real Streamlit session state and forms without a live API call.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Exercise real Streamlit session state and forms without a live API call."""
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -10,6 +18,17 @@ from app_modules import database
 @pytest.mark.parametrize("role", database.ROLES)
 def test_login_navigation_project_visibility_and_logout(role, monkeypatch):
     # AppTest runs main against the same isolated services and actual Streamlit state.
+    """
+    Function: test_login_navigation_project_visibility_and_logout
+    Purpose: Execute the test login navigation project visibility and logout operation.
+    Inputs:
+            role (value): Caller-provided input.
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     database.write_projects([{"id": "alpha", "name": "Alpha"}, {"id": "beta", "name": "Beta"}])
     user_id = auth.create_user("UI User", "ui@example.org", "ui-test-password", role)
     with database.connect() as db:

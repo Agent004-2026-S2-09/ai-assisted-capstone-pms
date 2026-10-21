@@ -1,3 +1,11 @@
+## File: tools/remediate_project_specific_100.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Recheck project-specific failures against authoritative project records.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Recheck project-specific failures against authoritative project records."""
 from __future__ import annotations
 
@@ -28,16 +36,48 @@ IMPERSONATE_USER_ID = os.environ.get("IMPERSONATE_USER_ID", "")
 
 
 def norm(value):
+    """
+    Function: norm
+    Purpose: Execute the norm operation.
+    Inputs:
+            value (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     return re.sub(r"\s+", " ", str(value or "").casefold().replace("–", "-").replace("‑", "-")).strip()
 
 
 def anchors(text, source, limit=8):
+    """
+    Function: anchors
+    Purpose: Execute the anchors operation.
+    Inputs:
+            text (value): Caller-provided input.
+            source (value): Caller-provided input.
+            limit (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     counts = Counter(re.findall(r"[A-Za-z][A-Za-z0-9'-]{5,}", str(source or "")))
     answer = set(re.findall(r"[A-Za-z][A-Za-z0-9'-]{5,}", str(text or "").casefold()))
     return len(answer & {word.casefold() for word, _ in counts.most_common(limit)})
 
 
 def project_and_schedule():
+    """
+    Function: project_and_schedule
+    Purpose: Execute the project and schedule operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     with sqlite3.connect(ROOT / "project_data/capstone.sqlite3") as db:
         project = app.Project.from_dict(json.loads(db.execute("select profile from projects where id=?", (PROJECT_ID,)).fetchone()[0]))
         gantt = json.loads(db.execute("select plan_json from gantt_plans where project_id=?", (PROJECT_ID,)).fetchone()[0])["tasks"]
@@ -45,6 +85,16 @@ def project_and_schedule():
 
 
 def main():
+    """
+    Function: main
+    Purpose: Execute the main operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     data = json.loads(RESULTS.read_text())
     rows = data["results"]
     project, gantt = project_and_schedule()

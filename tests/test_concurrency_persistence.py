@@ -1,3 +1,11 @@
+## File: tests/test_concurrency_persistence.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing test concurrency persistence functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 from concurrent.futures import ThreadPoolExecutor
 
 import app
@@ -5,18 +13,50 @@ from app_modules import auth, gantt, kanban
 
 
 def _admin_session(username="admin@test.local"):
+    """
+    Function: _admin_session
+    Purpose: Execute the  admin session operation.
+    Inputs:
+            username (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {"messages": [], "suggested_project_keys": [], "api_usage": []}
     assert auth.login(state, username, "test-password-long")
     return state
 
 
 def test_two_project_sessions_can_write_and_reload_independently():
+    """
+    Function: test_two_project_sessions_can_write_and_reload_independently
+    Purpose: Execute the test two project sessions can write and reload independently operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     project_a = app.create_project("Concurrent Alpha")
     project_b = app.create_project("Concurrent Beta")
     state_a = _admin_session()
     state_b = _admin_session()
 
     def write_project(state, project_id, prefix):
+        """
+        Function: write_project
+        Purpose: Execute the write project operation.
+        Inputs:
+                state (value): Caller-provided input.
+                project_id (value): Caller-provided input.
+                prefix (value): Caller-provided input.
+        Returns:
+                The function result, or None where no value is returned.
+        Raises/side effects:
+                Existing validation, authorization, persistence, and error handling apply.
+        """
         for index in range(3):
             gantt.add_task(
                 state,
@@ -68,6 +108,16 @@ def test_two_project_sessions_can_write_and_reload_independently():
 
 
 def test_parallel_read_only_retrieval_does_not_cross_documents():
+    """
+    Function: test_parallel_read_only_retrieval_does_not_cross_documents
+    Purpose: Execute the test parallel read only retrieval does not cross documents operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     documents = [
         {"scope": "general", "source": "alpha.txt", "text": "Alpha guidance"},
         {"scope": "general", "source": "beta.txt", "text": "Beta guidance"},

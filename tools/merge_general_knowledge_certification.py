@@ -1,3 +1,11 @@
+## File: tools/merge_general_knowledge_certification.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Merge the four live certification checkpoints and remediation results.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 """Merge the four live certification checkpoints and remediation results."""
 
 import json
@@ -11,6 +19,16 @@ from general_knowledge_live_certification import REPORT_DOCX, REPORT_JSON, _writ
 
 
 def run():
+    """
+    Function: run
+    Purpose: Execute the run operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     rows = []
     for path in sorted((ROOT / "docs").glob(".general_knowledge_live_certification_checkpoint_worker*.json")):
         rows.extend(json.loads(path.read_text(encoding="utf-8")))

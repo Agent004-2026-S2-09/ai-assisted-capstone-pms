@@ -1,3 +1,11 @@
+## File: tests/test_scheduling_accounts.py
+## Date Created: Existing repository file
+## Date Last Modified: 20-10-2026
+## Description: Python module providing test scheduling accounts functionality.
+## Inputs: Function arguments, application state, files, or service data as applicable
+## Outputs: Return values, persisted state, or user-facing output as applicable
+## Notes: Existing security, validation, and error-handling behaviour is preserved.
+
 import io
 import zipfile
 
@@ -15,6 +23,16 @@ import openpyxl
 
 
 def test_gantt_import_creates_idempotent_task_cards_but_not_milestone_cards(monkeypatch):
+    """
+    Function: test_gantt_import_creates_idempotent_task_cards_but_not_milestone_cards
+    Purpose: Execute the test gantt import creates idempotent task cards but not milestone cards operation.
+    Inputs:
+            monkeypatch (value): Caller-provided input.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     admin_id = auth.create_user("Schedule Admin", "schedule-admin", "schedule-admin-password", "Administrator")
     assert auth.login(state, "schedule-admin", "schedule-admin-password")
@@ -31,6 +49,16 @@ def test_gantt_import_creates_idempotent_task_cards_but_not_milestone_cards(monk
 
 
 def test_simple_gantt_sheet_maps_statuses_to_kanban_columns():
+    """
+    Function: test_simple_gantt_sheet_maps_statuses_to_kanban_columns
+    Purpose: Execute the test simple gantt sheet maps statuses to kanban columns operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "simple-import-admin-password"
     auth.create_user("Simple Import Admin", "simple-import-admin", password, "Administrator")
@@ -65,6 +93,16 @@ def test_simple_gantt_sheet_maps_statuses_to_kanban_columns():
 
 
 def test_kanban_stage_moves_update_linked_gantt_progress():
+    """
+    Function: test_kanban_stage_moves_update_linked_gantt_progress
+    Purpose: Execute the test kanban stage moves update linked gantt progress operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     auth.create_user("Progress Admin", "progress-admin", "progress-admin-password", "Administrator")
     assert auth.login(state, "progress-admin", "progress-admin-password")
@@ -88,6 +126,16 @@ def test_kanban_stage_moves_update_linked_gantt_progress():
 
 
 def test_drag_style_board_saves_update_linked_gantt_progress_without_card_metadata():
+    """
+    Function: test_drag_style_board_saves_update_linked_gantt_progress_without_card_metadata
+    Purpose: Execute the test drag style board saves update linked gantt progress without card metadata operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     auth.create_user("Drag Progress Admin", "drag-progress-admin", "drag-progress-password", "Administrator")
     assert auth.login(state, "drag-progress-admin", "drag-progress-password")
@@ -106,6 +154,16 @@ def test_drag_style_board_saves_update_linked_gantt_progress_without_card_metada
 
 
 def test_gantt_and_kanban_crud_stays_bidirectionally_synchronised():
+    """
+    Function: test_gantt_and_kanban_crud_stays_bidirectionally_synchronised
+    Purpose: Execute the test gantt and kanban crud stays bidirectionally synchronised operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "bidirectional-admin-password"
     auth.create_user("Bidirectional Admin", "bidirectional-admin", password, "Administrator")
@@ -159,6 +217,16 @@ def test_gantt_and_kanban_crud_stays_bidirectionally_synchronised():
 
 
 def test_gantt_milestones_are_linked_without_replacing_manual_records():
+    """
+    Function: test_gantt_milestones_are_linked_without_replacing_manual_records
+    Purpose: Execute the test gantt milestones are linked without replacing manual records operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "milestone-link-admin-password"
     auth.create_user("Milestone Link Admin", "milestone-link-admin", password, "Administrator")
@@ -192,6 +260,16 @@ def test_gantt_milestones_are_linked_without_replacing_manual_records():
 
 
 def test_milestone_edits_and_deletes_propagate_to_gantt_without_task_card():
+    """
+    Function: test_milestone_edits_and_deletes_propagate_to_gantt_without_task_card
+    Purpose: Execute the test milestone edits and deletes propagate to gantt without task card operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "milestone-crud-admin-password"
     auth.create_user("Milestone CRUD Admin", "milestone-crud-admin", password, "Administrator")
@@ -222,6 +300,16 @@ def test_milestone_edits_and_deletes_propagate_to_gantt_without_task_card():
 
 
 def test_only_explicit_gantt_milestones_sync_to_milestones_tab():
+    """
+    Function: test_only_explicit_gantt_milestones_sync_to_milestones_tab
+    Purpose: Execute the test only explicit gantt milestones sync to milestones tab operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "explicit-milestone-admin-password"
     auth.create_user("Explicit Milestone Admin", "explicit-milestone-admin", password, "Administrator")
@@ -236,6 +324,16 @@ def test_only_explicit_gantt_milestones_sync_to_milestones_tab():
 
 
 def test_milestone_progress_is_weighted_from_explicit_child_tasks():
+    """
+    Function: test_milestone_progress_is_weighted_from_explicit_child_tasks
+    Purpose: Execute the test milestone progress is weighted from explicit child tasks operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "rollup-admin-password"
     auth.create_user("Rollup Admin", "rollup-admin", password, "Administrator")
@@ -290,6 +388,16 @@ def test_milestone_progress_is_weighted_from_explicit_child_tasks():
 
 
 def test_linked_milestone_cannot_be_deleted_until_children_are_reassigned():
+    """
+    Function: test_linked_milestone_cannot_be_deleted_until_children_are_reassigned
+    Purpose: Execute the test linked milestone cannot be deleted until children are reassigned operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     password = "delete-rollup-admin-password"
     auth.create_user("Delete Rollup Admin", "delete-rollup-admin", password, "Administrator")
@@ -311,6 +419,16 @@ def test_linked_milestone_cannot_be_deleted_until_children_are_reassigned():
 
 
 def test_feature_flags_are_admin_only():
+    """
+    Function: test_feature_flags_are_admin_only
+    Purpose: Execute the test feature flags are admin only operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     auth.create_user("Flag Admin", "flag-admin", "flag-admin-password", "Administrator")
     assert auth.login(state, "flag-admin", "flag-admin-password")
@@ -321,6 +439,16 @@ def test_feature_flags_are_admin_only():
 
 
 def test_tab_settings_control_all_child_capabilities():
+    """
+    Function: test_tab_settings_control_all_child_capabilities
+    Purpose: Execute the test tab settings control all child capabilities operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     auth.create_user("Tab Admin", "tab-admin", "tab-admin-password", "Administrator")
     assert auth.login(state, "tab-admin", "tab-admin-password")
@@ -334,6 +462,16 @@ def test_tab_settings_control_all_child_capabilities():
 
 
 def test_task_assistant_history_is_scoped_to_the_selected_project():
+    """
+    Function: test_task_assistant_history_is_scoped_to_the_selected_project
+    Purpose: Execute the test task assistant history is scoped to the selected project operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     state = {}
     first_project_history = app._get_kanban_ai_history(state, "project-one")
     first_project_history.append({"question": "Create a research task", "response": "Completed."})
@@ -343,6 +481,16 @@ def test_task_assistant_history_is_scoped_to_the_selected_project():
 
 
 def test_profile_verified_login_password_change_and_templates():
+    """
+    Function: test_profile_verified_login_password_change_and_templates
+    Purpose: Execute the test profile verified login password change and templates operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     auth.create_user("Ada Lovelace", "ada", "temporary-password", "Student", email="ada@example.edu", first_name="Ada", last_name="Lovelace")
     auth.change_password_from_login("ada", "Ada Lovelace", "ada@example.edu", "replacement-password", "replacement-password")
     assert auth.authenticate("ada", "replacement-password")
@@ -351,6 +499,16 @@ def test_profile_verified_login_password_change_and_templates():
 
 
 def test_administrator_can_import_user_accounts_from_excel():
+    """
+    Function: test_administrator_can_import_user_accounts_from_excel
+    Purpose: Execute the test administrator can import user accounts from excel operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.append(templates.USER_HEADERS)
@@ -368,6 +526,16 @@ def test_administrator_can_import_user_accounts_from_excel():
 
 
 def test_user_import_rejects_duplicate_batch_without_partial_writes():
+    """
+    Function: test_user_import_rejects_duplicate_batch_without_partial_writes
+    Purpose: Execute the test user import rejects duplicate batch without partial writes operation.
+    Inputs:
+            None.
+    Returns:
+            The function result, or None where no value is returned.
+    Raises/side effects:
+            Existing validation, authorization, persistence, and error handling apply.
+    """
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.append(templates.USER_HEADERS)
