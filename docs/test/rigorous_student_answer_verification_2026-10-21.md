@@ -14,4 +14,4 @@
 
 This pass compares each saved response against the authorised document or project-record evidence associated with the question. It checks evidence-term support, unsupported numeric/proper-name tokens, empty/failed responses, and file-detail leakage. It is a deterministic triage layer; borderline cases require semantic review and are not automatically declared correct or incorrect.
 
-Full machine-readable results: `docs/test/rigorous_student_answer_verification_2026-10-21.json`
+The machine-readable result export was a temporary test artifact and is not retained in the repository.

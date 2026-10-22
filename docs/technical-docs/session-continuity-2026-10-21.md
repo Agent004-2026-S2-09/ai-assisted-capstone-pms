@@ -18,9 +18,7 @@ The real Chromium student-facing test completed all **610 questions**:
 - 2 project cross-document questions failed before generation with `AccessDenied`.
 - No fallback responses were recorded in this run.
 
-Primary browser report:
-
-`docs/test/rigorous_student_browser_test.json`
+The primary browser report was a temporary JSON test artifact and is not retained in the repository.
 
 The browser checkpoint is:
 
@@ -37,9 +35,7 @@ The first AgentAus adjudication pass checked all 610 rows, but the provider beca
 
 The 47 currently classified as correct were all general, single-document questions. No project-specific or multi-document answer was independently confirmed in that pass.
 
-Report:
-
-`docs/test/rigorous_student_ai_adjudication_2026-10-21.json`
+The adjudication report was a temporary JSON test artifact and is not retained in the repository.
 
 A retry was started for the timeout cases. It was stopped after the provider health check returned **HTTP 402 — Payment Required**. This indicates quota, credit or billing restriction; it does not establish that AgentAus is permanently offline.
 

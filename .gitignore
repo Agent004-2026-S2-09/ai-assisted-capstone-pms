@@ -26,6 +26,10 @@ Thumbs.db
 *.tmp
 *.swp
 
+# Generated student/browser test output
+docs/test/*.json
+docs/test/.*.json
+
 
 
 # Persistent application data, project documents and SQLite databases are
