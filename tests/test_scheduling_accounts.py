@@ -153,6 +153,39 @@ def test_drag_style_board_saves_update_linked_gantt_progress_without_card_metada
     assert "Progress:" not in kanban.get_board(state, "drag-progress")["cards"][card_id]["details"]
 
 
+def test_kanban_round_trip_keeps_gantt_status_and_progress_in_sync():
+    """Moving a linked task through the board updates every workflow field."""
+    state = {}
+    password = "round-trip-admin-password"
+    auth.create_user("Round Trip Admin", "round-trip-admin", password, "Administrator")
+    assert auth.login(state, "round-trip-admin", password)
+    database.write_projects([{"id": "round-trip", "name": "Round Trip", "milestones": []}])
+
+    gantt.add_task(state, "round-trip", {
+        "code": "1", "name": "Round-trip task", "type": "Task",
+        "start": "2026-10-02", "finish": "2026-10-05", "progress": 0,
+        "status": "Planned", "resource": "", "predecessors": [],
+        "details": "", "milestone": False,
+    })
+    card_id = next(iter(kanban.get_board(state, "round-trip")["cards"]))
+    task_id = gantt.get_plan(state, "round-trip")["tasks"][0]["id"]
+
+    expected = [
+        ("done", 100, "Completed"),
+        ("backlog", 0, "Planned"),
+        ("review", 75, "In Progress"),
+        ("progress", 50, "In Progress"),
+        ("backlog", 0, "Planned"),
+    ]
+    for column_id, progress, status in expected:
+        kanban.move_card(state, "round-trip", card_id, column_id)
+        task = gantt.get_plan(state, "round-trip")["tasks"][0]
+        assert task["id"] == task_id
+        assert task["progress"] == progress
+        assert task["status"] == status
+        assert task["kanban_column"] == column_id
+
+
 def test_gantt_and_kanban_crud_stays_bidirectionally_synchronised():
     """
     Function: test_gantt_and_kanban_crud_stays_bidirectionally_synchronised

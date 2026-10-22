@@ -113,6 +113,20 @@ def _authority_rank(item, question=""):
     return rank
 
 
+def _is_calendar_question(question):
+    return bool(re.search(
+        r"\b(?:today|current date|what date|date is it|teaching week|academic week|"
+        r"which week|what week|week are we|semester week)\b",
+        str(question or ""),
+        re.IGNORECASE,
+    ))
+
+
+def _is_calendar_document(item):
+    source = re.sub(r"[^a-z0-9]+", " ", str(item.get("source") or "").casefold()).strip()
+    return bool(re.search(r"teaching\s+weeks?|semester\s+calendar|academic\s+calendar", source))
+
+
 def build_bundle(question, results, *, query_plan=None, project_id=None):
     """Validate and order evidence without changing the existing retrievers.
 
@@ -130,7 +144,11 @@ def build_bundle(question, results, *, query_plan=None, project_id=None):
         item_scope = str(item.get("scope", "general"))
         item_project = item.get("project_id")
         if project_id:
-            if item_scope != "project" or str(item_project) != str(project_id):
+            is_authorised_calendar = _is_calendar_question(question) and _is_calendar_document(item)
+            if (
+                (item_scope != "project" or str(item_project) != str(project_id))
+                and not is_authorised_calendar
+            ):
                 failures.add("wrong_scope")
                 continue
         elif item_scope == "project":

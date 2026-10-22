@@ -190,6 +190,10 @@ def _sync_linked_gantt_progress(state, project_id, card, column_id):
         return
     task["progress"] = COLUMN_PROGRESS[column_id]
     task["status"] = "Completed" if column_id == "done" else "In Progress" if column_id in {"progress", "review"} else "Planned"
+    # Keep the explicit workflow field in sync as well.  Gantt normalisation
+    # prefers kanban_column over status, so leaving the previous value here
+    # makes moves such as Done -> Backlog snap back to 100%/Completed.
+    task["kanban_column"] = column_id
     gantt.save_plan(state, project_id, plan)
 
 

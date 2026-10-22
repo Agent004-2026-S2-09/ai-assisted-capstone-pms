@@ -1,0 +1,542 @@
+[
+  {
+    "number": 1,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What is the purpose and main message of '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1359,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 3.0,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:45:58+00:00"
+  },
+  {
+    "number": 2,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What exact dates, numbers, roles or definitions are stated in '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1364,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.78,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:45:59+00:00"
+  },
+  {
+    "number": 3,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What requirements or steps does '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1365,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.8,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:00+00:00"
+  },
+  {
+    "number": 4,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What practical actions should a Capstone student take from '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1366,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.77,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:00+00:00"
+  },
+  {
+    "number": 5,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What risks, cautions or exceptions are identified by '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1367,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.9,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:01+00:00"
+  },
+  {
+    "number": 6,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What responsibilities or stakeholders are described in '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1368,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.83,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:02+00:00"
+  },
+  {
+    "number": 7,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What evidence, deliverables or outcomes does '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1369,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.82,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:03+00:00"
+  },
+  {
+    "number": 8,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "What does this source explicitly leave unspecified, and what should be verified '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1370,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 3,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.85,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=3. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:04+00:00"
+  },
+  {
+    "number": 9,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "How should the guidance in this source be applied during a Capstone project '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1371,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 5,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.91,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=5. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:05+00:00"
+  },
+  {
+    "number": 10,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "11522-24S1-38 Poster.pdf"
+    ],
+    "question": "Give a grounded student briefing on the most important information in '11522-24S1-38 Poster' concerning iseq study survey gender weaknesses results identified quantitative? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1372,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.88,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:05+00:00"
+  },
+  {
+    "number": 11,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What is the purpose and main message of '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1373,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.73,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:06+00:00"
+  },
+  {
+    "number": 12,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What exact dates, numbers, roles or definitions are stated in '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1374,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.69,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:07+00:00"
+  },
+  {
+    "number": 13,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What requirements or steps does '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1375,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.78,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:08+00:00"
+  },
+  {
+    "number": 14,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What practical actions should a Capstone student take from '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1376,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.78,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:08+00:00"
+  },
+  {
+    "number": 15,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What risks, cautions or exceptions are identified by '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1377,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.82,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:09+00:00"
+  },
+  {
+    "number": 16,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What responsibilities or stakeholders are described in '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1378,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.85,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:10+00:00"
+  },
+  {
+    "number": 17,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What evidence, deliverables or outcomes does '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1379,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.91,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:11+00:00"
+  },
+  {
+    "number": 18,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "What does this source explicitly leave unspecified, and what should be verified '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1380,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 4,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.8,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=4. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:12+00:00"
+  },
+  {
+    "number": 19,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "How should the guidance in this source be applied during a Capstone project '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1381,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 5,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.82,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=5. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:13+00:00"
+  },
+  {
+    "number": 20,
+    "scope": "general",
+    "category": "per-document",
+    "source_group": [
+      "2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture).pdf"
+    ],
+    "question": "Give a grounded student briefing on the most important information in '2026-10-12 ACS Membership - Professionalism and Ethics (Guest Lecture)' concerning acknowledge people region communi bringing together diverse groups? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
+    "interaction_id": 1382,
+    "response_chars": 248,
+    "rendered": true,
+    "success": true,
+    "validation_status": "unavailable",
+    "failure_class": "validation_unavailable",
+    "source_count": 1,
+    "evidence_sufficient": 1,
+    "elapsed_seconds": 0.79,
+    "score": {
+      "automated_pass": false,
+      "relevance": 5,
+      "grounded_accuracy": 3,
+      "hallucination_detected": 1,
+      "usability": 5,
+      "notes": "Automated triage: success=True; validation=unavailable; failure=validation_unavailable; source_count=1. Semantic review required for any flagged result."
+    },
+    "completed_at": "2026-10-22T10:46:13+00:00"
+  }
+]

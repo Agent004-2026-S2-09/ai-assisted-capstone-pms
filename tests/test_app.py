@@ -7,6 +7,7 @@
 ## Notes: Existing security, validation, and error-handling behaviour is preserved.
 
 from types import SimpleNamespace
+from datetime import date
 import io
 import json
 import random
@@ -526,7 +527,14 @@ def test_academic_calendar_context_is_timezone_aware_and_deterministic():
     )
 
     assert "Monday, 19 October 2026" in context
-    assert "Teaching week 10" in context
+    assert "Teaching week 11" in context
+
+
+def test_academic_calendar_counts_class_free_period_as_numbered_week():
+    """The semester break remains Week 9 and does not shift later weeks."""
+    assert app.teaching_week_for_date(date(2026, 10, 5)) == 9
+    assert app.teaching_week_for_date(date(2026, 10, 12)) == 10
+    assert app.teaching_week_for_date(date(2026, 10, 19)) == 11
 
 
 def test_assessment_due_date_questions_return_complete_table():
@@ -1127,6 +1135,48 @@ def test_structured_meeting_answer_restores_omitted_authoritative_rows():
 
     assert "sponsor kickoff" in answer.casefold()
     assert "Design review | Date: 2026-09-07" in answer
+
+
+def test_structured_meeting_answer_does_not_duplicate_typographic_titles():
+    """Equivalent Unicode dashes must not trigger a second meeting list."""
+    results = [{
+        "record_type": "structured_project_context",
+        "text": (
+            "- Project -> meeting: Sprint 1 - General Capstone Assistant | Date: 2026-09-07\n"
+            "- Project -> meeting: Mentor Feedback, Roles & Final Presentation Planning | Date: 2026-10-19"
+        ),
+    }]
+    answer = (
+        "Sprint 1 \u2013 General Capstone Assistant | 2026\u201109\u201107\n"
+        "Mentor Feedback, Roles & Final Presentation Planning | 2026-10-19"
+    )
+    completed = app.ensure_structured_meeting_answer_complete(
+        "List all meetings with dates", answer, results
+    )
+    assert completed == answer
+
+
+def test_structured_meeting_answer_removes_repeated_completeness_section():
+    """A model-emitted repeated authoritative section is collapsed."""
+    results = [{
+        "record_type": "structured_project_context",
+        "text": (
+            "- 2026-08-24 — Sponsor kickoff\n"
+            "- 2026-09-07 — Design review"
+        ),
+    }]
+    answer = (
+        "- 2026-08-24 – Sponsor kickoff\n"
+        "- 2026-09-07 – Design review\n\n"
+        "For completeness, the project records list:\n"
+        "- Sponsor kickoff | Date: 2026-08-24\n"
+        "- Design review | Date: 2026-09-07"
+    )
+    completed = app.ensure_structured_meeting_answer_complete(
+        "List all meetings with dates", answer, results
+    )
+    assert "For completeness" not in completed
+    assert completed.count("Sponsor kickoff") == 1
 
 
 def test_project_relationship_questions_use_authoritative_project_records():
@@ -2815,7 +2865,7 @@ def test_grounded_stream_shows_validation_instead_of_draft(monkeypatch):
     assert len(calls) == 1
 
 
-def test_validation_stream_failure_does_not_trigger_a_second_full_completion(monkeypatch):
+def test_validation_stream_failure_retries_through_json_completion(monkeypatch):
     """
     Function: test_validation_stream_failure_does_not_trigger_a_second_full_completion
     Purpose: Execute the test validation stream failure does not trigger a second full completion operation.
@@ -2873,7 +2923,9 @@ def test_validation_stream_failure_does_not_trigger_a_second_full_completion(mon
     answer = "".join(app.generate_response_stream("Question", evidence))
 
     assert answer == "Grounded draft"
-    assert len(calls) == 1
+    # The rejected SSE validation request is retried through the provider's
+    # working non-streaming JSON completion path.
+    assert len(calls) == 2
 
 
 class UploadedFile:
@@ -3390,6 +3442,13 @@ def test_project_answer_prompt_prioritises_authoritative_profile_records():
     assert "Recorded Mentor" in identity
     assert "PROFILE-01" in identity
 
+    no_duplicate = app.ensure_project_profile_answer_complete(
+        "What is the project name and project code?",
+        "The project is **Authoritative Profile Project** with code **PROFILE‑01**.",
+        project=project,
+    )
+    assert "For clarity" not in no_duplicate
+
     validation_prompt = app._build_validation_messages(
         "Who is the mentor and who is on the team?",
         "The project has a team.",
@@ -3536,6 +3595,39 @@ def test_complete_general_table_answer_restores_missing_verified_rows():
     )
 
     assert "Row 3: Assessment=Report | Due Date=01/11/2026" in answer
+
+
+def test_complete_general_table_does_not_duplicate_formatted_rows():
+    """Equivalent prose/table formatting must not trigger duplicate rows."""
+    results = [{
+        "record_type": "table_block",
+        "retrieval_complete": True,
+        "text": "Row 2: Assessment=Poster | Due Date=30/10/2026",
+    }]
+    answer = "Poster – due date: 30/10/2026"
+    completed = app.ensure_complete_document_answer(
+        "List every assessment and its due date", answer, results
+    )
+    assert completed == answer
+
+
+def test_complete_general_table_removes_repeated_completeness_section():
+    """A repeated general records section is collapsed when rows are present."""
+    results = [{
+        "record_type": "table_block",
+        "retrieval_complete": True,
+        "text": "Row 2: Assessment=Poster | Due Date=30/10/2026",
+    }]
+    answer = (
+        "Poster – due date: 30/10/2026\n\n"
+        "For completeness, the approved records list:\n"
+        "- Row 2: Assessment=Poster | Due Date=30/10/2026"
+    )
+    completed = app.ensure_complete_document_answer(
+        "List every assessment and its due date", answer, results
+    )
+    assert "For completeness" not in completed
+    assert completed.count("Poster") == 1
 
 
 def test_incomplete_general_table_is_not_augmented():

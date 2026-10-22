@@ -1,6 +1,6 @@
 {
   "index_version": 7,
-  "project_signature": "92afdf4b25881f679c2b143b7dd26a817914c34076d49f0f1baa6fb67e9efa0c",
+  "project_signature": "61476875669609dacc81dbd7e16d3c7c377d7714df11b8cc32e43638dd4a4a8e",
   "documents": [
     {
       "text": "Initial Sponsor & Mentor Meeting Agenda\nApplied Sovereign AI: Rapid Prototyping MicroSaaS Solutions with Agentaus (Trellis Data)\nTable row 1: Date | 24 August 2026 | Time | 30-60 minutes\nTable row 2: Location | 1C73, UC campus | Teams Link | Prepared / shared\nTable row 3: Duration | Approx. 30 minutes | Note-taker | Ashly\nMeeting Objective\nClarify project expectations, understand Agentaus capabilities and constraints, discuss initial use-case directions, and agree on communication arrangements and immediate next steps.\nTeam Roles for the Meeting\nTable row 1: Team Member | Assigned Role | Main Responsibility\nTable row 2: Munkhuu | Project Leader / Facilitator | Open and close the meeting, guide the agenda, manage time, clarify scope and summarise next steps.\nTable row 3: Member 2 | Project & Use-Case Lead | Discuss the team's understanding of the project, micro-friction ideas, stakeholder needs and MVP expectations.\nTable row 4: Member 3 | Technical / Agentaus Lead | Ask about Agentaus API access, capabilities, documentation, limitations, privacy and technical support.\nTable row 5: Ashly | Note-taker / Action Tracker | Record key decisions, sponsor feedback, action items, owners and deadlines; monitor unanswered questions.\nAgenda\nTable row 1: Time | Agenda Item | Lead | Key Focus\nTable row 2: 5 min | 1. Welcome & Introductions | Munkhuu | Introduce the team, confirm attendees and outline the purpose of the meeting.\nTable row 3: 5-10 min | 2. Project Understanding & Expectations | Members 2 | Confirm project objectives, expected outcomes, scope, MVP complexity and success criteria.\nTable row 4: 10-20 min | 3.",
@@ -1723,48 +1723,6 @@
       "project_id": "ai-assisted-capstone-project-assistant",
       "source_size": 28643,
       "source_mtime_ns": 1791893591009364806
-    },
-    {
-      "text": "UC Canberra Semester 2 2026\nCapstone teaching-week calendar\nCanberra time zone: Australia/Sydney\nPurpose. This reference lets the Capstone Assistant answer questions such as “What teaching week are we in?” and “How many weeks remain?” for the UC Semester 2 2026 Capstone teaching period.\nCalculation basis. Week 1 begins Monday 10 August 2026. The UC class-free period of 5–9 October 2026 is excluded from the teaching-week count. Therefore Monday 19 October 2026 is Week 10, followed by Weeks 11 and 12. The teaching period ends Friday 6 November 2026.\nTable row 1: Teaching week | Dates | Status | Notes\nTable row 2: Week 1 | 10 Aug – 16 Aug 2026 | Completed | \nTable row 3: Week 2 | 17 Aug – 23 Aug 2026 | Completed | \nTable row 4: Week 3 | 24 Aug – 30 Aug 2026 | Completed | \nTable row 5: Week 4 | 31 Aug – 6 Sep 2026 | Completed | \nTable row 6: Week 5 | 7 Sep – 13 Sep 2026 | Completed | \nTable row 7: Week 6 | 14 Sep – 20 Sep 2026 | Completed | \nTable row 8: Week 7 | 21 Sep – 27 Sep 2026 | Completed | \nTable row 9: Week 8 | 28 Sep – 4 Oct 2026 | Completed | Class-free period follows Week 8.\nTable row 10: Week 9 | 12 Oct – 18 Oct 2026 | Completed | \nTable row 11: Week 10 | 19 Oct – 25 Oct 2026 | Current week | Current date reference: Monday 19 October 2026.\nTable row 12: Week 11 | 26 Oct – 1 Nov 2026 | Remaining | \nTable row 13: Week 12 | 2 Nov – 6 Nov 2026 | Remaining | \nClass-free period: Monday 5 October to Friday 9 October 2026.",
-      "source": "UC_Semester_2_2026_Capstone_Teaching_Weeks.docx",
-      "location": "Document",
-      "chunk": 1,
-      "index_version": 7,
-      "record_type": "document_chunk",
-      "page_number": null,
-      "page_end": null,
-      "slide_number": null,
-      "table_name": null,
-      "row_start": null,
-      "row_end": null,
-      "document_pages": null,
-      "blank_pages": [],
-      "extraction_method": "native",
-      "scope": "project",
-      "project_id": "ai-assisted-capstone-project-assistant",
-      "source_size": 37733,
-      "source_mtime_ns": 1792386624379811727
-    },
-    {
-      "text": "| \nTable row 11: Week 10 | 19 Oct – 25 Oct 2026 | Current week | Current date reference: Monday 19 October 2026.\nTable row 12: Week 11 | 26 Oct – 1 Nov 2026 | Remaining | \nTable row 13: Week 12 | 2 Nov – 6 Nov 2026 | Remaining | \nClass-free period: Monday 5 October to Friday 9 October 2026. This period is not counted as a teaching week.\nAuthoritative source: University of Canberra, 2026 Key Dates — https://www.canberra.edu.au/content/dam/uc/documents/about-uc/key-dates/2026%20Key%20Dates.pdf\nMaintenance note: This calendar is specific to Semester 2 2026 and should be replaced or supplemented when the approved UC academic timetable for another teaching period is provided.",
-      "source": "UC_Semester_2_2026_Capstone_Teaching_Weeks.docx",
-      "location": "Document",
-      "chunk": 2,
-      "index_version": 7,
-      "record_type": "document_chunk",
-      "page_number": null,
-      "page_end": null,
-      "slide_number": null,
-      "table_name": null,
-      "row_start": null,
-      "row_end": null,
-      "document_pages": null,
-      "blank_pages": [],
-      "extraction_method": "native",
-      "scope": "project",
-      "project_id": "ai-assisted-capstone-project-assistant",
-      "source_size": 37733,
-      "source_mtime_ns": 1792386624379811727
     }
   ]
 }

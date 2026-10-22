@@ -29,6 +29,7 @@ import html
 import mimetypes
 import logging
 import warnings
+import unicodedata
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -114,15 +115,27 @@ _AUTH_PERSISTENCE_COMPONENT = st.components.v2.component(
     html="<span aria-hidden='true'></span>",
     js="""
 export default function (component) {
-    const { data, setStateValue } = component
+    const { data, getWidgetValue, setStateValue } = component
     const storageKey = (data && data.storageKey) || "capstone_session"
     const requestedToken = (data && data.token) || ""
     const shouldClear = Boolean(data && data.clear)
 
+    // CCv2 reruns this function after a state update. Only emit a state
+    // change when the value is actually different; otherwise the component
+    // can create an update loop and surface React error #185.
+    const currentState = typeof getWidgetValue === "function"
+        ? (getWidgetValue() || {})
+        : {}
+    const setTokenIfChanged = (token) => {
+        if (currentState.token !== token) {
+            setStateValue("token", token)
+        }
+    }
+
     try {
         if (shouldClear) {
             window.localStorage.removeItem(storageKey)
-            setStateValue("token", "")
+            setTokenIfChanged("")
             return
         }
 
@@ -135,15 +148,107 @@ export default function (component) {
         }
 
         const storedToken = window.localStorage.getItem(storageKey) || ""
-        setStateValue("token", storedToken)
+        setTokenIfChanged(storedToken)
     } catch (error) {
         // Private browsing or a browser policy may disable storage. The
         // server-side session remains usable for the current tab.
-        setStateValue("token", "")
+        setTokenIfChanged("")
     }
 }
 """,
 )
+
+_KANBAN_BOARD_COMPONENT = st.components.v2.component(
+    "capstone_kanban_board",
+    html="<div id='capstone-kanban-board'></div>",
+    js="""
+export default function (component) {
+    const { data, parentElement, setStateValue } = component
+    const root = parentElement.querySelector("#capstone-kanban-board")
+    if (!root) return
+
+    const columns = Array.isArray(data?.columns) ? data.columns : []
+    const style = document.createElement("style")
+    style.textContent = data?.customStyle || ""
+    root.replaceChildren(style)
+
+    const board = document.createElement("div")
+    board.className = "capstone-kanban-board"
+    board.style.cssText = "display:flex;gap:8px;align-items:flex-start;width:100%;overflow:visible;"
+    root.appendChild(board)
+
+    // Persist the layout in component state so the Python rerun can read the
+    // dropped layout reliably. A transient trigger can be cleared before the
+    // app has processed the cross-column drop on some Streamlit versions.
+    const emit = (next) => setStateValue("sorted", next)
+    const moveItem = (sourceHeader, item, targetHeader) => {
+        const next = columns.map((column) => ({
+            header: column.header,
+            items: Array.isArray(column.items) ? [...column.items] : [],
+        }))
+        const source = next.find((column) => column.header === sourceHeader)
+        const target = next.find((column) => column.header === targetHeader)
+        if (!source || !target) return
+        const index = source.items.indexOf(item)
+        if (index < 0) return
+        source.items.splice(index, 1)
+        target.items.push(item)
+        emit(next)
+    }
+
+    for (const column of columns) {
+        const container = document.createElement("section")
+        container.className = "capstone-kanban-column"
+        container.style.cssText = "background:#F4F4F4;border:1px solid #96E3FF;border-radius:14px;min-height:230px;min-width:0;flex:1 1 0;display:flex;flex-direction:column;overflow:visible;"
+        const header = document.createElement("div")
+        header.textContent = String(column.header || "")
+        header.style.cssText = "background:#005B85;color:white;font-weight:700;border-radius:13px 13px 0 0;padding:10px 12px;"
+        const body = document.createElement("div")
+        body.className = "capstone-kanban-column-body"
+        body.dataset.header = String(column.header || "")
+        body.style.cssText = "min-height:180px;padding:6px;overflow:visible;"
+        body.ondragover = (event) => event.preventDefault()
+        body.ondrop = (event) => {
+            event.preventDefault()
+            try {
+                const payload = JSON.parse(event.dataTransfer.getData("text/plain"))
+                moveItem(payload.header, payload.item, body.dataset.header)
+            } catch (error) {
+                // Ignore malformed browser drag payloads.
+            }
+        }
+        for (const item of (Array.isArray(column.items) ? column.items : [])) {
+            const card = document.createElement("div")
+            card.className = "capstone-kanban-card"
+            card.draggable = true
+            card.textContent = String(item || "")
+            card.style.cssText = "display:block;background:white;color:#001B2F;border:1px solid #96E3FF;border-left:4px solid #2FC8FF;border-radius:10px;margin:0 0 6px;padding:8px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.78rem;cursor:grab;"
+            card.ondragstart = (event) => {
+                event.dataTransfer.effectAllowed = "move"
+                event.dataTransfer.setData("text/plain", JSON.stringify({header: column.header, item}))
+            }
+            body.appendChild(card)
+        }
+        container.append(header, body)
+        board.appendChild(container)
+    }
+}
+""",
+)
+
+
+def _render_kanban_board(columns, *, key, custom_style=""):
+    """Render the project board and return a changed column layout, if any."""
+    result = _KANBAN_BOARD_COMPONENT(
+        key=key,
+        data={"columns": columns, "customStyle": custom_style},
+        on_sorted_change=lambda: None,
+        width="stretch",
+        # Let the board expand with its cards; individual columns do not hide
+        # tasks behind an internal scrollbar.
+        height="content",
+    )
+    return getattr(result, "sorted", None)
 
 def get_config(key: str, default: str = "") -> str:
     """Return a setting from Streamlit secrets, then the environment."""
@@ -585,6 +690,124 @@ def clear_conversation():
     st.session_state.pending_question = None
 
 
+def _parse_calendar_date(day, month, year):
+    """Parse a human-readable calendar date from indexed schedule text."""
+    month = str(month or "").strip().replace("Sept", "Sep")
+    value = f"{int(day)} {month} {int(year)}"
+    for pattern in ("%d %b %Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(value, pattern).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Unsupported calendar date: {value}")
+
+
+def _teaching_calendar_from_documents():
+    """Read the authoritative teaching-week schedule from indexed documents."""
+    documents = load_index()
+    grouped = defaultdict(list)
+    for item in documents or []:
+        source = str(item.get("source") or "").strip()
+        text = str(item.get("text") or "").strip()
+        if source and text:
+            grouped[source].append(text)
+
+    candidates = []
+    for source, chunks in grouped.items():
+        combined = "\n".join(chunks)
+        source_key = re.sub(r"[^a-z0-9]+", " ", source.casefold()).strip()
+        if not (
+            re.search(r"teaching\s+weeks?|semester\s+calendar|academic\s+calendar", source_key)
+            or (
+                re.search(r"semester\s+contains\s+\d+\s+numbered\s+weeks", combined, re.IGNORECASE)
+                and re.search(r"week\s+\d+", combined, re.IGNORECASE)
+            )
+        ):
+            continue
+        candidates.append((0 if source.casefold().endswith(".docx") else 1, source, combined))
+
+    for _, source, text in sorted(candidates):
+        week_ranges = []
+        for match in re.finditer(
+            r"\bWeek\s+(\d+)\s*(?:\||:)\s*"
+            r"(\d{1,2})\s+([A-Za-z]+)\s*[\u2010-\u2015-]\s*"
+            r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            try:
+                number, start_day, start_month, end_day, end_month, year = match.groups()
+                start = _parse_calendar_date(start_day, start_month, year)
+                end = _parse_calendar_date(end_day, end_month, year)
+                week_ranges.append((int(number), start, end))
+            except (TypeError, ValueError):
+                continue
+        if not week_ranges:
+            continue
+
+        start_match = re.search(
+            r"Semester\s+start:\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})",
+            text,
+            flags=re.IGNORECASE,
+        )
+        end_match = re.search(
+            r"Semester\s+end:\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})",
+            text,
+            flags=re.IGNORECASE,
+        )
+        try:
+            semester_start = (
+                _parse_calendar_date(*start_match.groups())
+                if start_match else min(item[1] for item in week_ranges)
+            )
+            semester_end = (
+                _parse_calendar_date(*end_match.groups())
+                if end_match else max(item[2] for item in week_ranges)
+            )
+        except (TypeError, ValueError):
+            continue
+
+        class_free = next(
+            (item for item in week_ranges if re.search(
+                rf"Week\s+{item[0]}[^\n]*(?:break|class[- ]?free)", text, re.IGNORECASE
+            )),
+            None,
+        )
+        return {
+            "source": source,
+            "semester_start": semester_start,
+            "semester_end": semester_end,
+            "class_free_start": class_free[1] if class_free else None,
+            "class_free_end": class_free[2] if class_free else None,
+            "weeks": week_ranges,
+        }
+    return None
+
+
+def _is_academic_calendar_document(item):
+    """Identify uploaded calendar evidence using a punctuation-insensitive name."""
+    source_key = re.sub(r"[^a-z0-9]+", " ", str(item.get("source") or "").casefold()).strip()
+    return bool(re.search(r"teaching\s+weeks?|semester\s+calendar|academic\s+calendar", source_key))
+
+
+def _academic_calendar_document_context(documents):
+    """Return bounded evidence from the uploaded teaching-weeks document(s)."""
+    items = [item for item in (documents or []) if _is_academic_calendar_document(item) and item.get("text")]
+    if not items:
+        return None
+    sections = ["AUTHORITATIVE UPLOADED ACADEMIC-CALENDAR DOCUMENT EVIDENCE"]
+    seen = set()
+    for item in items:
+        key = (item.get("source"), item.get("location"), item.get("chunk"))
+        if key in seen:
+            continue
+        seen.add(key)
+        sections.append(
+            f"DOCUMENT: {item.get('source')} | {item.get('location')}\n{item.get('text', '')}"
+        )
+    return "\n\n".join(sections)
+
+
 def _academic_calendar_dates():
     """
     Function: _academic_calendar_dates
@@ -596,60 +819,44 @@ def _academic_calendar_dates():
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    start_text = get_config("ACADEMIC_SEMESTER_START_DATE", "2026-08-10")
-    try:
-        semester_start = date.fromisoformat(start_text)
-    except ValueError:
-        semester_start = date(2026, 8, 10)
-    class_free_start_text = get_config("ACADEMIC_CLASS_FREE_START_DATE", "2026-10-05")
-    class_free_end_text = get_config("ACADEMIC_CLASS_FREE_END_DATE", "2026-10-09")
-    try:
-        class_free_start = date.fromisoformat(class_free_start_text)
-        class_free_end = date.fromisoformat(class_free_end_text)
-    except ValueError:
-        class_free_start, class_free_end = date(2026, 10, 5), date(2026, 10, 9)
-    return semester_start, class_free_start, class_free_end
+    document_calendar = _teaching_calendar_from_documents()
+    if not document_calendar:
+        return None, None, None
+    return (
+        document_calendar["semester_start"],
+        document_calendar["class_free_start"],
+        document_calendar["class_free_end"],
+    )
 
 
 def teaching_week_for_date(target_date):
     """Return the configured semester teaching week for a calendar date."""
-    semester_start, class_free_start, class_free_end = _academic_calendar_dates()
-    semester_end_text = get_config("ACADEMIC_SEMESTER_END_DATE", "2026-11-06")
-    try:
-        semester_end = date.fromisoformat(semester_end_text)
-    except ValueError:
-        semester_end = date(2026, 11, 6)
-    if target_date < semester_start or target_date > semester_end:
-        return None
-    excluded_days = 0
-    if target_date >= class_free_start:
-        excluded_days = min(
-            (class_free_end - class_free_start).days + 1,
-            max(0, (target_date - class_free_start).days + 1),
-        )
-    return ((target_date - semester_start).days - excluded_days) // 7 + 1
+    document_calendar = _teaching_calendar_from_documents()
+    if document_calendar:
+        for number, week_start, week_end in document_calendar["weeks"]:
+            if week_start <= target_date <= week_end:
+                return number
+        if target_date < document_calendar["semester_start"] or target_date > document_calendar["semester_end"]:
+            return None
+    return None
 
 
 def academic_calendar_context(now=None):
     """Return deterministic local-date and teaching-week facts for the model."""
-    timezone_name = get_config("ACADEMIC_TIMEZONE", "Australia/Sydney")
-    try:
-        local_zone = ZoneInfo(timezone_name)
-    except Exception:
-        local_zone = ZoneInfo("Australia/Sydney")
-    current = (now or datetime.now(local_zone)).astimezone(local_zone)
-    semester_start, class_free_start, class_free_end = _academic_calendar_dates()
-    current_date = current.date()
-    teaching_week = teaching_week_for_date(current_date)
-    week_text = (
-        f"Teaching week {teaching_week} of the configured semester"
-        if teaching_week is not None
-        else "Before the configured semester start; teaching week is not active"
+    calendar = _teaching_calendar_from_documents()
+    if not calendar:
+        return "No uploaded academic-calendar document is currently indexed."
+    current = now or datetime.now()
+    current_week = next(
+        (number for number, start, end in calendar["weeks"] if start <= current.date() <= end),
+        None,
     )
     return (
-        f"Current local date: {current:%A, %-d %B %Y} ({timezone_name}).\n"
-        f"{week_text}; semester start date: {semester_start:%-d %B %Y}; "
-        f"class-free period: {class_free_start:%-d}–{class_free_end:%-d %B %Y}."
+        f"Uploaded academic-calendar source: {calendar['source']}.\n"
+        f"Current local date: {current:%A, %-d %B %Y}.\n"
+        f"Current document reference: Teaching week {current_week or 'not stated'}; "
+        f"semester start: {calendar['semester_start']:%-d %B %Y}; "
+        f"semester end: {calendar['semester_end']:%-d %B %Y}."
     )
 
 
@@ -1816,6 +2023,17 @@ def call_agentaus_stream(messages, stage="answer"):
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
+    # The provider accepts validation responses through the JSON completion
+    # endpoint but may reject the SSE variant with HTTP 406. Validation is a
+    # post-processing step, so keep it reliable with the non-streaming call;
+    # normal student answer generation remains streamed.
+    if stage == "answer_validation":
+        result = call_agentaus(messages)
+        record_api_usage(result, stage)
+        text = extract_agentaus_text(result)
+        if text:
+            yield text
+        return
     yield from ai_client.stream(
         messages,
         stage=stage,
@@ -6490,7 +6708,11 @@ def _structured_project_database_answer(question, project, query_plan=None):
             lines = [f"The authorised project records contain {len(records)} milestone(s)."]
             if operation_list or not operation_count:
                 lines.extend(
-                    f"- {item.get('name', '')} | Status: {item.get('status', '')} | Target date: {item.get('date', '')}"
+                    f"- {item.get('name', '')} | Status: {item.get('status', '')} | "
+                    f"Progress: {int(item.get('progress', 0) or 0)}% | "
+                    f"Completed tasks: {int(item.get('completed_task_count', 0) or 0)} / "
+                    f"{int(item.get('linked_task_count', 0) or 0)} | "
+                    f"Target date: {item.get('date', '')}"
                     for item in records
                 )
             return "\n".join(lines)
@@ -6505,16 +6727,40 @@ def _structured_project_database_answer(question, project, query_plan=None):
                 "in progress": "In Progress", "completed": "Completed", "complete": "Completed",
                 "done": "Completed", "planned": "Planned", "at risk": "At Risk",
             }
+            overdue_requested = bool(re.search(r"\boverdue\b", lowered))
+            at_risk_requested = bool(re.search(r"\bat\s+risk\b|\bblocked\b", lowered))
             for phrase, status in status_map.items():
                 if phrase in lowered:
                     status_filter = status
                     break
-            if status_filter:
+            # A combined "overdue or at risk" request is a union of two
+            # predicates. Do not first reduce it to the At Risk status, or
+            # overdue tasks identified by their finish date disappear.
+            if status_filter and not (overdue_requested or at_risk_requested):
                 records = [item for item in records if str(item.get("status", "")) == status_filter]
+            if overdue_requested or at_risk_requested:
+                today = datetime.now(timezone.utc).date()
+                filtered = []
+                for item in records:
+                    if str(item.get("type", "")).casefold() != "task":
+                        continue
+                    if at_risk_requested and str(item.get("status", "")).casefold() in {"at risk", "blocked"}:
+                        filtered.append(item)
+                        continue
+                    if overdue_requested:
+                        try:
+                            finish = datetime.fromisoformat(str(item.get("finish", ""))).date()
+                        except (TypeError, ValueError):
+                            continue
+                        if finish < today and int(item.get("progress", 0) or 0) < 100:
+                            filtered.append(item)
+                records = filtered
             lines = [f"The authorised project records contain {len(records)} matching schedule item(s)."]
             if operation_list or not operation_count:
                 lines.extend(
-                    f"- {item.get('code', '')} — {item.get('name', '')} | Status: {item.get('status', '')} | Progress: {item.get('progress', 0)}%"
+                    f"- {item.get('code', '')} — {item.get('name', '')} | "
+                    f"Status: {'Overdue' if overdue_requested and str(item.get('status', '')).casefold() not in {'at risk', 'blocked'} else item.get('status', '')} | "
+                    f"Progress: {item.get('progress', 0)}% | Finish: {item.get('finish', '')}"
                     for item in records
                 )
             return "\n".join(lines)
@@ -7372,6 +7618,11 @@ structured project record disagree, state the disagreement and prefer the
 structured record for current status, ownership, dates, counts and workflow
 state.
 
+Exception: for a current-date or teaching-week question, the authorised
+uploaded academic-calendar/teaching-weeks document is the source of truth even
+when a project workspace is selected. Do not replace it with a calculation or
+with the selected project's schedule.
+
 For questions about the selected project's work, distinguish facts recorded in
 the project workspace from recommendations. Do not turn a proposed task,
 meeting action or document statement into a completed fact unless the record
@@ -7457,11 +7708,9 @@ their UC Canberra Capstone experience.
 STRICT FACTUAL BOUNDARY
 ============================================================
 
-RUNTIME ACADEMIC CALENDAR
-{academic_calendar_context()}
-
-Use the runtime calendar above for questions about today's date or the current
-teaching week. Do not infer the date or week from conversation history.
+For current-date or teaching-week questions, use the authorised uploaded
+academic-calendar/teaching-weeks document supplied in the evidence. Do not
+calculate or infer a week from conversation history or fixed application dates.
 
 You must ONLY provide factual information that is supported
 by the INTERNAL INFORMATION supplied below.
@@ -8130,6 +8379,32 @@ def validate_grounded_answer(question, draft_answer, private_context, project_pr
         checked = extract_agentaus_text(result)
         st.session_state.last_validation_status = "validated"
         return checked or draft_answer
+    except requests.exceptions.HTTPError as error:
+        # Agentaus can reject a large/complex validator prompt with HTTP 406
+        # even when the normal answer request succeeds. Retry once with the
+        # compact evidence-only contract; if that is also rejected, retain
+        # the grounded draft rather than exposing a provider error.
+        if getattr(getattr(error, "response", None), "status_code", None) == 406:
+            compact_context = str(private_context or "")
+            if len(compact_context) > 12000:
+                compact_context = compact_context[:12000].rsplit("\n", 1)[0]
+            try:
+                compact_messages = _build_validation_messages(
+                    question,
+                    draft_answer,
+                    compact_context,
+                    project_profile="",
+                )
+                retry_result = call_agentaus(compact_messages)
+                record_api_usage(retry_result, "answer_validation_retry")
+                checked = extract_agentaus_text(retry_result)
+                if checked:
+                    st.session_state.last_validation_status = "validated"
+                    return checked
+            except Exception:
+                pass
+        st.session_state.last_validation_status = "unavailable"
+        return draft_answer
     except Exception:
         # Keep the existing grounded draft available, but expose that the
         # independent verification pass was unavailable to the caller.
@@ -8176,7 +8451,8 @@ def ensure_project_profile_answer_complete(question, answer, project=None):
     facts = list(dict.fromkeys(facts))
     missing = [
         fact for fact in facts
-        if fact[0].casefold() not in str(answer or "").casefold()
+        if _normalise_answer_comparison(fact[0])
+        not in _normalise_answer_comparison(answer)
     ]
     if not facts or not missing:
         return answer
@@ -8231,6 +8507,30 @@ def ensure_structured_task_answer_complete(question, answer, results):
     return (answer_text + "\n\n" if answer_text else "") + "\n".join(additions)
 
 
+def _normalise_answer_comparison(value):
+    """Normalize model punctuation/spacing before comparing authoritative text."""
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    # Treat typographic dashes and non-breaking spaces like their plain-text
+    # equivalents. AgentAus may render the same title with a different dash.
+    text = re.sub(r"[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]", "-", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _authoritative_row_present(row, answer):
+    """Return whether a complete evidence row is represented in an answer."""
+    answer_text = _normalise_answer_comparison(answer)
+    raw = re.sub(r"^\s*Row\s+\d+\s*:\s*", "", str(row or ""), flags=re.IGNORECASE)
+    values = []
+    for field in re.split(r"\s*\|\s*", raw):
+        value = field.split("=", 1)[-1].strip()
+        if value and value.casefold() != field.casefold():
+            values.append(value)
+    if not values:
+        values = [raw]
+    return all(_normalise_answer_comparison(value) in answer_text for value in values)
+
+
 def ensure_structured_meeting_answer_complete(question, answer, results):
     """Preserve every authoritative meeting row in complete-list answers.
 
@@ -8276,16 +8576,34 @@ def ensure_structured_meeting_answer_complete(question, answer, results):
         return answer
 
     answer_text = remove_source_section(answer).strip()
+    repeated_heading = re.search(
+        r"\n\s*For completeness,\s+the project records list:\s*\n",
+        answer_text,
+        flags=re.IGNORECASE,
+    )
+    if repeated_heading:
+        first_section = answer_text[:repeated_heading.start()].rstrip()
+        if all(
+            _normalise_answer_comparison(title) in _normalise_answer_comparison(first_section)
+            and (
+                not meeting_date
+                or _normalise_answer_comparison(meeting_date)
+                in _normalise_answer_comparison(first_section)
+            )
+            for title, meeting_date in records
+        ):
+            answer_text = first_section
+    comparison_text = _normalise_answer_comparison(answer_text)
     missing = [
         (title, meeting_date)
         for title, meeting_date in records
-        if title.casefold() not in answer_text.casefold()
-        or (meeting_date and meeting_date.casefold() not in answer_text.casefold())
+        if _normalise_answer_comparison(title) not in comparison_text
+        or (meeting_date and _normalise_answer_comparison(meeting_date) not in comparison_text)
     ]
     count_match = re.search(r"\bhow\s+many\b|\bcount\b|\bnumber\s+of\b", str(question or ""), re.IGNORECASE)
     count_present = bool(re.search(rf"\b{len(records)}\b", answer_text))
     if not missing and (not count_match or count_present):
-        return answer
+        return answer_text
 
     lines = []
     if count_match and not count_present:
@@ -8343,15 +8661,16 @@ def ensure_complete_document_answer(question, answer, results):
         return answer
 
     answer_text = remove_source_section(answer).strip()
-    missing_rows = [
-        row for row in complete_rows
-        if row.casefold() not in answer_text.casefold()
-        and not any(
-            _table_row_identity(row) == _table_row_identity(existing)
-            for existing in complete_rows
-            if existing.casefold() in answer_text.casefold()
-        )
-    ]
+    repeated_heading = re.search(
+        r"\n\s*For completeness,\s+the approved records list:\s*\n",
+        answer_text,
+        flags=re.IGNORECASE,
+    )
+    if repeated_heading:
+        first_section = answer_text[:repeated_heading.start()].rstrip()
+        if all(_authoritative_row_present(row, first_section) for row in complete_rows):
+            answer_text = first_section
+    missing_rows = [row for row in complete_rows if not _authoritative_row_present(row, answer_text)]
     asks_count = bool(re.search(
         r"\b(?:count|how\s+many|number\s+of)\b",
         str(question or ""),
@@ -8359,7 +8678,7 @@ def ensure_complete_document_answer(question, answer, results):
     ))
     count_present = bool(re.search(rf"\b{len(complete_rows)}\b", answer_text))
     if not missing_rows and (not asks_count or count_present):
-        return answer
+        return answer_text
 
     additions = []
     if asks_count and not count_present:
@@ -8703,7 +9022,26 @@ def generate_response_stream(question, results, status=None, project=None):
             if completed != base:
                 yield completed[len(base):] if completed.startswith(base) else completed
             return
-        # Do not make another full provider request after a rejected stream.
+        # A provider may reject the SSE validation request with HTTP 406 while
+        # still accepting the same validation messages as a normal JSON call.
+        # Retry once through the non-streaming endpoint before falling back to
+        # the already-grounded draft.
+        try:
+            retry_result = call_agentaus(validation_messages)
+            record_api_usage(retry_result, "answer_validation_retry")
+            retry_answer = extract_agentaus_text(retry_result)
+            if retry_answer:
+                if _answer_is_abstention(retry_answer) and not _answer_is_abstention(draft_answer):
+                    retry_answer = draft_answer
+                completed = _finalize_generated_answer(
+                    question, remove_source_section(retry_answer), results, project=project
+                )
+                st.session_state.last_validation_status = "validated"
+                _set_rag_diagnostic(question, results, context_metadata, completed)
+                yield completed
+                return
+        except Exception:
+            pass
         # The draft was generated under the strict evidence contract; keep it
         # and expose that the optional validation pass was unavailable.
         st.session_state.last_validation_status = "unavailable"
@@ -10587,6 +10925,16 @@ def _render_gantt_editor(project_id, tasks):
         },
         alt="Editable project schedule with tasks, milestones, dates, progress and ownership",
     )
+    editor_state = st.session_state.get(editor_key, {})
+    edited_rows = editor_state.get("edited_rows", {}) if isinstance(editor_state, dict) else {}
+    deleted_rows = editor_state.get("deleted_rows", []) if isinstance(editor_state, dict) else []
+    added_rows = editor_state.get("added_rows", []) if isinstance(editor_state, dict) else []
+    # Every tab renders during a Streamlit rerun.  Do not treat the editor's
+    # unchanged snapshot as a user edit: another tab (especially Kanban) may
+    # have just changed the same task, and writing this stale snapshot back
+    # would undo that change before the rerun completes.
+    if not edited_rows and not deleted_rows and not added_rows:
+        return edited
     original = {task["id"]: task for task in tasks}
     edited_ids = {str(row.get("Task ID")) for row in edited.to_dict("records")}
     removed_ids = [task_id for task_id in original if task_id not in edited_ids]
@@ -10594,7 +10942,9 @@ def _render_gantt_editor(project_id, tasks):
     try:
         for task_id in removed_ids:
             gantt.delete_task(st.session_state, project_id, task_id)
-        for row in edited.to_dict("records"):
+        for row_index, row in enumerate(edited.to_dict("records")):
+            if edited_rows and str(row_index) not in {str(index) for index in edited_rows}:
+                continue
             task_id = str(row.get("Task ID") or "")
             current = original.get(task_id)
             if not current:
@@ -10626,6 +10976,7 @@ def _render_gantt_editor(project_id, tasks):
                 "start": start,
                 "finish": start if edited_type == "Milestone" else finish,
                 "progress": edited_progress,
+                "kanban_column": None if edited_type == "Milestone" else gantt._kanban_column(edited_status),
                 "resource": str(row.get("Resource / owner") or "").strip(),
                 "predecessors": [item.strip() for item in str(row.get("Predecessors") or "").split(",") if item.strip()],
                 "details": str(row.get("Details") or "").strip(),
@@ -10907,8 +11258,6 @@ def render_project_kanban(project):
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    from streamlit_sortables import sort_items
-
     access.require_user(st.session_state)
     if not settings.is_enabled("feature_kanban"):
         st.info("Kanban task management is currently disabled by an Administrator.")
@@ -10979,16 +11328,20 @@ def render_project_kanban(project):
         ).encode("utf-8")
     ).hexdigest()[:12]
     revision = int(st.session_state.get(f"task_board_revision_{project.id}", 0))
-    sorted_containers = sort_items(containers, multi_containers=True, direction="vertical", custom_style="""
+    sorted_containers = _render_kanban_board(containers, key=f"kanban_sort_{project.id}_{revision}_{board_signature}", custom_style="""
     .sortable-component.vertical { background: transparent; gap: 8px; flex-wrap: nowrap; overflow-x: hidden; align-items: stretch; width: 100%; }
     .sortable-component.vertical .sortable-container { background: #F4F4F4; border: 1px solid #96E3FF; border-radius: 14px; min-height: 230px; min-width: 0; width: 0; flex: 1 1 0; padding: 0; }
     .sortable-component.vertical .sortable-container-header { background: #005B85; color: white; font-weight: 700; border-radius: 13px 13px 0 0; padding: 10px 12px; }
     .sortable-component.vertical .sortable-container-body { background: #F4F4F4; border-radius: 0 0 14px 14px; min-height: 180px; min-width: 0; padding: 6px; }
     .sortable-component.vertical .sortable-item { display: block; background: white; color: #001B2F; border: 1px solid #96E3FF; border-left: 4px solid #2FC8FF; border-radius: 10px; margin: 0 0 6px; padding: 8px; box-shadow: 0 2px 7px rgba(0,27,47,.10); white-space: pre-wrap; overflow-wrap: anywhere; height: auto; font-size: .78rem; }
     .sortable-component.vertical .sortable-item:last-child { margin-bottom: 0; }
-    """, key=f"kanban_sort_{project.id}_{revision}_{board_signature}")
-    if not isinstance(sorted_containers, list):
-        sorted_containers = []
+    """)
+    # A component has no state value on its first render.  That is not an
+    # empty drag result: treating it as one incorrectly replaces the live
+    # board with the non-interactive fallback message on every page load.
+    component_has_response = isinstance(sorted_containers, list)
+    if not component_has_response:
+        sorted_containers = containers
     rendered_card_count = sum(
         len(container.get("items", []))
         for container in sorted_containers
@@ -11009,7 +11362,7 @@ def render_project_kanban(project):
             column["cardIds"] = [labels[item] for item in sorted_column.get("items", []) if item in labels]
         kanban.save_board(st.session_state, project.id, board)
         _refresh_project_task_views(project.id)
-    elif (not component_is_stable and sorted_containers != containers) or rendered_card_count != expected_card_count:
+    elif component_has_response and ((not component_is_stable and sorted_containers != containers) or rendered_card_count != expected_card_count):
         # The persisted board is authoritative.  A sortable component can
         # briefly return an empty/stale value after an import or deployment;
         # never replace saved cards with that incomplete browser state.
@@ -12197,6 +12550,7 @@ def chat_page():
     # Exact completion questions use the authorized schedule as a complete
     # structured retrieval source, but the response is still drafted and
     # grounded by AgentAus like every other assistant response.
+    calendar_document_question = is_academic_calendar_question(question)
     structured_comparison_context = _structured_project_facts_comparison_context(
         question,
         selected_project,
@@ -12227,21 +12581,29 @@ def chat_page():
         )
     structured_profile_context = (
         None
-        if structured_comparison_context is not None or structured_task_context is not None
+        if (
+            calendar_document_question
+            or structured_comparison_context is not None
+            or structured_task_context is not None
+        )
         else _structured_project_profile_context(question, selected_project)
+    )
+    calendar_document_context = (
+        _academic_calendar_document_context(documents)
+        if calendar_document_question
+        else None
     )
     completion_context = (
         structured_comparison_context
         if structured_comparison_context is not None
         else structured_task_context
         if structured_task_context is not None
+        else calendar_document_context
+        if calendar_document_context is not None
         else structured_profile_context
         if structured_profile_context is not None
         else _structured_project_completion_context(question, selected_project)
     )
-    if completion_context is None and is_academic_calendar_question(question):
-        completion_context = "AUTHORITATIVE RUNTIME ACADEMIC CALENDAR\n" + academic_calendar_context()
-        _set_query_route("runtime_calendar", "teaching_week_or_date")
     if completion_context is not None:
         answer = None
         interaction_id = None
@@ -12319,7 +12681,7 @@ def chat_page():
         )
         search_plan = plan_information_search(
             question,
-            project_documents if selected_project else documents,
+            documents if calendar_document_question else (project_documents if selected_project else documents),
             history=prior_history,
             project=selected_project,
             local_plan=query_plan,
@@ -12382,7 +12744,7 @@ def chat_page():
                     # Do not let broad recovery evidence turn an isolated
                     # pronoun-only request into an invented answer.
                     results = []
-                elif selected_project:
+                elif selected_project and not calendar_document_question:
                     general_results = []
                     project_results = execute_project_search_plan(
                         search_plan,
@@ -12391,6 +12753,27 @@ def chat_page():
                         original_question=question,
                         history=prior_history,
                     )
+                elif selected_project and calendar_document_question:
+                    # The academic calendar is a general authorised document,
+                    # even while a project workspace is selected. Keep this
+                    # question document-grounded without using a calculator.
+                    project_results = []
+                    general_results = [
+                        {**item, "score": 1.0, "retrieval_reason": "authoritative teaching-weeks document"}
+                        for item in documents
+                        if _is_academic_calendar_document(item)
+                        and item.get("text")
+                    ]
+                    if not general_results:
+                        general_results = execute_search_plan(
+                            search_plan,
+                            documents,
+                            excluded_project_keys=st.session_state.get(
+                                "suggested_project_keys", []
+                            ),
+                            original_question=question,
+                            history=prior_history,
+                        )
                 else:
                     project_results = []
                     general_results = execute_search_plan(

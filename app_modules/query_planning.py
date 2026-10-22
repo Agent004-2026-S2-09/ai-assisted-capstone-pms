@@ -256,7 +256,11 @@ def build_plan(question, *, project_id=None, history=None):
     filters = _filters(question)
     scope = "project" if project_id else "general"
     lowered = resolved.casefold()
-    document_language = bool(re.search(r"\b(?:document|file|pdf|charter|proposal|report|rubric|assessment|assignment|teaching|policy|guidance)\b", lowered))
+    # Treat plural document/file wording as document scope too.  Without the
+    # plural forms, questions such as "authorised project documents" were
+    # misclassified as database-only project questions, causing the evidence
+    # contract to reject the valid project-document answer.
+    document_language = bool(re.search(r"\b(?:document(?:s)?|file(?:s)?|pdf|charter|proposal|report|rubric|assessment|assignment|teaching|policy|guidance)\b", lowered))
     comparison = intent == "compare" or bool(re.search(r"\b(?:database|workspace|records?)\b.*\b(?:document|file)s?\b|\b(?:document|file)s?\b.*\b(?:database|workspace|records?)\b", lowered))
     structured_entity = entity in {"meeting", "milestone", "task", "team", "project"}
     if project_id and structured_entity and not document_language and not comparison:
