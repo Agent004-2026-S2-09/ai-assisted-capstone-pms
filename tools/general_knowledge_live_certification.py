@@ -11,7 +11,7 @@
 The runner deliberately discovers documents and indexed records at runtime.
 It does not contain document names, expected answers or project-specific data.
 Each question is sent through the authenticated application's search planner,
-retrieval, AgentAus answer generation and grounded validation path.
+retrieval, Agentaus answer generation and grounded validation path.
 """
 
 from __future__ import annotations
@@ -294,7 +294,7 @@ def _write_docx(rows: list[dict], started: str, finished: str) -> None:
     document.add_paragraph(
         "This report records ten dynamically generated, document-focused questions per "
         "general knowledge document. Questions were run through an authenticated user "
-        "session, the application search planner, local retrieval, AgentAus generation "
+        "session, the application search planner, local retrieval, Agentaus generation "
         "and grounded validation. Verification compares each answer with the retrieved "
         "document evidence and exact numeric/date anchors."
     )

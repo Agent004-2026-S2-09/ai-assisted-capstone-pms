@@ -1,7 +1,7 @@
 """Canonical evidence contract for grounded assistant responses.
 
 This module does not retrieve or generate content.  It is the boundary between
-the existing retrieval/structured-record paths and AgentAus.  Its purpose is
+the existing retrieval/structured-record paths and Agentaus.  Its purpose is
 to make scope, authority, conflicts and completeness explicit and consistent
 for both the General Capstone and selected-project experiences.
 """

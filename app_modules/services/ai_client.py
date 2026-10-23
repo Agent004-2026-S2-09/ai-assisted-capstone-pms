@@ -1,12 +1,12 @@
 ## File: app_modules/services/ai_client.py
 ## Date Created: Existing repository file
 ## Date Last Modified: 20-10-2026
-## Description: AgentAus AI service client and provider telemetry bridge.
+## Description: Agentaus AI service client and provider telemetry bridge.
 ## Inputs: Function arguments, application state, files, or service data as applicable
 ## Outputs: Return values, persisted state, or user-facing output as applicable
 ## Notes: Existing security, validation, and error-handling behaviour is preserved.
 
-"""AgentAus AI service client and provider telemetry bridge.
+"""Agentaus AI service client and provider telemetry bridge.
 
 This module owns provider communication, streaming, safe error messages, and
 usage extraction without depending on the Streamlit page layer.

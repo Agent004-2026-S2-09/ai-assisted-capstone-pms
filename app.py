@@ -6675,7 +6675,7 @@ def _structured_project_database_answer(question, project, query_plan=None):
         if entity == "meetings" and not attendance_query:
             # A count/date question is an aggregate request, not a request
             # for the latest meeting. Build the complete authorised set so
-            # the final AgentAus answer cannot silently substitute one
+            # the final Agentaus answer cannot silently substitute one
             # semantically similar meeting for the requested population.
             records = sorted(
                 [item for item in project.meetings if isinstance(item, dict)],
@@ -7384,7 +7384,7 @@ MEETINGS
 def clean_ai_response(text):
     """Normalise provider markup before an answer is shown or saved.
 
-    AgentAus occasionally returns HTML/XML-style formatting even though the
+    Agentaus occasionally returns HTML/XML-style formatting even though the
     assistant contract asks for plain Markdown. Preserve useful line breaks,
     then remove tags so markup cannot leak into chat history, telemetry, or
     document exports.
@@ -8159,7 +8159,7 @@ def _recover_grounded_abstention(question, answer, private_context):
 def _authoritative_response_context(question, results):
     """Return deterministic facts as evidence, never as the final answer.
 
-    Structured adapters may calculate exact facts, but AgentAus remains the
+    Structured adapters may calculate exact facts, but Agentaus remains the
     only component allowed to produce the student-facing response.
     """
     for builder in (
@@ -8511,7 +8511,7 @@ def _normalise_answer_comparison(value):
     """Normalize model punctuation/spacing before comparing authoritative text."""
     text = unicodedata.normalize("NFKC", str(value or "")).casefold()
     # Treat typographic dashes and non-breaking spaces like their plain-text
-    # equivalents. AgentAus may render the same title with a different dash.
+    # equivalents. Agentaus may render the same title with a different dash.
     text = re.sub(r"[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]", "-", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
@@ -8534,7 +8534,7 @@ def _authoritative_row_present(row, answer):
 def ensure_structured_meeting_answer_complete(question, answer, results):
     """Preserve every authoritative meeting row in complete-list answers.
 
-    AgentAus can produce a fluent but shortened list during drafting or
+    Agentaus can produce a fluent but shortened list during drafting or
     validation. Meeting records are structured project data, so a request for
     every/all meetings must not depend on the model retaining every row.
     Values are extracted from the supplied context at runtime; no project,
@@ -12480,7 +12480,7 @@ def chat_page():
         )
         # Database-first routing remains authoritative for exact project facts,
         # but the database adapter must not become a second answer generator.
-        # Pass the verified records through the same AgentAus drafting and
+        # Pass the verified records through the same Agentaus drafting and
         # validation pipeline used by project documents. This keeps counts,
         # names, dates and access boundaries deterministic while preserving a
         # consistent student-facing AI response.
@@ -12500,13 +12500,13 @@ def chat_page():
                 answer_status.update(label="Answer ready", state="complete")
             except Exception as error:
                 # Keep a controlled last-resort fallback for provider outages.
-                # Normal responses still pass through AgentAus; this branch is
+                # Normal responses still pass through Agentaus; this branch is
                 # explicitly labelled and audited so it cannot be mistaken for
                 # a successful AI-generated answer.
                 answer_status.update(label="AI unavailable; showing verified records fallback", state="error")
                 st.session_state.last_validation_status = "unavailable"
                 answer = (
-                    "AgentAus is temporarily unavailable, so I’m showing the verified "
+                    "Agentaus is temporarily unavailable, so I’m showing the verified "
                     "project records as a fallback. This is not an AI-generated answer.\n\n"
                     + structured_database_answer
                 )
@@ -12531,7 +12531,7 @@ def chat_page():
                 request_started,
                 usage_start,
                 success=not fallback_used,
-                error=(RuntimeError("AgentAus unavailable; verified structured fallback used") if fallback_used else None),
+                error=(RuntimeError("Agentaus unavailable; verified structured fallback used") if fallback_used else None),
             )
             st.session_state.messages.append(
                 {
@@ -12539,9 +12539,9 @@ def chat_page():
                     "content": answer,
                     "interaction_id": interaction_id,
                     "grounding_label": (
-                        "Verified project database fallback shown because AgentAus was unavailable."
+                        "Verified project database fallback shown because Agentaus was unavailable."
                         if st.session_state.get("last_validation_status") == "unavailable"
-                        else "Grounded in authorised project database records and explained by AgentAus."
+                        else "Grounded in authorised project database records and explained by Agentaus."
                     ),
                 }
             )
@@ -12549,7 +12549,7 @@ def chat_page():
 
     # Exact completion questions use the authorized schedule as a complete
     # structured retrieval source, but the response is still drafted and
-    # grounded by AgentAus like every other assistant response.
+    # grounded by Agentaus like every other assistant response.
     calendar_document_question = is_academic_calendar_question(question)
     structured_comparison_context = _structured_project_facts_comparison_context(
         question,

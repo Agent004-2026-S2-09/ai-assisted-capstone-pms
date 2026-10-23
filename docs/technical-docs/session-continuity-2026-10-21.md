@@ -4,7 +4,7 @@
 **Workspace:** `/home/cbah/projects/ai-assisted-capstone-pms`  
 **Purpose:** Preserve the current testing state before shutdown.
 
-> **Living-status note — 21 October 2026:** The current status is maintained in [`current-project-status.md`](current-project-status.md). The latest regression result is 240 passed and 1 skipped, with 20 focused role/frontend and outage tests passed. The local Streamlit health endpoint and application root returned HTTP 200. The current MVP runtime retains `hashing-v1`; BGE remains optional and was not enabled automatically. Recent AgentAus generation requests completed, but independent response validation was unavailable. Historical results below are preserved as historical records.
+> **Living-status note — 21 October 2026:** The current status is maintained in [`current-project-status.md`](current-project-status.md). The latest regression result is 240 passed and 1 skipped, with 20 focused role/frontend and outage tests passed. The local Streamlit health endpoint and application root returned HTTP 200. The current MVP runtime retains `hashing-v1`; BGE remains optional and was not enabled automatically. Recent Agentaus generation requests completed, but independent response validation was unavailable. Historical results below are preserved as historical records.
 
 ## Completed browser test
 
@@ -14,7 +14,7 @@ The real Chromium student-facing test completed all **610 questions**:
 - 6 project sections × 10 questions = 60 questions
 - 100 multi-document questions
 - All questions were submitted through the student UI.
-- 608 responses completed successfully through AgentAus.
+- 608 responses completed successfully through Agentaus.
 - 2 project cross-document questions failed before generation with `AccessDenied`.
 - No fallback responses were recorded in this run.
 
@@ -26,7 +26,7 @@ The temporary browser-test checkpoint was archived outside the repository after 
 
 ## Answer verification status
 
-The first AgentAus adjudication pass checked all 610 rows, but the provider became unavailable during the run. Its provisional results were:
+The first Agentaus adjudication pass checked all 610 rows, but the provider became unavailable during the run. Its provisional results were:
 
 - Correct: 47
 - Partially correct: 167
@@ -37,15 +37,15 @@ The 47 currently classified as correct were all general, single-document questio
 
 The adjudication report was a temporary JSON test artifact and is not retained in the repository.
 
-A retry was started for the timeout cases. It was stopped after the provider health check returned **HTTP 402 — Payment Required**. This indicates quota, credit or billing restriction; it does not establish that AgentAus is permanently offline.
+A retry was started for the timeout cases. It was stopped after the provider health check returned **HTTP 402 — Payment Required**. This indicates quota, credit or billing restriction; it does not establish that Agentaus is permanently offline.
 
 Retry checkpoint:
 
 The temporary adjudication retry checkpoint was archived outside the repository after the run completed.
 
-## Current AgentAus finding
+## Current Agentaus finding
 
-The AgentAus endpoint is reachable but currently rejects requests with HTTP 402. Do not continue bulk adjudication until AgentAus account quota/credit/billing is restored.
+The Agentaus endpoint is reachable but currently rejects requests with HTTP 402. Do not continue bulk adjudication until Agentaus account quota/credit/billing is restored.
 
 The application code was not changed as part of the adjudication or retry work.
 

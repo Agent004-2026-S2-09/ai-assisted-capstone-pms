@@ -35,7 +35,7 @@ The latest full-suite result is the authoritative current regression result. Old
 
 ## Provider and validation status
 
-The configured AgentAus endpoint is reachable through its health probe. Generation requests used by the recent student questions completed successfully, but the independent response-validation pass was unavailable for those interactions. This limits confidence scoring; it does not mean the retrieved evidence was absent. The application records this state as `validation_unavailable` and does not expose provider traceback or internal Python details to users.
+The configured Agentaus endpoint is reachable through its health probe. Generation requests used by the recent student questions completed successfully, but the independent response-validation pass was unavailable for those interactions. This limits confidence scoring; it does not mean the retrieved evidence was absent. The application records this state as `validation_unavailable` and does not expose provider traceback or internal Python details to users.
 
 When a real provider request fails, the AI service indicator is shown as offline/red and the user receives a safe explanatory message. Provider credentials remain outside the repository.
 

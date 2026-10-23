@@ -6,7 +6,7 @@ AI-assisted project management and knowledge retrieval for UC Canberra Capstone 
 **Application:** Streamlit
 **Sponsor:** Trellis Data — Agentaus AI
 
-Capstone Assistant gives authorised students, mentors, convenors and administrators one place to manage Capstone project information, ask evidence-based questions, and monitor project activity. It combines local document retrieval, AgentAus AI, SQLite persistence, role-based access control and project-management workflows.
+Capstone Assistant gives authorised students, mentors, convenors and administrators one place to manage Capstone project information, ask evidence-based questions, and monitor project activity. It combines local document retrieval, Agentaus AI, SQLite persistence, role-based access control and project-management workflows.
 
 ## Handover status
 
@@ -110,12 +110,12 @@ Docker remains the recommended setup when a reproducible local environment or pe
 
 ## AI models and retrieval architecture
 
-The system separates document retrieval from answer generation. This means the local application selects relevant evidence first, and the external AgentAus service then generates the user-facing response from that bounded evidence.
+The system separates document retrieval from answer generation. This means the local application selects relevant evidence first, and the external Agentaus service then generates the user-facing response from that bounded evidence.
 
 ### In plain English
 
 - **BGE** is the system's search assistant. It converts documents and questions into a form that helps the application find information with similar meaning, even when different words are used.
-- **AgentAus** is the system's writing assistant. It uses the question and the information found by BGE to write the final answer, summary or report.
+- **Agentaus** is the system's writing assistant. It uses the question and the information found by BGE to write the final answer, summary or report.
 - **Hashing** is a lightweight backup search method used when the BGE search model is unavailable or when the system is running in offline test mode.
 
 ### 1. Optional local neural embedding model: `BAAI/bge-small-en-v1.5`
@@ -141,17 +141,17 @@ The system separates document retrieval from answer generation. This means the l
 - Embedding persistence schema: [`app_modules/database.py`](app_modules/database.py), the `document_embeddings` and `embedding_runs` tables.
 - Neural embedding dependencies: [`requirements.txt`](requirements.txt), `torch` and `sentence-transformers`.
 
-### 2. External answer-generation model: AgentAus
+### 2. External answer-generation model: Agentaus
 
 **Function:** Receives the system instructions, the user's question, conversation context and retrieved evidence, then generates the final answer. It is responsible for natural-language responses, summaries, comparisons, tables and report-style output.
 
 **Runtime behaviour:**
 
-- The application communicates with AgentAus through an OpenAI-compatible chat-completions endpoint.
-- AgentAus is used for search planning, response generation, response validation and export formatting where those workflows require AI assistance.
+- The application communicates with Agentaus through an OpenAI-compatible chat-completions endpoint.
+- Agentaus is used for search planning, response generation, response validation and export formatting where those workflows require AI assistance.
 - Responses can be streamed to the user interface.
 - API latency, status, token usage and failures are recorded for administrator monitoring.
-- The exact underlying generation model is selected by the AgentAus service and is not hard-coded in this repository.
+- The exact underlying generation model is selected by the Agentaus service and is not hard-coded in this repository.
 - The application does not send the entire knowledge base to the provider. It sends bounded, retrieved evidence together with the relevant project context and conversation history.
 
 **Code locations:**
@@ -190,7 +190,7 @@ EMBEDDING_BACKEND=hashing
 The architecture has two model responsibilities:
 
 1. One local embedding backend. The current verified MVP runtime uses `hashing-v1`; BGE remains an optional, explicitly selected alternative.
-2. One external AgentAus answer-generation model, whose exact provider-side name is not exposed by this repository.
+2. One external Agentaus answer-generation model, whose exact provider-side name is not exposed by this repository.
 
 `hashing-v1` is an alternative embedding backend, not an additional concurrently running model. The system does not contain a second local language model or a separate reranking model.
 
@@ -215,7 +215,7 @@ Install:
 
 - Docker Desktop or Docker Engine with the Docker CLI.
 - Git.
-- An AgentAus-compatible API endpoint and API key.
+- An Agentaus-compatible API endpoint and API key.
 
 ### 1. Clone the repository
 
@@ -332,7 +332,7 @@ python -m compileall -q app.py app_modules tools
 python -m pip check
 ```
 
-Verification records and historical test artefacts are retained in `docs/test/` and `docs/test-docs/`.
+Verification records and historical test artefacts are retained in `docs/test/`.
 
 For the offline retrieval benchmark:
 
@@ -340,7 +340,7 @@ For the offline retrieval benchmark:
 python tools/qa_benchmark.py
 ```
 
-The merged test-question index is stored in `docs/test-docs/`. It contains questions and classification metadata only; do not add secrets, passwords, session tokens or private document contents to future test artefacts.
+The merged test-question index is stored in `docs/test/`. It contains questions and classification metadata only; do not add secrets, passwords, session tokens or private document contents to future test artefacts.
 
 ## Configuration
 
@@ -348,8 +348,8 @@ Required environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `AGENTAUS_API_KEY` | API credential for AgentAus requests. |
-| `API_ENDPOINT` | AgentAus-compatible chat-completions endpoint. |
+| `AGENTAUS_API_KEY` | API credential for Agentaus requests. |
+| `API_ENDPOINT` | Agentaus-compatible chat-completions endpoint. |
 
 Optional configuration includes document-page limits, OCR timeouts, project-profile limits, answer validation and context-budget settings. The application can use `BAAI/bge-small-en-v1.5` for neural embeddings. Set `EMBEDDING_BACKEND=hashing` for an offline, dependency-light fallback.
 
@@ -360,7 +360,7 @@ Optional configuration includes document-page limits, OCR timeouts, project-prof
 | `app.py` | Streamlit entry point and application facade |
 | `app_modules/database.py` | SQLite persistence and additive migrations |
 | `app_modules/auth.py` and `access_control.py` | Authentication, sessions and authorisation |
-| `app_modules/services/ai_client.py` | AgentAus requests and provider telemetry |
+| `app_modules/services/ai_client.py` | Agentaus requests and provider telemetry |
 | `app_modules/vector_store.py` | Local embeddings and hybrid retrieval |
 | `app_modules/monitoring.py` | AI, API and retrieval monitoring |
 | `app_modules/gantt.py`, `kanban.py`, `milestones.py` | Scheduling and task workflows |
@@ -371,7 +371,7 @@ Optional configuration includes document-page limits, OCR timeouts, project-prof
 | `knowledge_index/` | Generated general retrieval index |
 | `project_data/` | SQLite database and project records |
 | `project_knowledge/` | Project-specific uploads and indexes |
-| `docs/test-docs/` | Generated test reports, checkpoints and verification results |
+| `docs/test/` | Generated test reports, checkpoints and verification results |
 | `docs/technical-docs/` | Technical guides and operational documentation |
 | `docs/sprints/` | Sprint delivery records |
 
@@ -396,7 +396,7 @@ See the [Sprint delivery records](docs/sprints/) and [technical documentation](d
 **The browser cannot connect**
 Confirm the container is running and that port `8501` is available. Check the health endpoint and run `docker logs capstone-assistant` if the container was started with `--name capstone-assistant`.
 
-**AgentAus requests fail**
+**Agentaus requests fail**
 Check `AGENTAUS_API_KEY` and `API_ENDPOINT` in `.env`. Do not put credentials directly in source files.
 
 If an AI request fails, the application shows a safe user-facing message, records the failure for administrators and changes the AI service indicator to offline/red. A reachable health probe does not guarantee that every provider generation or validation request is available.

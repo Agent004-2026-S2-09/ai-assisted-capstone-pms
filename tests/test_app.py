@@ -1299,7 +1299,7 @@ def test_completion_context_still_uses_ai_generation_and_grounding(monkeypatch):
 
 
 def test_structured_project_evidence_still_uses_ai_generation(monkeypatch):
-    """Structured records are evidence for AgentAus, not a final answer."""
+    """Structured records are evidence for Agentaus, not a final answer."""
     calls = []
     project = app.create_project("Selected Project")
 
