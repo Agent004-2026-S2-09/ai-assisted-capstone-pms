@@ -1,53 +1,5 @@
 [
   {
-    "timestamp": "2026-10-20T15:06:29Z",
-    "role": "Student",
-    "project_id": "",
-    "question": "What risks, cautions or exceptions are identified by 'Student_Template_for_GenAI_Acknowledgement' concerning assessment genai speci instructions learning submission have used? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
-    "keywords": [
-      "risks",
-      "cautions",
-      "exceptions",
-      "identified",
-      "student",
-      "template",
-      "genai",
-      "acknowledgement"
-    ]
-  },
-  {
-    "timestamp": "2026-10-20T15:06:39Z",
-    "role": "Student",
-    "project_id": "",
-    "question": "What responsibilities or stakeholders are described in 'Student_Template_for_GenAI_Acknowledgement' concerning assessment genai speci instructions learning submission have used? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
-    "keywords": [
-      "responsibilities",
-      "stakeholders",
-      "described",
-      "student",
-      "template",
-      "genai",
-      "acknowledgement",
-      "concerning"
-    ]
-  },
-  {
-    "timestamp": "2026-10-20T15:06:54Z",
-    "role": "Student",
-    "project_id": "",
-    "question": "What evidence, deliverables or outcomes does 'Student_Template_for_GenAI_Acknowledgement' concerning assessment genai speci instructions learning submission have used? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
-    "keywords": [
-      "evidence",
-      "deliverables",
-      "outcomes",
-      "student",
-      "template",
-      "genai",
-      "acknowledgement",
-      "concerning"
-    ]
-  },
-  {
     "timestamp": "2026-10-20T15:07:06Z",
     "role": "Student",
     "project_id": "",
@@ -7348,6 +7300,43 @@
       "our",
       "sprint",
       "tasks"
+    ]
+  },
+  {
+    "timestamp": "2026-10-23T10:46:18Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "1. Who is responsible for each sprint from Sprint 1 to Sprint 7?",
+    "keywords": [
+      "responsible",
+      "each",
+      "sprint"
+    ]
+  },
+  {
+    "timestamp": "2026-10-23T10:47:30Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "2. Who is assigned to WBS 12.1, 12.2, 12.3, and 12.4",
+    "keywords": [
+      "assigned",
+      "wbs"
+    ]
+  },
+  {
+    "timestamp": "2026-10-23T10:47:52Z",
+    "role": "Student",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "3. Which Gantt tasks are assigned to both Ashly Shaji and Munkhuu Bold",
+    "keywords": [
+      "gantt",
+      "tasks",
+      "assigned",
+      "both",
+      "ashly",
+      "shaji",
+      "munkhuu",
+      "bold"
     ]
   }
 ]

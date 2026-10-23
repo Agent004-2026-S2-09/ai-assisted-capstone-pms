@@ -6566,6 +6566,65 @@ def _structured_project_database_answer(question, project, query_plan=None):
     if document_boundary and (planned_entity not in {"meeting", "milestone", "task", "team", "project"} or explicit_document_entity):
         return None
 
+    # Resource-owner questions must use the authoritative Gantt plan. The
+    # generic milestone/task branches below intentionally omit ownership
+    # details for ordinary status questions, so handle explicit ownership
+    # requests before those branches can consume them.
+    ownership_request = bool(
+        re.search(
+            r"\b(?:owner|owners|owned|assign(?:ed|ment)?|responsib(?:le|ility)|"
+            r"doing|performed|who\s+is\s+doing)\b",
+            lowered,
+        )
+    )
+    explicit_wbs_codes = re.findall(r"\bwbs\s*(\d+(?:\.\d+)*)\b", lowered)
+    if explicit_wbs_codes:
+        # After the first explicit "WBS" label, users commonly list the
+        # remaining codes without repeating the label, for example
+        # "WBS 12.1, 12.2, 12.3 and 12.4".
+        for code in re.findall(r"\b\d+\.\d+\b", lowered):
+            if code not in explicit_wbs_codes:
+                explicit_wbs_codes.append(code)
+    named_team_members = [
+        str(member.get("name", "")).strip()
+        for member in project.team
+        if str(member.get("name", "")).strip()
+        and str(member.get("name", "")).casefold() in lowered
+    ]
+    if ownership_request or explicit_wbs_codes or named_team_members:
+        plan = gantt.get_plan(st.session_state, project.id) if settings.is_enabled("feature_gantt") else {"tasks": []}
+        schedule = [item for item in plan.get("tasks", []) if isinstance(item, dict)]
+        sprint_records = [
+            item for item in schedule
+            if str(item.get("type", "")).casefold() == "milestone"
+            and re.search(r"\bsprint\s*\d+\b", str(item.get("name", "")), re.IGNORECASE)
+        ]
+        if re.search(r"\bsprints?\b", lowered) and sprint_records:
+            records = sprint_records
+        elif explicit_wbs_codes:
+            requested = set(explicit_wbs_codes)
+            records = [item for item in schedule if str(item.get("code", "")).strip() in requested]
+        elif len(named_team_members) >= 2 and re.search(r"\b(?:both|and)\b", lowered):
+            required = {name.casefold() for name in named_team_members}
+            records = [
+                item for item in schedule
+                if str(item.get("type", "")).casefold() == "task"
+                and required.issubset({value.strip().casefold() for value in str(item.get("resource", "")).split(",")})
+            ]
+        else:
+            records = [
+                item for item in schedule
+                if str(item.get("type", "")).casefold() == "task"
+            ]
+        lines = [f"The authorised Gantt records contain {len(records)} matching item(s):"]
+        lines.extend(
+            f"- {item.get('code', '')} — {item.get('name', '')} | "
+            f"Resource/owner: {item.get('resource') or 'Unassigned'} | "
+            f"Status: {item.get('status', '')} | Progress: {item.get('progress', 0)}%"
+            for item in records
+        )
+        return "\n".join(lines)
+
     # Resolve natural-language record selection before the general RAG path.
     # This is schema-driven: the application identifies a meeting entity,
     # operation and temporal selector, then reads the authorised record. It

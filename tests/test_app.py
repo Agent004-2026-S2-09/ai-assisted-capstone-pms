@@ -1075,6 +1075,47 @@ def test_all_task_questions_use_complete_structured_schedule_collection():
     assert "Completed scheduled task" in context
 
 
+def test_gantt_owner_questions_use_authoritative_resource_records():
+    """Owner questions include all listed WBS records and their resources."""
+    project = app.create_project("Structured Ownership Project")
+    gantt.add_task(app.st.session_state, project.id, {
+        "code": "12",
+        "name": "Final report and deliverables",
+        "type": "Summary",
+        "start": "2026-10-01",
+        "finish": "2026-10-02",
+        "progress": 0,
+        "resource": "",
+        "milestone": False,
+    })
+    for code, owner in (
+        ("12.1", "Prachi Sherkar, Ashly Shaji"),
+        ("12.2", "Chernor Bah"),
+        ("12.3", "Munkhuu Bold, Ashly Shaji, Prachi Sherkar, Chernor Bah"),
+        ("12.4", "Munkhuu Bold, Ashly Shaji, Prachi Sherkar, Chernor Bah"),
+    ):
+        gantt.add_task(app.st.session_state, project.id, {
+            "code": code,
+            "name": f"Ownership task {code}",
+            "type": "Task",
+            "start": "2026-10-01",
+            "finish": "2026-10-02",
+            "progress": 0,
+            "resource": owner,
+            "milestone": False,
+        })
+
+    answer = app._structured_project_database_answer(
+        "Who is assigned to WBS 12.1, 12.2, 12.3, and 12.4",
+        project,
+    )
+
+    assert "12.1" in answer and "Prachi Sherkar, Ashly Shaji" in answer
+    assert "12.2" in answer and "Chernor Bah" in answer
+    assert "12.3" in answer and "Munkhuu Bold" in answer
+    assert "12.4" in answer and "Resource/owner:" in answer
+
+
 def test_structured_task_answer_restores_omitted_authoritative_rows():
     """
     Function: test_structured_task_answer_restores_omitted_authoritative_rows
