@@ -1435,7 +1435,7 @@ def render_document_download(path, *, download_key):
     try:
         content, mime = authorised_document_download(path)
     except (OSError, ValueError, access.AccessDenied) as error:
-        st.error(f"The document could not be downloaded: {error}")
+        st.error(safe_user_error_message(error, "The document could not be downloaded."))
         return
     st.download_button(
         "Download",
@@ -1985,6 +1985,22 @@ def api_service_error_message(error):
             Existing validation, authorization, persistence, and error handling apply.
     """
     return ai_client.api_error_message(error)
+
+
+def safe_user_error_message(error, fallback="The requested operation could not be completed."):
+    """Return a user-safe error while retaining diagnostics in server logs."""
+    logging.getLogger("capstone_assistant").exception("Handled application error")
+    detail = str(error or "").strip()
+    unsafe_markers = (
+        "traceback", "/home/", "/mount/", "sqlite", "sql:", "errno",
+        "no such file", "https://", "http://", "requests.", "urllib3",
+        "connectionpool", "readtimeout", "permission denied",
+    )
+    if detail and isinstance(error, (ValueError, PermissionError, access.AccessDenied)):
+        lowered = detail.casefold()
+        if not any(marker in lowered for marker in unsafe_markers):
+            return detail[:300]
+    return fallback
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -3330,7 +3346,7 @@ def render_document_editor(path, *, editor_scope, allow_student_content=False):
         try:
             current_text = read_editable_document(path)
         except (OSError, ValueError) as error:
-            st.error(f"The document could not be opened: {error}")
+            st.error(safe_user_error_message(error, "The document could not be opened."))
             return
         edited_text = st.text_area(
             "Document content",
@@ -3346,7 +3362,7 @@ def render_document_editor(path, *, editor_scope, allow_student_content=False):
                 st.session_state.pop("open_document_editor", None)
                 st.rerun()
             except (OSError, ValueError, access.AccessDenied) as error:
-                st.error(f"The document could not be saved: {error}")
+                st.error(safe_user_error_message(error, "The document could not be saved."))
     else:
         try:
             preview = process_document(path)
@@ -3354,7 +3370,7 @@ def render_document_editor(path, *, editor_scope, allow_student_content=False):
             st.text_area("Document preview", value=preview_text, height=360, disabled=True, key=f"document_preview_{editor_scope}_{path.name}")
             st.info("This file type can be opened and searched here. Direct in-app editing is available for TXT, Markdown, CSV and DOCX files. PDF, PPTX and XLSX files remain preview-only to preserve their native formatting.")
         except (OSError, ValueError) as error:
-            st.error(f"The document could not be opened: {error}")
+            st.error(safe_user_error_message(error, "The document could not be opened."))
 
 
 def install_uploaded_files(validated_files):
@@ -5472,7 +5488,33 @@ AVAILABLE APPROVED DOCUMENTS
         st.session_state.get("messages", []) if history is None else history,
         max_history=MAX_CONVERSATION_MESSAGES,
     )
-    result = call_agentaus(messages)
+    try:
+        result = call_agentaus(messages)
+    except Exception as error:
+        # The provider planner is advisory.  The deterministic local planner
+        # has already classified the question and is safe to use when the
+        # provider is slow, unavailable, or returns an invalid response.  Do
+        # not allow a planner outage to escape into Streamlit's traceback UI.
+        fallback_question = str(
+            getattr(local_plan, "resolved_question", None) or question or ""
+        ).strip()
+        fallback_subqueries = list(
+            getattr(local_plan, "subqueries", None) or []
+        )
+        if not fallback_question:
+            fallback_question = str(question or "").strip()
+        _record_query_trace_stage(
+            "planner_fallback",
+            reason=type(error).__name__,
+            fallback="deterministic_local_plan",
+        )
+        st.session_state.last_validation_status = "provider_unavailable"
+        st.session_state.ai_planner_fallback = True
+        return {
+            "action": "search",
+            "queries": [fallback_question] if fallback_question else [],
+            "subqueries": fallback_subqueries,
+        }
     record_api_usage(result, "search_planner")
     plan = _parse_search_plan(extract_agentaus_text(result))
     # A vague contextual request is still in scope. Keep it in the retrieval
@@ -9630,7 +9672,7 @@ def render_password_change_page(*, forced=False):
             updated = (auth.complete_first_password_change(st.session_state, password, confirmation)
                        if forced else auth.change_own_password(st.session_state, current, password, confirmation))
         except ValueError as error:
-            st.error(str(error))
+            st.error(safe_user_error_message(error))
         else:
             st.session_state.user_name = updated["name"]
             st.success("Password updated successfully.")
@@ -9702,7 +9744,7 @@ def render_user_admin():
                 st.dataframe(pd.DataFrame(preview_rows).drop(columns=["source_row"]), hide_index=True, width="stretch")
                 st.caption(f"{len(imported_rows)} account(s) ready to import. All imported accounts must change their temporary password at first login.")
             except ValueError as error:
-                st.error(str(error))
+                st.error(safe_user_error_message(error))
         if st.button("Validate and import accounts", type="primary", key="import_user_accounts", disabled=imported_rows is None):
             try:
                 created = access.import_users(st.session_state, imported_rows)
@@ -9872,7 +9914,7 @@ def render_project_admin():
                 st.success(f"Project created: {project.name}")
                 st.rerun()
             except (OSError, ValueError) as error:
-                st.error(f"The project could not be created: {error}")
+                st.error(safe_user_error_message(error, "The project could not be created."))
 
     st.divider()
     st.markdown("### Existing Projects")
@@ -9962,7 +10004,7 @@ def render_project_admin():
                     st.success("Project deleted.")
                     st.rerun()
                 except (OSError, ValueError) as error:
-                    st.error(f"The project could not be deleted: {error}")
+                    st.error(safe_user_error_message(error, "The project could not be deleted."))
 
 
 # ============================================================
@@ -10027,7 +10069,7 @@ def _save_project_from_ui(project, allow_student_content=False):
     try:
         update_project(project, allow_student_content=allow_student_content)
     except ValueError as error:
-        st.error(str(error))
+        st.error(safe_user_error_message(error))
         st.stop()
 
 
@@ -10065,7 +10107,7 @@ def render_mentor_guidance(project_id, target_type, target_id, *, target_label=N
                     st.success("Mentor guidance saved. The authorised project team was notified.")
                     st.rerun()
                 except (ValueError, access.AccessDenied) as error:
-                    st.error(str(error))
+                    st.error(safe_user_error_message(error))
 
 
 def render_project_overview(project):
@@ -10301,7 +10343,7 @@ def render_project_milestones(project):
                         st.success("Milestone updated and linked schedule records synchronised.")
                         st.rerun()
                     except (ValueError, PermissionError) as error:
-                        st.error(str(error))
+                        st.error(safe_user_error_message(error))
                 if st.button(
                     "Delete milestone and linked schedule task",
                     key=f"delete_milestone_{project.id}_{milestone.get('id', index)}",
@@ -10650,7 +10692,7 @@ def render_project_knowledge(project):
                 st.success(f"{count} project document(s) added.")
                 st.rerun()
             except (OSError, ValueError) as error:
-                st.error(f"The documents could not be processed: {error}")
+                st.error(safe_user_error_message(error, "The documents could not be processed."))
 
     st.divider()
     st.subheader("Managed Project Information")
@@ -10693,7 +10735,7 @@ def render_project_knowledge(project):
                     st.success("Document deleted.")
                     st.rerun()
                 except (OSError, ValueError) as error:
-                    st.error(f"The document could not be deleted: {error}")
+                    st.error(safe_user_error_message(error, "The document could not be deleted."))
 
     st.divider()
     if st.button("Refresh Project Search", key=f"rebuild_project_index_{project.id}"):
@@ -11079,7 +11121,7 @@ def _render_gantt_editor(project_id, tasks):
         if changed:
             _refresh_project_task_views(project_id)
     except (ValueError, PermissionError, TypeError) as error:
-        st.error(f"The schedule change could not be saved: {error}")
+        st.error(safe_user_error_message(error, "The schedule change could not be saved."))
     return edited
 
 
@@ -11325,7 +11367,7 @@ def render_project_gantt(project):
                             st.success("Schedule item updated and synchronised across the Gantt, Milestones and Tasks views.")
                             _refresh_project_task_views(project.id)
                         except (ValueError, PermissionError) as error:
-                            st.error(str(error))
+                            st.error(safe_user_error_message(error))
                     if st.button("Delete selected item", key=f"gantt_delete_{project.id}_{task['id']}"):
                         gantt.delete_task(st.session_state, project.id, task["id"])
                         _refresh_project_task_views(project.id)
@@ -11490,7 +11532,7 @@ def render_project_kanban(project):
                 kanban.add_card(st.session_state, project.id, title, details, column["id"], milestone_id=milestone_choices[selected_milestone])
                 _refresh_project_task_views(project.id)
             except (ValueError, PermissionError) as error:
-                st.error(str(error))
+                                st.error(safe_user_error_message(error))
     if total:
         with st.expander("Manage a card"):
             card_map = {f"{card['title']} · {column['title']}": card for column in board["columns"] for card_id in column["cardIds"] if (card := board["cards"].get(card_id))}
@@ -12061,7 +12103,7 @@ def render_knowledge_admin():
                         st.success("Document removed.")
                         st.rerun()
                     except Exception as error:
-                        st.error(f"Unable to delete file: {error}")
+                        st.error(safe_user_error_message(error, "Unable to delete the file."))
 
     with knowledge_tabs[3]:
         st.write("Rebuild the information index after making changes.")
@@ -13120,7 +13162,7 @@ def render_ai_evaluation():
 
 
 # ============================================================
-def main():
+def _main_impl():
 
     """
     Function: main
@@ -13179,9 +13221,43 @@ def main():
     render_footer()
 
 
+def main():
+    """Run one Streamlit rerun behind a safe user-facing error boundary."""
+    try:
+        _main_impl()
+    except Exception:
+        logging.getLogger("capstone_assistant").exception(
+            "Unhandled application error during main()"
+        )
+        st.error(
+            "The application could not complete that action. "
+            "Your data was not lost. Please try again shortly, or contact "
+            f"{SUPPORT_EMAIL} if the problem continues."
+        )
+
+
 # ============================================================
 # RUN
 # ============================================================
 
+def _run_application_safely():
+    """Run the Streamlit application without exposing internal tracebacks."""
+    try:
+        main()
+    except Exception:
+        # Keep the full diagnostic in the server logs for operators while
+        # presenting only a safe recovery message in the browser.  This is a
+        # last-resort boundary; normal provider failures are handled closer to
+        # the affected operation and can provide more specific guidance.
+        logging.getLogger("capstone_assistant").exception(
+            "Unhandled application error during Streamlit rerun"
+        )
+        st.error(
+            "The application could not complete that action. "
+            "Your data was not lost. Please try again shortly, or contact "
+            f"{SUPPORT_EMAIL} if the problem continues."
+        )
+
+
 if __name__ == "__main__":
-    main()
+    _run_application_safely()

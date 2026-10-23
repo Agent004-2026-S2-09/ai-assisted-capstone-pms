@@ -111,6 +111,45 @@ def test_real_provider_failure_marks_runtime_status_offline(monkeypatch):
     assert "private connection details" not in state["ai_service_runtime_status"]["detail"]
 
 
+def test_search_planner_timeout_uses_deterministic_local_fallback(monkeypatch):
+    """A planner outage must not escape as a Streamlit traceback."""
+    monkeypatch.setattr(
+        app,
+        "call_agentaus",
+        lambda messages: (_ for _ in ()).throw(app.requests.exceptions.ReadTimeout()),
+    )
+    local_plan = SimpleNamespace(
+        resolved_question="list details of the syllabus",
+        subqueries=["syllabus details"],
+    )
+
+    plan = app.plan_information_search(
+        "list details of the syllabus",
+        [{"source": "syllabus.pdf", "text": "Syllabus content"}],
+        history=[],
+        local_plan=local_plan,
+    )
+
+    assert plan == {
+        "action": "search",
+        "queries": ["list details of the syllabus"],
+        "subqueries": ["syllabus details"],
+    }
+
+
+def test_application_boundary_hides_unexpected_exception(monkeypatch):
+    """Unexpected application failures must not be rendered as tracebacks."""
+    errors = []
+    monkeypatch.setattr(app, "main", lambda: (_ for _ in ()).throw(RuntimeError("private details")))
+    monkeypatch.setattr(app.st, "error", errors.append)
+
+    app._run_application_safely()
+
+    assert errors
+    assert "private details" not in errors[0]
+    assert "could not complete" in errors[0]
+
+
 def test_empty_evidence_fails_closed_before_calling_ai(monkeypatch):
     """
     Function: test_empty_evidence_fails_closed_before_calling_ai

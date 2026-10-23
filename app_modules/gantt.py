@@ -447,7 +447,7 @@ def import_workbook(state, project_id, content, *, replace=False):
         sheet = workbook.active
         rows = list(sheet.iter_rows(values_only=True))
     except Exception as error:
-        raise ValueError(f"The Excel schedule could not be read: {error}") from error
+        raise ValueError("The Excel schedule could not be read.") from error
     if not rows:
         raise ValueError("The Excel template is empty.")
     headers = [str(value or "").strip() for value in rows[0]]
@@ -527,7 +527,7 @@ def preview_workbook(content, limit=100):
         sheet = workbook.active
         rows = list(sheet.iter_rows(values_only=True))
     except Exception as error:
-        raise ValueError(f"The Excel schedule could not be previewed: {error}") from error
+        raise ValueError("The Excel schedule could not be previewed.") from error
     if not rows:
         raise ValueError("The Excel template is empty.")
     headers = [str(value or "").strip() for value in rows[0]]

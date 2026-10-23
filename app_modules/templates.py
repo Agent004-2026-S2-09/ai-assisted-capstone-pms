@@ -56,7 +56,7 @@ def parse_user_workbook(content, *, maximum_rows=500):
         sheet = workbook.active
         rows = list(sheet.iter_rows(values_only=True))
     except Exception as error:
-        raise ValueError(f"The user workbook could not be read: {error}") from error
+        raise ValueError("The user workbook could not be read.") from error
     if not rows:
         raise ValueError("The user workbook is empty.")
     headers = [str(value or "").strip().casefold() for value in rows[0]]
