@@ -40,8 +40,6 @@ def authenticated_test_database(tmp_path, monkeypatch, request):
     import app
     monkeypatch.setenv("CAPSTONE_DB_PATH", str(tmp_path / "test.sqlite3"))
     # Keep unit tests deterministic and offline. Production defaults to the
-    # neural backend when sentence-transformers is installed.
-    monkeypatch.setenv("EMBEDDING_BACKEND", "hashing")
     database.initialize(legacy_file=tmp_path / "no-legacy.json")
     state = TestSession(messages=[], suggested_project_keys=[], api_usage=[])
     if request.path.name != "test_sprint3_ui.py":

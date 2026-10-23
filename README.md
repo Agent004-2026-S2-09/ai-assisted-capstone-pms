@@ -37,7 +37,7 @@ Docker remains the recommended setup when a reproducible local environment or pe
 - Supports follow-up questions using the current conversation context.
 - Supports summaries, comparisons, report-style answers, table-style answers and broad information requests.
 - Uses hybrid retrieval combining lexical, fuzzy, semantic and local vector signals.
-- Supports `BAAI/bge-small-en-v1.5` neural embeddings when the optional neural dependencies are installed, with the retained deterministic `hashing-v1` backend for the current MVP/offline runtime.
+- Uses deterministic `hashing-v1` embeddings for local vector retrieval.
 - Builds bounded evidence context instead of sending the entire knowledge base with every request.
 - Streams responses to the interface and records provider, latency, usage and failure metadata for administration.
 - Performs grounded-response checks and provides safe fallback responses when information is missing, unsupported or unavailable.
@@ -112,34 +112,26 @@ Docker remains the recommended setup when a reproducible local environment or pe
 
 The system separates document retrieval from answer generation. This means the local application selects relevant evidence first, and the external Agentaus service then generates the user-facing response from that bounded evidence.
 
-### In plain English
+### 1. Local hashing embeddings
 
-- **BGE** is the system's search assistant. It converts documents and questions into a form that helps the application find information with similar meaning, even when different words are used.
-- **Agentaus** is the system's writing assistant. It uses the question and the information found by BGE to write the final answer, summary or report.
-- **Hashing** is a lightweight backup search method used when the BGE search model is unavailable or when the system is running in offline test mode.
-
-### 1. Optional local neural embedding model: `BAAI/bge-small-en-v1.5`
-
-**Function:** Converts document chunks and user questions into numerical vectors so semantically related content can be found even when the wording does not exactly match. These vectors support the local vector-similarity component of the hybrid retrieval pipeline.
+**Function:** Converts document chunks and user questions into deterministic numerical vectors for the local vector-similarity component of the hybrid retrieval pipeline.
 
 **Runtime behaviour:**
 
-- This is the optional neural embedding model when `sentence-transformers` is installed. It is not being enabled automatically for the current MVP baseline.
-- It is used for both indexed document embeddings and query embeddings; the application does not run separate document and query models.
-- Query embeddings use the model's query encoding method when available, with a search-instruction prefix for compatible versions.
+- `hashing-v1` is the only local embedding backend and is loaded directly without a model download.
+- It uses scikit-learn's `HashingVectorizer` with word and word-pair features.
+- The same deterministic representation is used for indexed documents and queries.
 - Embeddings are normalised and stored in the SQLite `document_embeddings` table.
-- The application records the model name and vector dimensions with each embedding run.
-- If the model name, vector dimensions or source content changes, stale vectors are automatically rebuilt.
+- The application records the embedding name and vector dimensions with each embedding run.
+- If the source content or embedding metadata changes, stale vectors are automatically rebuilt.
 
 **Code locations:**
 
-- Model default and backend selection: [`app_modules/vector_store.py`](app_modules/vector_store.py), `DEFAULT_NEURAL_MODEL`, `backend_name()` and `model_name()`.
-- Model loading and caching: [`app_modules/vector_store.py`](app_modules/vector_store.py), `_sentence_model()`.
-- Document and query encoding: [`app_modules/vector_store.py`](app_modules/vector_store.py), `embed_texts()`.
+- Backend and model identity: [`app_modules/vector_store.py`](app_modules/vector_store.py), `backend_name()` and `model_name()`.
+- Vector encoding: [`app_modules/vector_store.py`](app_modules/vector_store.py), `embed_texts()`.
 - Embedding creation and refresh: [`app_modules/vector_store.py`](app_modules/vector_store.py), `rebuild_embeddings()` and `ensure_embeddings()`.
 - Vector similarity scoring: [`app_modules/vector_store.py`](app_modules/vector_store.py), `score_documents()`.
 - Embedding persistence schema: [`app_modules/database.py`](app_modules/database.py), the `document_embeddings` and `embedding_runs` tables.
-- Neural embedding dependencies: [`requirements.txt`](requirements.txt), `torch` and `sentence-transformers`.
 
 ### 2. External answer-generation model: Agentaus
 
@@ -162,37 +154,14 @@ The system separates document retrieval from answer generation. This means the l
 - Evidence and context budgeting: [`app.py`](app.py), `build_bounded_model_context()` and the `MODEL_*_TOKENS` settings.
 - Provider telemetry: [`app_modules/monitoring.py`](app_modules/monitoring.py) and the AI performance page in [`app_modules/ui/pages/performance.py`](app_modules/ui/pages/performance.py).
 
-### 3. Offline embedding fallback: `hashing-v1`
-
-**Function:** Provides a deterministic, dependency-light vector representation when the neural embedding stack is unavailable or when offline operation is required.
-
-**Runtime behaviour:**
-
-- It is not a second model running alongside BGE.
-- It is selected automatically when `sentence-transformers` is unavailable, or explicitly with:
-
-```dotenv
-EMBEDDING_BACKEND=hashing
-```
-
-- It uses scikit-learn's `HashingVectorizer` with word and word-pair features.
-- Automated tests use this backend so tests remain repeatable and do not download a neural model.
-- The retrieval contract and SQLite storage remain the same when switching between BGE and `hashing-v1`; model metadata causes stale vectors to be rebuilt.
-
-**Code locations:**
-
-- Fallback selection: [`app_modules/vector_store.py`](app_modules/vector_store.py), `DEFAULT_HASHING_MODEL` and `backend_name()`.
-- Hashing vectoriser: [`app_modules/vector_store.py`](app_modules/vector_store.py), `_vectorizer()`.
-- Test configuration: [`tests/conftest.py`](tests/conftest.py), which sets `EMBEDDING_BACKEND=hashing`.
-
 ### Model count at runtime
 
 The architecture has two model responsibilities:
 
-1. One local embedding backend. The current verified MVP runtime uses `hashing-v1`; BGE remains an optional, explicitly selected alternative.
+1. One local embedding backend: deterministic `hashing-v1`.
 2. One external Agentaus answer-generation model, whose exact provider-side name is not exposed by this repository.
 
-`hashing-v1` is an alternative embedding backend, not an additional concurrently running model. The system does not contain a second local language model or a separate reranking model.
+The system does not contain a local language model or a separate reranking model.
 
 ## Roles and access
 
@@ -351,7 +320,7 @@ Required environment variables:
 | `AGENTAUS_API_KEY` | API credential for Agentaus requests. |
 | `API_ENDPOINT` | Agentaus-compatible chat-completions endpoint. |
 
-Optional configuration includes document-page limits, OCR timeouts, project-profile limits, answer validation and context-budget settings. The application can use `BAAI/bge-small-en-v1.5` for neural embeddings. Set `EMBEDDING_BACKEND=hashing` for an offline, dependency-light fallback.
+Optional configuration includes document-page limits, OCR timeouts, project-profile limits, answer validation and context-budget settings. Local embeddings are fixed to deterministic `hashing-v1` and require no model download.
 
 ## Repository structure
 
@@ -414,4 +383,4 @@ Use a supported, non-password-protected PDF, DOCX, XLSX, CSV, PPTX, TXT or MD fi
 
 This is a prototype and does not include LMS integration, enterprise orchestration or production hosting configuration. Local accounts, assignments and project records remain the current source of truth. AI output supports formal academic, mentor and stakeholder decisions; it does not replace them.
 
-The current MVP uses `hashing-v1` for deterministic local embeddings unless the neural backend is explicitly installed and selected. Independent AI response validation depends on the provider being available. A real Chromium browser run remains an environment-dependent check; browser-level verification should be repeated from a machine with a working Chromium installation before a production deployment.
+The current MVP uses `hashing-v1` for deterministic local embeddings. Independent AI response validation depends on the provider being available. A real Chromium browser run remains an environment-dependent check; browser-level verification should be repeated from a machine with a working Chromium installation before a production deployment.

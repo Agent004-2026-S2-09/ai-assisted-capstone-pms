@@ -6,23 +6,13 @@
 ## Outputs: Return values, persisted state, or user-facing output as applicable
 ## Notes: Existing security, validation, and error-handling behaviour is preserved.
 
-"""SQLite-backed semantic embeddings and vector similarity search.
-
-When ``sentence-transformers`` is installed, the default backend uses a
-compact neural retrieval model (BGE small).  A deterministic hashing backend
-remains available as a dependency-light fallback and can be selected with
-``EMBEDDING_BACKEND=hashing``.  The retrieval contract and SQLite storage are
-unchanged between backends; model and dimension metadata invalidate stale
-vectors automatically.
-"""
+"""SQLite-backed deterministic hashing embeddings and vector similarity search."""
 
 from __future__ import annotations
 
 import hashlib
-import os
 import struct
 import time
-from functools import lru_cache
 from datetime import datetime, timezone
 
 import numpy as np
@@ -32,27 +22,8 @@ from sklearn.preprocessing import normalize
 from app_modules import database
 
 
-DEFAULT_NEURAL_MODEL = "BAAI/bge-small-en-v1.5"
 DEFAULT_HASHING_MODEL = "hashing-v1"
 DEFAULT_DIMENSIONS = 384
-
-
-def _sentence_transformers_available() -> bool:
-    """
-    Function: _sentence_transformers_available
-    Purpose: Execute the  sentence transformers available operation.
-    Inputs:
-            None.
-    Returns:
-            A value of type bool.
-    Raises/side effects:
-            Existing validation, authorization, persistence, and error handling apply.
-    """
-    try:
-        import sentence_transformers  # noqa: F401
-    except ImportError:
-        return False
-    return True
 
 
 def backend_name() -> str:
@@ -66,16 +37,7 @@ def backend_name() -> str:
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    configured = os.getenv("EMBEDDING_BACKEND", "auto").strip().casefold()
-    if configured in {"hashing", "hashing-v1", "lexical"}:
-        return "hashing"
-    if configured in {"sentence-transformers", "sentence_transformers", "neural", "bge"}:
-        if not _sentence_transformers_available():
-            raise RuntimeError(
-                "EMBEDDING_BACKEND requests sentence-transformers, but the package is not installed."
-            )
-        return "sentence-transformers"
-    return "sentence-transformers" if _sentence_transformers_available() else "hashing"
+    return "hashing"
 
 
 def model_name() -> str:
@@ -89,26 +51,7 @@ def model_name() -> str:
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    if backend_name() == "hashing":
-        return DEFAULT_HASHING_MODEL
-    return os.getenv("EMBEDDING_MODEL_NAME", DEFAULT_NEURAL_MODEL).strip() or DEFAULT_NEURAL_MODEL
-
-
-@lru_cache(maxsize=1)
-def _sentence_model():
-    """
-    Function: _sentence_model
-    Purpose: Execute the  sentence model operation.
-    Inputs:
-            None.
-    Returns:
-            The function result, or None where no value is returned.
-    Raises/side effects:
-            Existing validation, authorization, persistence, and error handling apply.
-    """
-    from sentence_transformers import SentenceTransformer
-
-    return SentenceTransformer(model_name())
+    return DEFAULT_HASHING_MODEL
 
 
 def dimensions() -> int:
@@ -122,12 +65,7 @@ def dimensions() -> int:
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    if backend_name() == "sentence-transformers":
-        return int(_sentence_model().get_sentence_embedding_dimension())
-    try:
-        return max(64, min(4096, int(os.getenv("EMBEDDING_DIMENSIONS", DEFAULT_DIMENSIONS))))
-    except (TypeError, ValueError):
-        return DEFAULT_DIMENSIONS
+    return DEFAULT_DIMENSIONS
 
 
 def document_key(document: dict) -> str:
@@ -202,19 +140,7 @@ def embed_texts(texts, *, is_query=False) -> np.ndarray:
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    values = [str(text or "") for text in texts]
-    if backend_name() == "sentence-transformers":
-        model = _sentence_model()
-        if is_query and hasattr(model, "encode_query"):
-            vectors = model.encode_query(values, normalize_embeddings=True, show_progress_bar=False)
-        else:
-            if is_query:
-                values = [
-                    "Represent this sentence for searching relevant passages: " + value
-                    for value in values
-                ]
-            vectors = model.encode(values, normalize_embeddings=True, show_progress_bar=False)
-        return np.asarray(vectors, dtype=np.float32)
+    del is_query  # Hashing uses the same deterministic representation for documents and queries.
     matrix = _vectorizer().transform([str(text or "") for text in texts])
     return normalize(matrix, norm="l2", axis=1).toarray().astype(np.float32)
 

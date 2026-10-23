@@ -107,7 +107,9 @@ APP_VERSION = "Version 4"
 CURRENT_SPRINT = "Sprint 4"
 
 SUPPORT_EMAIL = getattr(settings, "DEFAULT_SUPPORT_EMAIL", "ITS-Capstone@canberra.edu.au")
-AUTH_COOKIE_NAME = "capstone_session"
+# Rotate the browser-session key so previously persisted login cookies cannot
+# restore an authenticated session after the browser-session-only change.
+AUTH_COOKIE_NAME = "capstone_session_v2"
 TRELLIS_LOGO_PATH = ASSET_DIR / "TrellisData_Logo.png"
 
 _AUTH_PERSISTENCE_COMPONENT = st.components.v2.component(
@@ -120,6 +122,8 @@ export default function (component) {
     const requestedToken = (data && data.token) || ""
     const shouldClear = Boolean(data && data.clear)
 
+    // Keep authentication for the current browser session only. Closing the
+    // browser must return the user to the sign-in screen.
     // CCv2 reruns this function after a state update. Only emit a state
     // change when the value is actually different; otherwise the component
     // can create an update loop and surface React error #185.
@@ -134,20 +138,20 @@ export default function (component) {
 
     try {
         if (shouldClear) {
-            window.localStorage.removeItem(storageKey)
+            window.sessionStorage.removeItem(storageKey)
             setTokenIfChanged("")
             return
         }
 
         if (requestedToken) {
-            const storedToken = window.localStorage.getItem(storageKey) || ""
+            const storedToken = window.sessionStorage.getItem(storageKey) || ""
             if (storedToken !== requestedToken) {
-                window.localStorage.setItem(storageKey, requestedToken)
+                window.sessionStorage.setItem(storageKey, requestedToken)
             }
             return
         }
 
-        const storedToken = window.localStorage.getItem(storageKey) || ""
+        const storedToken = window.sessionStorage.getItem(storageKey) || ""
         setTokenIfChanged(storedToken)
     } catch (error) {
         // Private browsing or a browser policy may disable storage. The
@@ -883,12 +887,14 @@ def _browser_session_cookie():
         return ""
 
 
-def _write_browser_session_cookie(token, max_age=auth.SESSION_SECONDS):
-    """Persist the opaque, server-revocable login token for browser refreshes."""
+def _write_browser_session_cookie(token):
+    """Keep the opaque, server-revocable login token for this browser session."""
     if not token:
         cookie = f"{AUTH_COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax"
     else:
-        cookie = f"{AUTH_COOKIE_NAME}={token}; Max-Age={int(max_age)}; Path=/; SameSite=Lax"
+        # No Max-Age/Expires means this is a session cookie and is removed
+        # when the browser closes.
+        cookie = f"{AUTH_COOKIE_NAME}={token}; Path=/; SameSite=Lax"
     # Streamlit has no server-side Set-Cookie API. The value is an opaque
     # database token and is never a password or user profile value.
     script = f"<script>document.cookie = {json.dumps(cookie)} + (window.location.protocol === 'https:' ? '; Secure' : '');</script>"
@@ -930,7 +936,7 @@ def _restore_browser_session(persisted_token=""):
     if token and auth.restore_session(st.session_state, token):
         return auth.current_user(st.session_state)
     if token:
-        _write_browser_session_cookie("", max_age=0)
+        _write_browser_session_cookie("")
     return None
 
 
@@ -9249,6 +9255,13 @@ def login_page():
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
+    # A browser refresh can preserve Streamlit session state from a previous
+    # visit to the reset form. Initialise each unauthenticated session on the
+    # normal sign-in screen; the explicit "Forgot password?" action can still
+    # switch to the reset form for the remainder of that session.
+    if not st.session_state.get("login_page_initialized"):
+        st.session_state.account_page = "Sign in"
+        st.session_state.login_page_initialized = True
     st.markdown('<span class="login-page-marker"></span>', unsafe_allow_html=True)
     _, auth_column, _ = st.columns([0.8, 2, 0.8])
     with auth_column:
@@ -9393,7 +9406,7 @@ def render_sidebar():
             else:
                 st.caption("You have no unread notifications.")
         if st.button("Log out", width="stretch"):
-            _write_browser_session_cookie("", max_age=0)
+            _write_browser_session_cookie("")
             auth.logout(st.session_state)
             st.session_state.clear_browser_session = True
             st.rerun()
@@ -10906,7 +10919,25 @@ def _render_gantt_editor(project_id, tasks):
         }
         for task in tasks
     ]
-    editor_key = f"gantt_editor_{project_id}_{st.session_state.get(f'task_board_revision_{project_id}', 0)}"
+    # Include the persisted task content in the widget key. This remounts the
+    # editor when another session or an administrative data update changes
+    # owners/resources, instead of reusing an old data_editor snapshot.
+    task_signature = hashlib.sha1(
+        json.dumps(
+            [
+                {
+                    "id": task.get("id"),
+                    "code": task.get("code"),
+                    "resource": task.get("resource", ""),
+                    "name": task.get("name", ""),
+                }
+                for task in tasks
+            ],
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()[:12]
+    editor_key = f"gantt_editor_{project_id}_{st.session_state.get(f'task_board_revision_{project_id}', 0)}_{task_signature}"
     edited = st.data_editor(
         pd.DataFrame(rows),
         key=editor_key,

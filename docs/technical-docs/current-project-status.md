@@ -28,7 +28,7 @@ The latest full-suite result is the authoritative current regression result. Old
 ## AI and retrieval runtime
 
 - The current verified MVP embedding backend is `hashing-v1` with 384 dimensions.
-- The system retains the optional BGE neural backend, but it has not been enabled automatically and must not be changed without an explicit decision and index rebuild.
+- The system uses only the deterministic `hashing-v1` embedding backend; no alternate embedding backend is installed or supported.
 - General and project retrieval continue to use the hybrid evidence architecture: structured records for exact facts, lexical/vector retrieval for documents, permission filtering and AI generation as the final conversational layer.
 - The latest monitored questions were routed through the shared query-plan and retrieval pipeline with evidence sufficiency recorded.
 - Query traces record intent, scope, entity, route, retrieval, provider stages, validation state and security-boundary checks for administrator review.

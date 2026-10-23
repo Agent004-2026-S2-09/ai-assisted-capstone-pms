@@ -47,7 +47,7 @@ The current RAG pipeline:
 - extracts documents into plain text;
 - preserves structured table blocks and project catalogue records;
 - splits prose using character-based chunks with overlap;
-- embeds indexed chunks using either sentence-transformers or the hashing fallback;
+- embeds indexed chunks using the deterministic hashing backend;
 - stores original chunk text, metadata, content hashes and embedding bytes in SQLite;
 - performs local lexical retrieval with token normalisation/stemming;
 - performs vector similarity retrieval;

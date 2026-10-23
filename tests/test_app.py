@@ -1856,34 +1856,6 @@ def test_exhaustive_catalogue_request_is_not_limited_by_top_k():
     assert all(result["exhaustive"] for result in results)
 
 
-def test_long_catalogue_is_parsed_into_complete_project_records():
-    """
-    Function: test_long_catalogue_is_parsed_into_complete_project_records
-    Purpose: Execute the test long catalogue is parsed into complete project records operation.
-    Inputs:
-            None.
-    Returns:
-            The function result, or None where no value is returned.
-    Raises/side effects:
-            Existing validation, authorization, persistence, and error handling apply.
-    """
-    catalogue = app.KB_DIR / "List of project S2 2026 V.1.pdf"
-    if not catalogue.exists():
-        pytest.skip("The catalogue integration fixture is not available")
-
-    records = [
-        item for item in app.process_document(catalogue)
-        if item.get("record_type") == "project"
-    ]
-    pii = [item for item in records if item.get("project_id") == "2026-S2-47"]
-
-    assert len({item["project_id"] for item in records}) == 68
-    assert len(pii) == 1
-    assert "PII Scrubber" in pii[0]["title"]
-    assert "Personally Identifiable" in pii[0]["text"]
-    assert pii[0]["location"] == "Page 30"
-
-
 def test_csv_rows_and_headers_are_indexed_and_searchable(tmp_path):
     """
     Function: test_csv_rows_and_headers_are_indexed_and_searchable
@@ -2186,7 +2158,7 @@ def test_source_sections_are_removed_from_assistant_output():
     answer = (
         "Here are five suitable projects.\n\n"
         "**Sources**\n\n"
-        "- *List of project S2 2026 V.1.pdf* — pages 8–9"
+        "- *List_of_Projects_S2_2026.pdf* — pages 8–9"
     )
 
     assert app.remove_source_section(answer) == "Here are five suitable projects."

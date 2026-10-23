@@ -4,7 +4,7 @@
 **Workspace:** `/home/cbah/projects/ai-assisted-capstone-pms`  
 **Purpose:** Preserve the current testing state before shutdown.
 
-> **Living-status note — 21 October 2026:** The current status is maintained in [`current-project-status.md`](current-project-status.md). The latest regression result is 240 passed and 1 skipped, with 20 focused role/frontend and outage tests passed. The local Streamlit health endpoint and application root returned HTTP 200. The current MVP runtime retains `hashing-v1`; BGE remains optional and was not enabled automatically. Recent Agentaus generation requests completed, but independent response validation was unavailable. Historical results below are preserved as historical records.
+> **Living-status note — 21 October 2026:** The current status is maintained in [`current-project-status.md`](current-project-status.md). The latest regression result is 240 passed and 1 skipped, with 20 focused role/frontend and outage tests passed. The local Streamlit health endpoint and application root returned HTTP 200. The current MVP runtime uses only deterministic `hashing-v1` embeddings. Recent Agentaus generation requests completed, but independent response validation was unavailable. Historical results below are preserved as historical records.
 
 ## Completed browser test
 

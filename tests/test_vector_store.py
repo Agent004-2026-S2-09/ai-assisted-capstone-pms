@@ -82,10 +82,10 @@ def test_embedding_rebuild_deduplicates_identical_records():
     assert vector_store.rebuild_embeddings([document, dict(document)]) == 1
 
 
-def test_hashing_backend_remains_explicit_and_deterministic(monkeypatch):
+def test_hashing_backend_is_fixed_and_deterministic():
     """
-    Function: test_hashing_backend_remains_explicit_and_deterministic
-    Purpose: Execute the test hashing backend remains explicit and deterministic operation.
+    Function: test_hashing_backend_is_fixed_and_deterministic
+    Purpose: Execute the test hashing backend is fixed and deterministic operation.
     Inputs:
             monkeypatch (value): Caller-provided input.
     Returns:
@@ -93,7 +93,6 @@ def test_hashing_backend_remains_explicit_and_deterministic(monkeypatch):
     Raises/side effects:
             Existing validation, authorization, persistence, and error handling apply.
     """
-    monkeypatch.setenv("EMBEDDING_BACKEND", "hashing")
     first = vector_store.embed_texts(["milestone risk management"])
     second = vector_store.embed_texts(["milestone risk management"])
 
@@ -101,74 +100,6 @@ def test_hashing_backend_remains_explicit_and_deterministic(monkeypatch):
     assert vector_store.model_name() == "hashing-v1"
     assert first.shape == (1, vector_store.dimensions())
     assert (first == second).all()
-
-
-def test_neural_backend_uses_query_encoding_when_available(monkeypatch):
-    """
-    Function: test_neural_backend_uses_query_encoding_when_available
-    Purpose: Execute the test neural backend uses query encoding when available operation.
-    Inputs:
-            monkeypatch (value): Caller-provided input.
-    Returns:
-            The function result, or None where no value is returned.
-    Raises/side effects:
-            Existing validation, authorization, persistence, and error handling apply.
-    """
-    class FakeModel:
-        """
-        Class: FakeModel
-        Purpose: Represent the FakeModel abstraction.
-        Responsibilities:
-                Preserve the existing class interface and behaviour.
-        """
-        def get_sentence_embedding_dimension(self):
-            """
-            Function: get_sentence_embedding_dimension
-            Purpose: Execute the get sentence embedding dimension operation.
-            Inputs:
-                    None.
-            Returns:
-                    The function result, or None where no value is returned.
-            Raises/side effects:
-                    Existing validation, authorization, persistence, and error handling apply.
-            """
-            return 3
-
-        def encode(self, values, **kwargs):
-            """
-            Function: encode
-            Purpose: Execute the encode operation.
-            Inputs:
-                    values (value): Caller-provided input.
-            Returns:
-                    The function result, or None where no value is returned.
-            Raises/side effects:
-                    Existing validation, authorization, persistence, and error handling apply.
-            """
-            return [[1.0, 0.0, 0.0] for _ in values]
-
-        def encode_query(self, values, **kwargs):
-            """
-            Function: encode_query
-            Purpose: Execute the encode query operation.
-            Inputs:
-                    values (value): Caller-provided input.
-            Returns:
-                    The function result, or None where no value is returned.
-            Raises/side effects:
-                    Existing validation, authorization, persistence, and error handling apply.
-            """
-            return [[0.0, 1.0, 0.0] for _ in values]
-
-    monkeypatch.setenv("EMBEDDING_BACKEND", "sentence-transformers")
-    monkeypatch.setattr(vector_store, "_sentence_transformers_available", lambda: True)
-    monkeypatch.setattr(vector_store, "_sentence_model", lambda: FakeModel())
-
-    document = vector_store.embed_texts(["document"])
-    query = vector_store.embed_texts(["question"], is_query=True)
-
-    assert document.tolist() == [[1.0, 0.0, 0.0]]
-    assert query.tolist() == [[0.0, 1.0, 0.0]]
 
 
 def test_api_and_retrieval_metrics_are_admin_only():

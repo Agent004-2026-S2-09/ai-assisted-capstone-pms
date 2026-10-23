@@ -1,21 +1,5 @@
 [
   {
-    "timestamp": "2026-10-20T15:06:11Z",
-    "role": "Student",
-    "project_id": "",
-    "question": "What practical actions should a Capstone student take from 'Student_Template_for_GenAI_Acknowledgement' concerning assessment genai speci instructions learning submission have used? Use only authorised evidence, preserve exact facts, and state when the source does not specify something.",
-    "keywords": [
-      "practical",
-      "actions",
-      "capstone",
-      "student",
-      "take",
-      "template",
-      "genai",
-      "acknowledgement"
-    ]
-  },
-  {
     "timestamp": "2026-10-20T15:06:29Z",
     "role": "Student",
     "project_id": "",
@@ -7352,6 +7336,18 @@
       "week",
       "was",
       "break"
+    ]
+  },
+  {
+    "timestamp": "2026-10-23T09:59:58Z",
+    "role": "Administrator",
+    "project_id": "ai-assisted-capstone-project-assistant",
+    "question": "who did our sprint 2 tasks",
+    "keywords": [
+      "did",
+      "our",
+      "sprint",
+      "tasks"
     ]
   }
 ]

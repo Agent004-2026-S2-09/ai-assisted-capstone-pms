@@ -38,6 +38,7 @@ def test_login_navigation_project_visibility_and_logout(role, monkeypatch):
     assert not at.exception
     assert len(at.text_input) == 2
     assert not at.radio
+    assert not at.subheader or all(item.value != "Reset password" for item in at.subheader)
     at.text_input[0].input("ui@example.org")
     at.text_input[1].input("invalid")
     at.button[0].click().run()

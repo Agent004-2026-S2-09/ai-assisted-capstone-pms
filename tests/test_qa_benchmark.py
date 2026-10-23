@@ -31,7 +31,7 @@ def _documents():
         {"text": "Technology support is available through the student help desk.", "source": "Technology Support Guideline.pdf", "location": "Page 1", "record_type": "document_chunk"},
         {"text": "The reflection rubric explains assessment criteria.", "source": "Reflection Rubric.pdf", "location": "Page 1", "record_type": "document_chunk"},
         {"text": "Tips include project funding and budget planning.", "source": "Tips and Tricks for Capstone Projects.pdf", "location": "Page 1", "record_type": "document_chunk"},
-        {"text": "Project ID: 2026-S2-01\nProject title: Digital archive", "source": "List of project S2 2026 V.1.pdf", "location": "Page 1", "record_type": "project", "project_id": "2026-S2-01", "title": "Digital archive"},
+        {"text": "Project ID: 2026-S2-01\nProject title: Digital archive", "source": "List_of_Projects_S2_2026.pdf", "location": "Page 1", "record_type": "project", "project_id": "2026-S2-01", "title": "Digital archive"},
     ]
 
 
