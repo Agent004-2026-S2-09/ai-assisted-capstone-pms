@@ -850,7 +850,9 @@ def academic_calendar_context(now=None):
     calendar = _teaching_calendar_from_documents()
     if not calendar:
         return "No uploaded academic-calendar document is currently indexed."
-    current = now or datetime.now()
+    current = now or datetime.now(
+        ZoneInfo(get_config("ACADEMIC_TIMEZONE", "Australia/Sydney"))
+    )
     current_week = next(
         (number for number, start, end in calendar["weeks"] if start <= current.date() <= end),
         None,
@@ -7688,6 +7690,15 @@ def _build_answer_request(
         question,
         return_metadata=True,
     )
+    if is_academic_calendar_question(question):
+        # The uploaded calendar describes teaching weeks; it is not a clock.
+        # Supply the current Canberra/Sydney local date explicitly so the
+        # provider cannot mistake the last date in the document for today.
+        private_context = (
+            academic_calendar_context()
+            + "\n\n"
+            + private_context
+        )
     has_authoritative_structured_context = any(
         item.get("record_type") == "structured_project_context"
         for item in results or []
@@ -7725,10 +7736,11 @@ structured project record disagree, state the disagreement and prefer the
 structured record for current status, ownership, dates, counts and workflow
 state.
 
-Exception: for a current-date or teaching-week question, the authorised
-uploaded academic-calendar/teaching-weeks document is the source of truth even
-when a project workspace is selected. Do not replace it with a calculation or
-with the selected project's schedule.
+Exception: for a current-date or teaching-week question, use the explicit
+runtime current local date and the authorised uploaded academic-calendar/
+teaching-weeks document even when a project workspace is selected. Do not use
+the last date in the document as today's date or replace the calendar with the
+selected project's schedule.
 
 For questions about the selected project's work, distinguish facts recorded in
 the project workspace from recommendations. Do not turn a proposed task,
@@ -7815,9 +7827,13 @@ their UC Canberra Capstone experience.
 STRICT FACTUAL BOUNDARY
 ============================================================
 
-For current-date or teaching-week questions, use the authorised uploaded
-academic-calendar/teaching-weeks document supplied in the evidence. Do not
-calculate or infer a week from conversation history or fixed application dates.
+For a question asking for today's/current date, use the explicit CURRENT LOCAL
+DATE supplied in the internal information; it is authoritative and uses the
+configured Australia/Sydney (Canberra) timezone. For teaching-week questions,
+use the authorised uploaded academic-calendar/teaching-weeks document together
+with that current local date. Do not use the last date appearing in the
+document as today's date, and do not calculate or infer a week from conversation
+history or fixed application dates.
 
 You must ONLY provide factual information that is supported
 by the INTERNAL INFORMATION supplied below.

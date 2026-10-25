@@ -530,6 +530,26 @@ def test_academic_calendar_context_is_timezone_aware_and_deterministic():
     assert "Teaching week 11" in context
 
 
+def test_calendar_questions_include_runtime_date_in_model_context(monkeypatch):
+    """Calendar answers must receive runtime Canberra date facts, not only document dates."""
+    monkeypatch.setattr(
+        app,
+        "academic_calendar_context",
+        lambda: "RUNTIME DATE: Monday, 26 October 2026 (Australia/Sydney)",
+    )
+
+    messages, _, _, _ = app._build_answer_request(
+        "What is today's date?",
+        [{"scope": "general", "text": "Week 11: 19 October - 25 October 2026"}],
+        return_profile=True,
+    )
+
+    assert any(
+        "RUNTIME DATE: Monday, 26 October 2026 (Australia/Sydney)" in message["content"]
+        for message in messages
+    )
+
+
 def test_academic_calendar_counts_class_free_period_as_numbered_week():
     """The semester break remains Week 9 and does not shift later weeks."""
     assert app.teaching_week_for_date(date(2026, 10, 5)) == 9
