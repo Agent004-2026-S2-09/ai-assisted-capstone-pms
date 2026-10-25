@@ -7,7 +7,8 @@
 ## Notes: Existing security, validation, and error-handling behaviour is preserved.
 
 from types import SimpleNamespace
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 import io
 import json
 import random
@@ -547,6 +548,33 @@ def test_calendar_questions_include_runtime_date_in_model_context(monkeypatch):
     assert any(
         "RUNTIME DATE: Monday, 26 October 2026 (Australia/Sydney)" in message["content"]
         for message in messages
+    )
+
+
+def test_current_date_question_returns_one_deterministic_canberra_answer(monkeypatch):
+    """Current date must not be sent to the provider for conflicting interpretation."""
+    monkeypatch.setattr(
+        app,
+        "_teaching_calendar_from_documents",
+        lambda: {
+            "source": "calendar",
+            "semester_start": date(2026, 8, 10),
+            "semester_end": date(2026, 11, 6),
+            "class_free_start": date(2026, 10, 5),
+            "class_free_end": date(2026, 10, 11),
+            "weeks": [(12, date(2026, 10, 26), date(2026, 11, 1))],
+        },
+    )
+
+    answer = app.deterministic_calendar_response(
+        "What is today's date?",
+        datetime(2026, 10, 26, 9, 0, tzinfo=ZoneInfo("Australia/Sydney")),
+    )
+
+    assert answer == (
+        "Today's date is Monday, 26 October 2026 "
+        "(Canberra time, Australia/Sydney). It is Teaching week 12 "
+        "(26 October–1 November 2026)."
     )
 
 

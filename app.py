@@ -881,6 +881,50 @@ def is_academic_calendar_question(question):
     ))
 
 
+def deterministic_calendar_response(question, now=None):
+    """Answer current-date and current-teaching-week questions without AI."""
+    if not is_academic_calendar_question(question):
+        return None
+    calendar = _teaching_calendar_from_documents()
+    if not calendar:
+        return None
+    current = now or datetime.now(
+        ZoneInfo(get_config("ACADEMIC_TIMEZONE", "Australia/Sydney"))
+    )
+    current_week = next(
+        (
+            (number, start, end)
+            for number, start, end in calendar["weeks"]
+            if start <= current.date() <= end
+        ),
+        None,
+    )
+    question_text = str(question or "").casefold()
+    if re.search(r"\b(?:today|current date|what date|date is it)\b", question_text):
+        answer = (
+            f"Today's date is {current:%A, %-d %B %Y} "
+            f"(Canberra time, {get_config('ACADEMIC_TIMEZONE', 'Australia/Sydney')})."
+        )
+        if current_week:
+            number, start, end = current_week
+            answer += (
+                f" It is Teaching week {number} "
+                f"({start:%-d %B}–{end:%-d %B %Y})."
+            )
+        return answer
+    if current_week:
+        number, start, end = current_week
+        return (
+            f"It is Teaching week {number}, from {start:%-d %B} "
+            f"to {end:%-d %B %Y}. Today's date is {current:%A, %-d %B %Y} "
+            "(Canberra time)."
+        )
+    return (
+        f"Today's date is {current:%A, %-d %B %Y} (Canberra time), "
+        "which is outside the teaching-week ranges in the current calendar."
+    )
+
+
 def _browser_session_cookie():
     """Read the browser cookie exposed by Streamlit's current session context."""
     try:
@@ -8979,6 +9023,11 @@ def _without_source_section(chunks):
 
 def generate_response_stream(question, results, status=None, project=None):
     """Yield the final response, streaming the grounded validation pass."""
+
+    deterministic_calendar_answer = deterministic_calendar_response(question)
+    if deterministic_calendar_answer:
+        yield deterministic_calendar_answer
+        return
 
     results, bundle = _prepare_evidence_contract(question, results, project=project)
     conflicts = list(bundle.conflicts)
